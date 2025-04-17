@@ -1,1 +1,68 @@
+# Dependencies
 node_modules
+/.pnp
+.pnp.js
+yarn.lock
+package-lock.json
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Next.js build outputs
+/.next/
+/out/
+next-env.d.ts
+
+# Production
+/build
+/dist
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local files
+.DS_Store
+*.pem
+Thumbs.db
+desktop.ini
+
+# Testing
+/coverage
+.nyc_output
+/cypress/screenshots
+/cypress/videos
+
+# IDE specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+*.launch
+.settings/
+*.swp
+*.swo
+
+# Deployment artifacts
+.vercel
+.serverless/
+.netlify/
+
+# Temporary files
+*.log
+*.tmp
+*.temp
+.cache/
+.temp/
+tmp/
+
+# Mercado Pago specific
+# Add any MP specific files that should be ignored
