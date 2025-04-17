@@ -1,0 +1,25 @@
+{
+  "name": "mp-payment-component",
+  "version": "1.0.0",
+  "description": "Componente de pago con MercadoPago",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start"
+  },
+  "keywords": ["mercadopago", "payment", "react", "component"],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@mercadopago/sdk-react": "^0.0.15",
+    "next": "^14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.55.0",
+    "eslint-config-next": "^14.0.4"
+  }
+}
