@@ -1,98 +1,87 @@
-import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-// Asumiendo que tienes una función para obtener productos de tu DB/API real
-// import { getProductFromDatabase } from '@/lib/database';
+import { NextResponse } from 'next/server';
+
+// Función simulada para obtener producto (REEMPLAZAR CON TU BASE DE DATOS)
+async function getProductById(productId) {
+  // ... (lógica para buscar producto en tu DB)
+  // Ejemplo:
+  if (productId === 'default-product-id' || productId === 'product1') {
+    return { id: productId, name: 'Producto Ejemplo', price: 150.00 };
+  }
+  return null;
+}
 
 export async function POST(req) {
-  try {
-    const {
-      token,
-      issuer_id, // Corregido de issuerId
-      payment_method_id, // Corregido de paymentMethodId
-      transaction_amount, // Usar este directamente si viene del brick
-      installments,
-      payer, // Objeto con email, identification, etc.
-      productId,
-      quantity,
-      description // Opcional, puede venir del brick o generarse aquí
-    } = await req.json();
+  const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
+  const payment = new Payment(client);
 
-    // --- Validación Crucial Server-Side ---
-    if (!productId || !quantity || quantity <= 0) {
-      return NextResponse.json({ error: 'Datos de producto inválidos' }, { status: 400 });
+  try {
+    const body = await req.json();
+    console.log('Received body in backend:', body); // Log para ver qué llega
+
+    // --- CORRECCIÓN AQUÍ ---
+    // Extraer datos del objeto formData anidado
+    const { formData, productId, quantity } = body;
+    const { token, issuer_id, payment_method_id, installments, payer } = formData || {}; // Usar formData
+    // -----------------------
+
+    // Validar datos esenciales (añadir más validaciones si es necesario)
+    if (!token || !payment_method_id || !installments || !payer?.email || !productId || !quantity) {
+      console.error('Validation Error: Missing required payment data in formData or body');
+      return NextResponse.json({ error: 'Faltan datos requeridos para el pago' }, { status: 400 });
     }
 
-    // TODO: Reemplazar esto con la lógica real del backend del cliente
-    // Obtener el producto real desde la base de datos o API del cliente
-    // const product = await getProductFromDatabase(productId);
-    // Simulación para el ejemplo:
-    const product = { id: 'product1', name: 'Producto Premium', price: 100.00 }; // ¡REEMPLAZAR!
-
+    // --- Validación de Precio (CRÍTICO) ---
+    const product = await getProductById(productId);
     if (!product) {
       return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
-
     const expectedAmount = product.price * quantity;
-    const tolerance = 0.01; // Pequeña tolerancia para errores de punto flotante
-
-    // Validar el monto recibido contra el esperado del backend
-    if (Math.abs(Number(transaction_amount) - expectedAmount) > tolerance) {
-      console.error(`Price manipulation detected: expected ${expectedAmount}, got ${transaction_amount}`);
-      return NextResponse.json({
-        error: 'Error de validación de precio'
-      }, { status: 400 });
+    // Compara el monto esperado con el que viene del frontend (transaction_amount está en formData)
+    if (formData.transaction_amount !== expectedAmount) {
+       console.error(`Price Mismatch: Expected ${expectedAmount}, Received ${formData.transaction_amount}`);
+       return NextResponse.json({ error: 'El monto de la transacción no coincide con el precio del producto' }, { status: 400 });
     }
-    // --- Fin Validación Server-Side ---
+    // --- Fin Validación de Precio ---
 
-    if (process.env.NODE_ENV === 'development') {
-        console.log(`Processing payment of ${expectedAmount} for product ${productId}`);
-    }
-
-    const client = new MercadoPagoConfig({
-      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN
+    console.log('Processing payment with data:', {
+        token,
+        issuer_id,
+        payment_method_id,
+        transaction_amount: expectedAmount, // Usa el monto validado del servidor
+        installments,
+        payer: { email: payer.email },
+        // ... otros datos si son necesarios
     });
-    const payment = new Payment(client);
 
-    const mpPaymentData = {
-      transaction_amount: Number(expectedAmount), // Usar el monto validado del backend
-      token,
-      description: description || `Compra de ${product.name}`, // Usar descripción del producto real
-      installments: Number(installments || 1),
-      payment_method_id,
-      issuer_id,
-      payer: { // Asegurarse que el objeto payer tenga la estructura correcta
-        email: payer?.email || 'test@test.com', // Usar email real si está disponible
-        identification: payer?.identification || undefined // Pasar solo si existe
+    const paymentData = {
+      token: token,
+      issuer_id: issuer_id,
+      payment_method_id: payment_method_id, // Usar la variable extraída
+      transaction_amount: expectedAmount, // ¡IMPORTANTE! Usa el monto calculado/validado en el servidor
+      installments: installments,
+      payer: {
+        email: payer.email,
+        // Podrías necesitar más datos del payer aquí dependiendo de tu configuración
       },
-      metadata: { // Metadata útil para conciliación
-        product_id: productId,
-        quantity
-      }
+      // metadata: { /* Datos adicionales si los necesitas */ },
+      // notification_url: "TU_URL_DE_NOTIFICACIONES_IPN", // Recomendado para producción
     };
 
-    if (process.env.NODE_ENV === 'development') {
-        console.log('Sending payment data to MercadoPago:', JSON.stringify(mpPaymentData, null, 2));
-    }
-    const response = await payment.create({ body: mpPaymentData });
+    const paymentResult = await payment.create({ body: paymentData });
 
-    if (process.env.NODE_ENV === 'development') {
-        console.log('MercadoPago response:', JSON.stringify(response, null, 2));
-    }
+    console.log('Mercado Pago API Response:', paymentResult);
 
     return NextResponse.json({
-      status: response.status,
-      status_detail: response.status_detail,
-      id: response.id
-    });
+      status: paymentResult.status,
+      status_detail: paymentResult.status_detail,
+      id: paymentResult.id
+    }, { status: 200 });
 
   } catch (error) {
-    console.error('Error processing payment:', error);
-    const errorMessage = process.env.NODE_ENV === 'development'
-      ? `Error: ${error.message} ${error.cause ? JSON.stringify(error.cause) : ''}` // Mostrar más detalle si existe 'cause'
-      : 'Hubo un problema al procesar tu pago';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: error.status || 500 } // Usar status del error de MP si está disponible
-    );
+    console.error('Error processing payment:', error?.cause || error?.message || error);
+    const errorMessage = error?.cause?.[0]?.description || error?.message || 'Error interno del servidor';
+    const errorStatus = error?.status || 500;
+    return NextResponse.json({ error: `Error: ${errorMessage}` }, { status: errorStatus });
   }
 }

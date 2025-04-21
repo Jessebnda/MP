@@ -104,6 +104,10 @@ export default function MercadoPagoProvider({
   const handleSubmit = async (formData) => {
     if (isSubmitting || !productData) return;
 
+    // --- LOG PARA DEBUG EN VERCEL ---
+    console.log('FormData received from Payment Brick:', JSON.stringify(formData, null, 2)); 
+    // ---------------------------------
+
     setIsSubmitting(true);
     setStatusMsg('Procesando pago...');
     setDisplayError(null);
@@ -113,7 +117,7 @@ export default function MercadoPagoProvider({
     try {
       const paymentEndpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/process-payment`;
       const backendPayload = {
-        ...formData,
+        ...formData, // Asegúrate que formData realmente tenga payment_method_id aquí
         productId: sanitizedProductId,
         quantity: sanitizedQuantity,
       };
