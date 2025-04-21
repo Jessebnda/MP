@@ -2,67 +2,62 @@
 
 import { useState, useEffect } from 'react';
 import '../styles/payment-component.css';
+import MercadoPagoProvider from './MercadoPagoProvider'; // Importación por defecto correcta
 
 export default function PaymentFlow({
-  apiBaseUrl = '',
+  apiBaseUrl,
   productsEndpoint = '/api/products',
-  mercadoPagoPublicKey = '',
-  successUrl = '',
-  pendingUrl = '',
-  failureUrl = '',
-  onSuccess = () => {},
-  onError = () => {},
+  mercadoPagoPublicKey,
+  PaymentProviderComponent = MercadoPagoProvider, // Usa el componente importado como valor por defecto
+  successUrl,
+  pendingUrl,
+  failureUrl,
+  onSuccess,
+  onError,
   containerStyles = {},
   hideTitle = false,
-  PaymentProvider
 }) {
-  // Estados para productos y selección
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  // Estado para controlar el paso actual
-  const [currentStep, setCurrentStep] = useState(1); // 1: selección, 2: confirmación, 3: pago
+
+  const [currentStep, setCurrentStep] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
 
-  // Cargar productos al montar el componente
   useEffect(() => {
-    async function fetchProducts() {
+    const fetchProducts = async () => {
+      if (!apiBaseUrl) { 
+        console.error("PaymentFlow requires an apiBaseUrl prop.");
+        setError('Error de configuración: Falta la URL base de la API.');
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
-        setError(null);
-        
-        const response = await fetch(`${apiBaseUrl}${productsEndpoint}`);
-        
+        const fullProductsUrl = `${apiBaseUrl.replace(/\/$/, '')}${productsEndpoint}`;
+        const response = await fetch(fullProductsUrl);
         if (!response.ok) {
-          throw new Error(`Error ${response.status}: No se pudieron cargar los productos`);
+          throw new Error('Error al cargar productos');
         }
-        
         const data = await response.json();
         setProducts(data);
-        
-        // Seleccionar automáticamente el primer producto
         if (data.length > 0) {
           setSelectedProductId(data[0].id);
           setSelectedProduct(data[0]);
         }
-        
-      } catch (err) {
-        console.error('Error cargando productos:', err);
-        setError(err.message);
-        if (onError) onError(err);
+      } catch (e) {
+        setError(e.message);
+        if (onError) onError(e);
       } finally {
         setLoading(false);
       }
-    }
-    
+    };
     fetchProducts();
   }, [apiBaseUrl, productsEndpoint, onError]);
 
-  // Manejadores de eventos
   const handleProductChange = (e) => {
     const newProductId = e.target.value;
     setSelectedProductId(newProductId);
@@ -115,7 +110,24 @@ export default function PaymentFlow({
     if (onSuccess) onSuccess(data);
   };
 
-  // Renderizado condicional según estado
+  const renderPaymentProvider = () => {
+    if (!selectedProduct || !mercadoPagoPublicKey) return null;
+
+    return (
+      <PaymentProviderComponent
+        productId={selectedProduct.id}
+        quantity={quantity}
+        publicKey={mercadoPagoPublicKey}
+        apiBaseUrl={apiBaseUrl}
+        successUrl={successUrl}
+        pendingUrl={pendingUrl}
+        failureUrl={failureUrl}
+        onSuccess={handlePaymentSuccess}
+        onError={onError}
+      />
+    );
+  };
+
   if (loading) {
     return (
       <div className="mp-container" style={containerStyles}>
@@ -155,7 +167,6 @@ export default function PaymentFlow({
     );
   }
 
-  // Paso 1: Selección de producto
   if (currentStep === 1) {
     return (
       <div className="mp-container" style={containerStyles}>
@@ -190,18 +201,6 @@ export default function PaymentFlow({
               className="mp-number-input"
             />
           </div>
-          
-          {selectedProduct && (
-            <div className="mp-product-details">
-              <h3>{selectedProduct.name}</h3>
-              <p className="mp-product-description">{selectedProduct.description}</p>
-              
-              <div className="mp-product-price">
-                <span className="mp-price-label">Precio total:</span>
-                <span className="mp-price-value">${(selectedProduct.price * quantity).toFixed(2)}</span>
-              </div>
-            </div>
-          )}
           
           <div className="mp-button-container">
             <button className="mp-button mp-primary" onClick={handleContinueToConfirmation}>
@@ -280,23 +279,7 @@ export default function PaymentFlow({
           </div>
           
           <div className="mp-payment-wrapper">
-            {PaymentProvider ? (
-              <PaymentProvider
-                productId={confirmedOrder.productId}
-                quantity={confirmedOrder.quantity}
-                publicKey={mercadoPagoPublicKey}
-                apiBaseUrl={apiBaseUrl}
-                successUrl={successUrl}
-                pendingUrl={pendingUrl}
-                failureUrl={failureUrl}
-                onSuccess={handlePaymentSuccess}
-                onError={onError}
-              />
-            ) : (
-              <div className="mp-error-message">
-                Proveedor de pagos no configurado
-              </div>
-            )}
+            {renderPaymentProvider()}
           </div>
           
           <div className="mp-payment-actions">
