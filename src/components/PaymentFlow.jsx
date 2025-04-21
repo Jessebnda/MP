@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import '../styles/payment-component.css';
-import MercadoPagoProvider from './MercadoPagoProvider'; // Importación por defecto correcta
+import styles from '../styles/PaymentFlow.module.css'; 
+import MercadoPagoProvider from './MercadoPagoProvider';
+import { cn } from '../lib/utils';
 
 export default function PaymentFlow({
   apiBaseUrl,
   productsEndpoint = '/api/products',
   mercadoPagoPublicKey,
-  PaymentProviderComponent = MercadoPagoProvider, // Usa el componente importado como valor por defecto
+  PaymentProviderComponent = MercadoPagoProvider,
   successUrl,
   pendingUrl,
   failureUrl,
@@ -16,7 +17,25 @@ export default function PaymentFlow({
   onError,
   containerStyles = {},
   hideTitle = false,
+  className = '',
 }) {
+  if (!apiBaseUrl) {
+    console.error("PaymentFlow Error: 'apiBaseUrl' prop is required.");
+    return <div className={styles['mp-error-container']}>Error de configuración: Falta apiBaseUrl.</div>;
+  }
+  if (!mercadoPagoPublicKey) {
+    console.error("PaymentFlow Error: 'mercadoPagoPublicKey' prop is required.");
+    return <div className={styles['mp-error-container']}>Error de configuración: Falta mercadoPagoPublicKey.</div>;
+  }
+  if (!successUrl || !pendingUrl || !failureUrl) {
+    console.error("PaymentFlow Error: 'successUrl', 'pendingUrl', and 'failureUrl' props are required.");
+    return <div className={styles['mp-error-container']}>Error de configuración: Faltan URLs de redirección.</div>;
+  }
+  if (!PaymentProviderComponent) {
+    console.error("PaymentFlow Error: 'PaymentProviderComponent' prop is required.");
+    return <div className={styles['mp-error-container']}>Error de configuración: Falta PaymentProviderComponent.</div>;
+  }
+
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -29,12 +48,6 @@ export default function PaymentFlow({
 
   useEffect(() => {
     const fetchProducts = async () => {
-      if (!apiBaseUrl) { 
-        console.error("PaymentFlow requires an apiBaseUrl prop.");
-        setError('Error de configuración: Falta la URL base de la API.');
-        setLoading(false);
-        return;
-      }
       try {
         setLoading(true);
         const fullProductsUrl = `${apiBaseUrl.replace(/\/$/, '')}${productsEndpoint}`;
@@ -130,9 +143,9 @@ export default function PaymentFlow({
 
   if (loading) {
     return (
-      <div className="mp-container" style={containerStyles}>
-        <div className="mp-loading-spinner">
-          <div className="mp-spinner"></div>
+      <div className={cn(styles['mp-container'], className)} style={containerStyles}>
+        <div className={styles['mp-loading-spinner']}>
+          <div className={styles['mp-spinner']}></div>
           <p>Cargando productos...</p>
         </div>
       </div>
@@ -141,13 +154,13 @@ export default function PaymentFlow({
 
   if (error) {
     return (
-      <div className="mp-container" style={containerStyles}>
-        <div className="mp-error-container">
+      <div className={cn(styles['mp-container'], className)} style={containerStyles}>
+        <div className={styles['mp-error-container']}>
           <h2>Error</h2>
           <p>{error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
-            className="mp-button"
+            className={styles['mp-button']}
           >
             Reintentar
           </button>
@@ -158,8 +171,8 @@ export default function PaymentFlow({
 
   if (products.length === 0) {
     return (
-      <div className="mp-container" style={containerStyles}>
-        <div className="mp-empty-state">
+      <div className={cn(styles['mp-container'], className)} style={containerStyles}>
+        <div className={styles['mp-empty-state']}>
           <h2>No hay productos disponibles</h2>
           <p>Vuelve a intentarlo más tarde o contacta con el administrador.</p>
         </div>
@@ -169,17 +182,17 @@ export default function PaymentFlow({
 
   if (currentStep === 1) {
     return (
-      <div className="mp-container" style={containerStyles}>
-        {!hideTitle && <h2 className="mp-page-title">Selecciona tu Producto</h2>}
+      <div className={cn(styles['mp-container'], className)} style={containerStyles}>
+        {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona tu Producto</h2>}
         
-        <div className="mp-product-selection-container">
-          <div className="mp-form-group">
+        <div className={styles['mp-product-selection-container']}>
+          <div className={styles['mp-form-group']}>
             <label htmlFor="mp-product-select">Producto:</label>
             <select 
               id="mp-product-select"
               value={selectedProductId || ''}
               onChange={handleProductChange}
-              className="mp-select-input"
+              className={styles['mp-select-input']}
             >
               {products.map(product => (
                 <option key={product.id} value={product.id}>
@@ -188,8 +201,8 @@ export default function PaymentFlow({
               ))}
             </select>
           </div>
-          
-          <div className="mp-form-group">
+
+          <div className={styles['mp-form-group']}>
             <label htmlFor="mp-quantity-input">Cantidad:</label>
             <input
               id="mp-quantity-input"
@@ -198,12 +211,23 @@ export default function PaymentFlow({
               max="100"
               value={quantity}
               onChange={handleQuantityChange}
-              className="mp-number-input"
+              className={styles['mp-number-input']}
             />
           </div>
           
-          <div className="mp-button-container">
-            <button className="mp-button mp-primary" onClick={handleContinueToConfirmation}>
+          {selectedProduct && (
+            <div className={styles['mp-product-details']}>
+              <h3>{selectedProduct.name}</h3>
+              <p className={styles['mp-product-description']}>{selectedProduct.description}</p>
+              <div className={styles['mp-product-price']}>
+                <span>Precio Total:</span>
+                <span className={styles['mp-price-value']}>${(selectedProduct.price * quantity).toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          <div className={styles['mp-button-container']}>
+            <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleContinueToConfirmation}>
               Continuar al Pago
             </button>
           </div>
@@ -212,48 +236,47 @@ export default function PaymentFlow({
     );
   }
   
-  // Paso 2: Confirmación de pedido
   if (currentStep === 2) {
     return (
-      <div className="mp-container" style={containerStyles}>
-        {!hideTitle && <h2 className="mp-page-title">Confirmar Pedido</h2>}
+      <div className={cn(styles['mp-container'], className)} style={containerStyles}>
+        {!hideTitle && <h2 className={styles['mp-page-title']}>Confirmar Pedido</h2>}
         
-        <div className="mp-confirmation-container">
-          <div className="mp-order-summary">
+        <div className={styles['mp-confirmation-container']}>
+          <div className={styles['mp-order-summary']}>
             <h3>Resumen del Pedido</h3>
-            <div className="mp-summary-item">
+            <div className={styles['mp-summary-item']}>
               <span>Producto:</span>
               <span>{selectedProduct.name}</span>
             </div>
-            <div className="mp-summary-item">
+            <div className={styles['mp-summary-item']}>
               <span>Descripción:</span>
               <span>{selectedProduct.description}</span>
             </div>
-            <div className="mp-summary-item">
+            <div className={styles['mp-summary-item']}>
               <span>Precio unitario:</span>
               <span>${selectedProduct.price.toFixed(2)}</span>
             </div>
-            <div className="mp-summary-item">
+            <div className={styles['mp-summary-item']}>
               <span>Cantidad:</span>
               <span>{quantity}</span>
             </div>
-            <div className="mp-summary-item mp-total">
+            <div className={cn(styles['mp-summary-item'], styles['mp-total'])}>
               <span>Total a pagar:</span>
               <span>${(selectedProduct.price * quantity).toFixed(2)}</span>
             </div>
           </div>
-          
-          <div className="mp-confirmation-actions">
-            <p className="mp-confirmation-note">
+
+          <div className={styles['mp-confirmation-actions']}>
+            <p className={styles['mp-confirmation-note']}>
               Al confirmar esta orden, procederás al proceso de pago.
               Los datos mostrados quedarán bloqueados.
             </p>
             
-            <div className="mp-button-container">
-              <button className="mp-button mp-secondary" onClick={handleBack}>
+            <div className={styles['mp-button-container']}>
+              <button className={cn(styles['mp-button'], styles['mp-secondary'])} onClick={handleBack}>
                 Volver
               </button>
-              <button className="mp-button mp-primary" onClick={handleConfirmOrder}>
+              <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleConfirmOrder}>
                 Confirmar y Proceder al Pago
               </button>
             </div>
@@ -263,27 +286,26 @@ export default function PaymentFlow({
     );
   }
   
-  // Paso 3: Proceso de pago
   if (currentStep === 3 && confirmedOrder) {
     return (
-      <div className="mp-container" style={containerStyles}>
-        {!hideTitle && <h2 className="mp-page-title">Proceso de Pago</h2>}
+      <div className={cn(styles['mp-container'], className)} style={containerStyles}>
+        {!hideTitle && <h2 className={styles['mp-page-title']}>Proceso de Pago</h2>}
         
-        <div className="mp-payment-container">
-          <div className="mp-order-preview">
+        <div className={styles['mp-payment-container']}>
+          <div className={styles['mp-order-preview']}>
             <h3>Resumen del Pedido (Confirmado)</h3>
-            <div className="mp-summary-item">
+            <div className={styles['mp-summary-item']}>
               <span>Total a pagar:</span>
-              <span className="mp-locked-value">${confirmedOrder.totalPrice.toFixed(2)}</span>
+              <span className={styles['mp-locked-value']}>${confirmedOrder.totalPrice.toFixed(2)}</span>
             </div>
           </div>
           
-          <div className="mp-payment-wrapper">
+          <div className={styles['mp-payment-wrapper']}>
             {renderPaymentProvider()}
           </div>
           
-          <div className="mp-payment-actions">
-            <button className="mp-button mp-secondary" onClick={handleCancel}>
+          <div className={styles['mp-payment-actions']}>
+            <button className={cn(styles['mp-button'], styles['mp-secondary'])} onClick={handleCancel}>
               Cancelar Pedido
             </button>
           </div>
@@ -291,4 +313,6 @@ export default function PaymentFlow({
       </div>
     );
   }
+
+  return null;
 }

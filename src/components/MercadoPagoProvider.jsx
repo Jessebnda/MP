@@ -2,16 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
-import { products } from '../data/products'; // Import local products as fallback
+import styles from '../styles/MercadoPagoProvider.module.css';
+import { cn } from '../lib/utils'; // Import the utility
 
-// Función para sanitizar datos de entrada
+// Función para sanitizar datos de entrada (sin cambios)
 function sanitizeInput(value, type) {
   switch(type) {
     case 'productId':
-      // Solo permitir letras, números y guiones
       return typeof value === 'string' ? value.replace(/[^a-zA-Z0-9-]/g, '') : 'default-product-id';
     case 'quantity':
-      // Convertir a entero y validar rango
       const qty = parseInt(value);
       return !isNaN(qty) && qty > 0 && qty <= 100 ? qty : 1;
     default:
@@ -23,303 +22,217 @@ export default function MercadoPagoProvider({
   productId,
   quantity = 1,
   publicKey,
-  apiBaseUrl,
+  apiBaseUrl, // Required, validated in PaymentFlow
   successUrl,
   pendingUrl,
   failureUrl,
   onSuccess = () => {},
-  onError = () => {}
+  onError = () => {},
+  className = '',
+  containerStyles = {},
+  hideTitle = false,
 }) {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [displayError, setDisplayError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
   const [attemptCount, setAttemptCount] = useState(0);
+  const [statusMsg, setStatusMsg] = useState('');
   const [productData, setProductData] = useState(null);
+  const [isFetchingProduct, setIsFetchingProduct] = useState(false);
 
-  // Sanear inputs del componente
   const sanitizedProductId = sanitizeInput(productId, 'productId');
   const sanitizedQuantity = sanitizeInput(quantity, 'quantity');
 
-  // Inicializar SDK de MercadoPago
   useEffect(() => {
     if (publicKey) {
       initMercadoPago(publicKey);
     } else {
+      const configError = 'Error de configuración: Falta la clave pública.';
       console.error('MercadoPagoProvider requires a publicKey prop.');
-      setError('Error de configuración: Falta la clave pública.');
+      setDisplayError(configError);
       setLoading(false);
     }
   }, [publicKey]);
 
-  // Obtener datos del producto - con fallback a productos locales
-  useEffect(() => {
-    async function fetchProduct() {
-      if (!sanitizedProductId) {
-        setError('Falta el ID del producto');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // IMPROVED: First check if we have the product locally (as fallback)
-        let productInfo = null;
-        
-        // If the product ID matches a local product ID, use that
-        if (products && products[sanitizedProductId]) {
-          console.log('Using local product data');
-          productInfo = products[sanitizedProductId];
-          setProductData(productInfo);
-          setLoading(false);
-          return;
-        }
-        
-        // Try fetching from endpoint if apiBaseUrl is provided
-        if (apiBaseUrl) {
-          // First try with products endpoint (list endpoint)
-          const productsUrl = `${apiBaseUrl.replace(/\/$/, '')}/api/products`;
-          console.log('Fetching products from:', productsUrl);
-          
-          const response = await fetch(productsUrl);
-          
-          if (response.ok) {
-            const allProducts = await response.json();
-            // Find the product in the list
-            productInfo = Array.isArray(allProducts) ? 
-              allProducts.find(p => p.id === sanitizedProductId) : null;
-            
-            if (productInfo) {
-              console.log('Product found in list:', productInfo);
-              setProductData(productInfo);
-              setLoading(false);
-              return;
-            }
-          }
-          
-          // If not found, try with specific product endpoint
-          if (!productInfo) {
-            const productUrl = `${apiBaseUrl.replace(/\/$/, '')}/api/products/${sanitizedProductId}`;
-            console.log('Fetching specific product from:', productUrl);
-            
-            const productResponse = await fetch(productUrl);
-            if (productResponse.ok) {
-              productInfo = await productResponse.json();
-              console.log('Product fetched successfully:', productInfo);
-              setProductData(productInfo);
-              setLoading(false);
-              return;
-            }
-          }
-        }
-        
-        // Fallback to hardcoded product if not found anywhere
-        if (!productInfo) {
-          console.log('Using hardcoded product data as fallback');
-          // Default hardcoded fallback for testing
-          productInfo = {
-            id: sanitizedProductId,
-            name: 'Producto (Fallback)',
-            description: 'Este es un producto de respaldo cuando no se puede cargar el original',
-            price: 100.00
-          };
-          setProductData(productInfo);
-        }
-        
-      } catch (err) {
-        console.error('Error obteniendo producto:', err);
-        setError(`Error: ${err.message}`);
-        setAttemptCount(prev => prev + 1);
-        if (onError) onError(err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchProduct = useCallback(async () => {
+    if (!sanitizedProductId) {
+      setDisplayError('Falta el ID del producto');
+      setLoading(false);
+      return;
     }
-    
-    fetchProduct();
-  }, [apiBaseUrl, sanitizedProductId, sanitizedQuantity, onError]);
 
-  // Manejar el envío del formulario de pago
+    if (!apiBaseUrl) {
+      setDisplayError('Falta la URL base de la API para obtener el producto');
+      setLoading(false);
+      return;
+    }
+
+    setIsFetchingProduct(true);
+    setDisplayError(null);
+    setLoading(true);
+
+    try {
+      const productUrl = `${apiBaseUrl.replace(/\/$/, '')}/api/products/${sanitizedProductId}`;
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Fetching specific product from:', productUrl);
+      }
+      const response = await fetch(productUrl);
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: No se pudo obtener el producto`);
+      }
+      const productInfo = await response.json();
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Product fetched successfully:', productInfo);
+      }
+      setProductData(productInfo);
+      setAttemptCount(0);
+    } catch (err) {
+      console.error('Error obteniendo producto:', err);
+      setDisplayError(`Error al cargar datos del producto: ${err.message}`);
+      setAttemptCount(prev => prev + 1);
+      if (onError) onError(err);
+    } finally {
+      setLoading(false);
+      setIsFetchingProduct(false);
+    }
+  }, [apiBaseUrl, sanitizedProductId, onError]);
+
+  useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
+
   const handleSubmit = async (formData) => {
-    if (isSubmitting) return;
-    
+    if (isSubmitting || !productData) return;
+
     setIsSubmitting(true);
     setStatusMsg('Procesando pago...');
-    setErrorMsg('');
-    
+    setDisplayError(null);
+
     let redirectUrl = failureUrl;
-    
+
     try {
-      // Validar que tenemos los datos necesarios
-      if (!productData || !sanitizedProductId) {
-        throw new Error('Datos del producto no disponibles');
+      const paymentEndpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/process-payment`;
+      const backendPayload = {
+        ...formData,
+        productId: sanitizedProductId,
+        quantity: sanitizedQuantity,
+      };
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Sending payment data to:', paymentEndpoint);
+        console.log('Payload:', JSON.stringify(backendPayload, null, 2));
       }
-      
-      // Prepare the API endpoint - fallback to window.location if apiBaseUrl is not provided
-      const baseUrl = apiBaseUrl || window.location.origin;
-      const paymentEndpoint = `${baseUrl.replace(/\/$/, '')}/api/process-payment`;
-      
-      console.log('Sending payment data to:', paymentEndpoint);
+
       const response = await fetch(paymentEndpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ...formData,
-          productId: sanitizedProductId,
-          quantity: sanitizedQuantity,
-          transaction_amount: productData.price * sanitizedQuantity,
-          description: `Compra de ${productData.name}`
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backendPayload),
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setStatusMsg('¡Pago procesado!');
-        
-        // Llamar al callback de éxito con los datos del pago
         if (onSuccess) onSuccess(data);
-        
-        // Determinar URL de redirección según estado
+
         switch (data.status) {
-          case 'approved':
-            redirectUrl = successUrl;
-            break;
+          case 'approved': redirectUrl = successUrl; break;
           case 'in_process':
-          case 'pending':
-            redirectUrl = pendingUrl;
-            break;
-          case 'rejected':
-          case 'cancelled':
-          default:
-            redirectUrl = failureUrl;
-            break;
+          case 'pending': redirectUrl = pendingUrl; break;
+          default: redirectUrl = failureUrl; break;
         }
-        
       } else {
-        // Mostrar error genérico
-        setErrorMsg(`Hubo un problema al procesar tu pago. Inténtalo de nuevo.`);
-        redirectUrl = failureUrl;
-        
-        // Solo para desarrollo: mostrar detalle del error
-        if (process.env.NODE_ENV === 'development') {
-          try {
-            const errorData = await response.json();
-            console.error('Error en proceso de pago:', errorData);
-          } catch (e) {}
+        let backendErrorMsg = 'Hubo un problema al procesar tu pago. Inténtalo de nuevo.';
+        try {
+          const errorData = await response.json();
+          backendErrorMsg = errorData.error || backendErrorMsg;
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error en proceso de pago (backend response):', errorData);
+          }
+        } catch (e) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Error en proceso de pago (backend response not JSON):', await response.text());
+          }
         }
+        setDisplayError(backendErrorMsg);
+        redirectUrl = failureUrl;
       }
     } catch (e) {
       console.error('Error en handleSubmit:', e);
-      setErrorMsg(`No se pudo completar el pago. Inténtalo nuevamente.`);
+      setDisplayError('No se pudo completar el pago. Inténtalo nuevamente.');
       if (onError) onError(e);
     } finally {
       setIsSubmitting(false);
-      // Redireccionar después de un breve retraso
       if (redirectUrl) {
-        setTimeout(() => {
-          window.location.href = redirectUrl;
-        }, 500);
+        setTimeout(() => { window.location.href = redirectUrl; }, 1500);
       }
     }
   };
 
-  // Manejar errores del Payment Brick
   const handleError = (err) => {
     console.error("Error en Payment Brick:", err);
-    setErrorMsg(`Error: No se pudo procesar el formulario de pago`);
+    setDisplayError('Error: No se pudo inicializar el formulario de pago.');
     setIsSubmitting(false);
-    
-    // Solo mostrar detalles en desarrollo
     if (process.env.NODE_ENV === 'development') {
-      console.error('Detalles del error:', err);
+      console.error('Detalles del error del Payment Brick:', err);
     }
-    
     if (onError) onError(err);
   };
 
   const handleReady = () => {
-    setStatusMsg('Formulario listo.');
+    // Optional: Clear status message or set a 'ready' message
+    // setStatusMsg('Formulario listo.');
   };
 
-  // Estados de interfaz
-  if (loading) {
+  if (loading && !productData) {
     return (
-      <div className="mp-loading">
-        <div className="mp-spinner"></div>
+      <div className={cn(styles.loading, className)}>
+        <div className={styles.spinner}></div>
         <p>Preparando formulario de pago...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (!productData && displayError) {
     return (
-      <div className="mp-error">
-        <p>Error: {error}</p>
-        <button 
-          className="mp-button mp-secondary" 
-          onClick={() => window.location.reload()}
-          disabled={attemptCount >= 5}
-        >
-          Reintentar
-        </button>
+      <div className={cn(styles.errorContainer, className)}>
+        <p className={styles.errorMessage}>{displayError}</p>
+        {attemptCount < 5 && (
+          <button
+            className={styles.retryButton}
+            onClick={fetchProduct}
+            disabled={isFetchingProduct}
+          >
+            {isFetchingProduct ? 'Reintentando...' : 'Reintentar'}
+          </button>
+        )}
+        {attemptCount >= 5 && <p>Demasiados intentos fallidos.</p>}
       </div>
     );
   }
 
-  // Mostrar error si no tenemos datos del producto
-  if (!productData) {
-    return (
-      <div className="mp-error">
-        <p>No se pudieron cargar los datos del producto</p>
-        <button 
-          className="mp-button mp-secondary" 
-          onClick={() => window.location.reload()}
-        >
-          Reintentar
-        </button>
-      </div>
-    );
-  }
-
-  const price = productData.price || 0;
+  const price = productData?.price || 0;
   const totalAmount = price * sanitizedQuantity;
 
-  // Configuración para Payment Brick para procesar pagos con tarjeta directamente
-  const initialization = {
-    amount: totalAmount,
-  };
-  
+  const initialization = { amount: totalAmount };
   const customization = {
-    paymentMethods: {
-      creditCard: 'all',
-      debitCard: 'all',
-      // Comentamos ticket para evitar redirecciones
-      // ticket: 'all',
-    },
-    visual: {
-      hideFormTitle: false,
-      hidePaymentButton: false,
-    },
+    visual: { hideFormTitle: false, hidePaymentButton: false },
+    paymentMethods: { creditCard: 'all', debitCard: 'all' },
   };
 
-  // Renderizar Payment Brick para procesar tarjetas
   return (
-    <div className="mp-payment-form-container">
-      {statusMsg && <p className="mp-status-message">{statusMsg}</p>}
-      {errorMsg && <p className="mp-error-message">{errorMsg}</p>}
-      
-      <Payment
-        initialization={initialization}
-        customization={customization}
-        onSubmit={handleSubmit}
-        onReady={handleReady}
-        onError={handleError}
-      />
+    <div className={cn(styles.paymentFormContainer, className)}>
+      {statusMsg && <p className={styles.statusMessage}>{statusMsg}</p>}
+      {displayError && !isFetchingProduct && <p className={styles.errorMessage}>{displayError}</p>}
+      {productData && (
+        <Payment
+          key={sanitizedProductId}
+          initialization={initialization}
+          customization={customization}
+          onSubmit={handleSubmit}
+          onReady={handleReady}
+          onError={handleError}
+        />
+      )}
     </div>
   );
 }
