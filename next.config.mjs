@@ -1,28 +1,27 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true, // Para eliminar comentarios en producción
-
+  swcMinify: true,
   async headers() {
-    // Mejor implementación de CSP usando restricciones más específicas
+    // Versión actualizada del CSP que permite los módulos de Framer
     const ContentSecurityPolicy = `
       default-src 'self';
-      script-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com 'unsafe-inline' 'unsafe-eval';
-      style-src 'self' https://*.mercadopago.com https://*.mlstatic.com 'unsafe-inline';
-      img-src 'self' data: https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com;
-      connect-src 'self' https://*.mercadopago.com https://api.mercadopago.com https://*.mlstatic.com;
-      font-src 'self' data: https://*.mlstatic.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.framer.com https://framer.com/m/ https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com;
+      style-src 'self' 'unsafe-inline' https://*.framer.com https://*.mercadopago.com https://*.mlstatic.com;
+      img-src 'self' data: https://*.framer.com https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com;
+      connect-src 'self' https://*.framer.com https://framer.com/m/ https://*.mercadopago.com https://api.mercadopago.com https://*.mlstatic.com;
+      font-src 'self' data: https://*.framer.com https://*.mlstatic.com;
       object-src 'none';
-      frame-src 'self' https://*.mercadopago.com;
+      frame-src 'self' https://*.framer.com https://*.mercadopago.com;
       form-action 'self' https://*.mercadopago.com;
-      frame-ancestors 'self' https://*.framer.app https://framer.com; 
+      frame-ancestors 'self' https://*.framer.app https://framer.com https://alturadivina.com; 
       base-uri 'self';
       block-all-mixed-content;
       upgrade-insecure-requests;
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [
-      // Reglas para endpoints API - no cachear
+      // El resto de tu configuración de headers se mantiene igual
       {
         source: '/api/:path*',
         headers: [
@@ -37,21 +36,19 @@ const nextConfig = {
           },
         ],
       },
-      // Reglas para assets estáticos - cache agresivo
+      // Resto de tus reglas de headers...
       {
         source: '/_next/static/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
-      // Reglas para archivos estáticos
       {
         source: '/static/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
-      // Reglas generales para todo lo demás
       {
         source: '/:path*',
         headers: [
