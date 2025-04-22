@@ -17,7 +17,7 @@ export default function Home() {
         onSuccess={(data) => console.log('Pago exitoso', data)}
         onError={(error) => console.error('Error en el pago', error)}
         hideTitle={false}
-        productId="product1" // Specifying an existing product ID
+        productId="product1" 
       />
     </div>
   );

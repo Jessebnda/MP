@@ -1,5 +1,6 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { NextResponse } from 'next/server';
+import rateLimit from '../rate-limit';
 
 // Función simulada para obtener producto (REEMPLAZAR CON TU BASE DE DATOS)
 async function getProductById(productId) {
@@ -12,6 +13,25 @@ async function getProductById(productId) {
 }
 
 export async function POST(req) {
+  // Aplicar rate limiting
+  const ip = req.headers.get('x-real-ip') || req.headers.get('x-forwarded-for') || '127.0.0.1';
+  const { success, limit, remaining, reset } = rateLimit.limiter(ip);
+  
+  // Si excedió el límite, devolver 429 Too Many Requests
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Demasiadas solicitudes. Intente nuevamente más tarde.' },
+      { 
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': limit.toString(),
+          'X-RateLimit-Remaining': remaining.toString(),
+          'X-RateLimit-Reset': reset.toString()
+        }
+      }
+    );
+  }
+
   const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
   const payment = new Payment(client);
 
