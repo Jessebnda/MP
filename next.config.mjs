@@ -6,10 +6,10 @@ const nextConfig = {
     // Versión actualizada del CSP que permite los módulos de Framer
     const ContentSecurityPolicy = `
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.framer.com https://framer.com/m/ https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.framer.com https://framer.com/m/* https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com;
       style-src 'self' 'unsafe-inline' https://*.framer.com https://*.mercadopago.com https://*.mlstatic.com;
       img-src 'self' data: https://*.framer.com https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com;
-      connect-src 'self' https://*.framer.com https://framer.com/m/ https://*.mercadopago.com https://api.mercadopago.com https://*.mlstatic.com;
+      connect-src 'self' https://*.framer.com https://framer.com/m/* https://*.mercadopago.com https://api.mercadopago.com https://*.mlstatic.com;
       font-src 'self' data: https://*.framer.com https://*.mlstatic.com;
       object-src 'none';
       frame-src 'self' https://*.framer.com https://*.mercadopago.com;
