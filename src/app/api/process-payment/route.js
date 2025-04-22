@@ -37,17 +37,14 @@ export async function POST(req) {
 
   try {
     const body = await req.json();
-    console.log('Received body in backend:', body); // Log para ver qué llega
+    console.log('Received payment request for email:', body?.formData?.payer?.email); // Log only email if needed
 
-    // --- CORRECCIÓN AQUÍ ---
-    // Extraer datos del objeto formData anidado
     const { formData, productId, quantity } = body;
-    const { token, issuer_id, payment_method_id, installments, payer } = formData || {}; // Usar formData
-    // -----------------------
+    const { token, issuer_id, payment_method_id, installments, payer } = formData || {}; 
 
     // Validar datos esenciales (añadir más validaciones si es necesario)
     if (!token || !payment_method_id || !installments || !payer?.email || !productId || !quantity) {
-      console.error('Validation Error: Missing required payment data in formData or body');
+      console.error('Validation Error: Missing required payment data'); // Log error type, not data
       return NextResponse.json({ error: 'Faltan datos requeridos para el pago' }, { status: 400 });
     }
 
@@ -64,33 +61,24 @@ export async function POST(req) {
     }
     // --- Fin Validación de Precio ---
 
-    console.log('Processing payment with data:', {
-        token,
-        issuer_id,
-        payment_method_id,
-        transaction_amount: expectedAmount, // Usa el monto validado del servidor
-        installments,
-        payer: { email: payer.email },
-        // ... otros datos si son necesarios
-    });
+    console.log('Processing payment for product:', productId, 'Amount:', expectedAmount); // Log non-sensitive info
 
     const paymentData = {
       token: token,
       issuer_id: issuer_id,
-      payment_method_id: payment_method_id, // Usar la variable extraída
-      transaction_amount: expectedAmount, // ¡IMPORTANTE! Usa el monto calculado/validado en el servidor
+      payment_method_id: payment_method_id, 
+      transaction_amount: expectedAmount, 
       installments: installments,
-      payer: {
-        email: payer.email,
-        // Podrías necesitar más datos del payer aquí dependiendo de tu configuración
-      },
-      // metadata: { /* Datos adicionales si los necesitas */ },
-      // notification_url: "TU_URL_DE_NOTIFICACIONES_IPN", // Recomendado para producción
+      payer: { email: payer.email },
     };
 
     const paymentResult = await payment.create({ body: paymentData });
 
-    console.log('Mercado Pago API Response:', paymentResult);
+    console.log('Mercado Pago API Response Status:', { // Log only specific, non-sensitive fields
+        id: paymentResult.id, 
+        status: paymentResult.status, 
+        status_detail: paymentResult.status_detail 
+    });
 
     return NextResponse.json({
       status: paymentResult.status,
