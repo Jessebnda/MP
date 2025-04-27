@@ -18,7 +18,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@mercadopago/sdk-react": "^0.0.15",
+    "@mercadopago/sdk-react": "^0.0.24",
     "clsx": "^2.1.1",
     "mercadopago": "^2.4.0",
     "next": "^14.0.4",
