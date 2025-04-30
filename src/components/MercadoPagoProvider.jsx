@@ -167,7 +167,10 @@ export default function MercadoPagoProvider({
     } finally {
       setIsSubmitting(false);
       if (redirectUrl) {
-        setTimeout(() => { window.location.href = redirectUrl; }, 1500);
+        // Añadir un pequeño retraso antes de redireccionar
+        setTimeout(() => {
+          window.location.href = redirectUrl;
+        }, 1800);
       }
     }
   };
