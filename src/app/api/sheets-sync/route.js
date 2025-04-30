@@ -72,7 +72,7 @@ async function fetchData() {
   try {
     // Obtener las claves de productos y stock
     const productKeys = await kv.keys('product:*');
-    const stockKeys = await kv.keys('stock:*');
+    const stockKeys = await kv.keys('product:*:stock');
     
     // Si no hay productos, usar los datos estáticos
     let products;

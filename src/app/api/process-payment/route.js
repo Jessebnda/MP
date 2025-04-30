@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { getProductById } from '../../../data/products'; // Importación correcta
+import { updateProductStock } from '../../../lib/kv';
 
 export async function POST(req) {
   try {
@@ -38,11 +39,22 @@ export async function POST(req) {
     const payment = new Payment(client);
     
     // Resto de tu código para procesar el pago...
+    const paymentResponse = await payment.save(); // Suponiendo que este es el método para procesar el pago
     
-    return NextResponse.json({ 
-      status: 'success',
-      message: 'Pago procesado correctamente' 
-    });
+    // Dentro del bloque donde procesas el pago exitoso:
+    // Después de procesar el pago
+    if (paymentResponse && paymentResponse.status === "approved") {
+      // Actualizar stock
+      const currentStock = await getProductStock(productId);
+      if (currentStock !== null) {
+        await updateProductStock(productId, currentStock - quantity);
+      }
+      
+      return NextResponse.json({ 
+        status: 'success', // Cambiar esto de "approved" a "success"
+        message: 'Pago procesado correctamente'
+      });
+    }
     
   } catch (error) {
     console.error("Error processing payment:", error);
