@@ -139,10 +139,17 @@ export default function MercadoPagoProvider({
         if (onSuccess) onSuccess(data);
 
         switch (data.status) {
-          case 'approved': redirectUrl = successUrl; break;
+          case 'approved': 
+          case 'success':  // <-- Añadir este caso
+            redirectUrl = successUrl; 
+            break;
           case 'in_process':
-          case 'pending': redirectUrl = pendingUrl; break;
-          default: redirectUrl = failureUrl; break;
+          case 'pending': 
+            redirectUrl = pendingUrl; 
+            break;
+          default: 
+            redirectUrl = failureUrl; 
+            break;
         }
       } else {
         let backendErrorMsg = 'Hubo un problema al procesar tu pago. Inténtalo de nuevo.';
