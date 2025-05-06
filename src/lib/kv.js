@@ -19,9 +19,40 @@ export async function getProductStock(productId) {
  */
 export async function updateProductStock(productId, newStock) {
   try {
-    // Only update the stock key with a consistent format
-    await kv.set(`product:${productId}:stock`, newStock);
-    return true;
+    // Validar entrada
+    if (typeof newStock !== 'number' || isNaN(newStock)) {
+      console.error('Error: Stock debe ser un número válido');
+      return false;
+    }
+    
+    // Intentar actualizar con reintento
+    let retries = 3;
+    let success = false;
+    
+    while (retries > 0 && !success) {
+      try {
+        await kv.set(`product:${productId}:stock`, newStock);
+        
+        // Verificar que se actualizó correctamente
+        const updatedStock = await kv.get(`product:${productId}:stock`);
+        if (updatedStock === newStock) {
+          success = true;
+          console.log(`Stock actualizado para ${productId}: ${newStock}`);
+        } else {
+          console.warn(`Verificación fallida para ${productId}, obtenido: ${updatedStock}, esperado: ${newStock}`);
+        }
+      } catch (retryError) {
+        console.error(`Intento ${4-retries} fallido:`, retryError);
+      }
+      
+      retries--;
+      if (!success && retries > 0) {
+        // Esperar antes de reintentar
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    return success;
   } catch (error) {
     console.error('Error actualizando stock:', error);
     return false;
