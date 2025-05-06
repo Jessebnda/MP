@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { kv, updateProductStock } from '@/lib/kv';
+import { kv, updateProductStock } from '../../../lib/kv';
 
 export async function GET() {
   try {
