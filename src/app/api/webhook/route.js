@@ -80,6 +80,15 @@ async function isValidSignature(request, secret) {
 }
 // --- Fin Validación de Firma ---
 
+// Función auxiliar para verificar estados de éxito
+function isSuccessfulPayment(status) {
+  // Normalizar el estado a minúsculas para comparación
+  const normalizedStatus = (status || '').toLowerCase();
+  
+  // Aceptar cualquiera de estos estados como éxito
+  return ['approved', 'success', 'succeeded', 'approved_payment'].includes(normalizedStatus);
+}
+
 export async function POST(req) {
   console.log('Webhook received!');
 
@@ -117,12 +126,12 @@ export async function POST(req) {
       // await updateOrderStatusInDatabase(paymentId, paymentInfo.status);
 
       // 6. Acciones adicionales (ej. enviar email)
-      if (paymentInfo.status === 'approved') {
-        console.log(`Payment ${paymentId} approved. Consider sending confirmation email.`);
+      if (isSuccessfulPayment(paymentInfo.status)) {
+        console.log(`Payment ${paymentId} accepted with status: ${paymentInfo.status}. Consider sending confirmation email.`);
         // sendConfirmationEmail(paymentInfo.payer.email, paymentId);
       } else if (paymentInfo.status === 'rejected') {
-         console.log(`Payment ${paymentId} rejected.`);
-         // sendRejectionEmail(paymentInfo.payer.email, paymentId);
+        console.log(`Payment ${paymentId} rejected.`);
+        // sendRejectionEmail(paymentInfo.payer.email, paymentId);
       }
 
     } else {

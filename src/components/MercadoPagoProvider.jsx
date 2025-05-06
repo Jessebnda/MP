@@ -135,21 +135,25 @@ export default function MercadoPagoProvider({
 
       if (response.ok) {
         const data = await response.json();
+        console.log("Respuesta completa del servidor:", data); // Debug
         setStatusMsg('¡Pago procesado!');
         if (onSuccess) onSuccess(data);
 
-        switch (data.status) {
-          case 'approved': 
-          case 'success':  // <-- Añadir este caso
-            redirectUrl = successUrl; 
-            break;
-          case 'in_process':
-          case 'pending': 
-            redirectUrl = pendingUrl; 
-            break;
-          default: 
-            redirectUrl = failureUrl; 
-            break;
+        // Normalizar status para comparación
+        const paymentStatus = (data.status || '').toLowerCase();
+        
+        // Verificar más claramente el estado
+        if (paymentStatus === 'approved' || paymentStatus === 'success') {
+          redirectUrl = successUrl;
+          console.log("Redirigiendo a URL de éxito:", successUrl);
+        } 
+        else if (paymentStatus === 'in_process' || paymentStatus === 'pending') {
+          redirectUrl = pendingUrl;
+          console.log("Redirigiendo a URL pendiente:", pendingUrl);
+        }
+        else {
+          redirectUrl = failureUrl;
+          console.log("Redirigiendo a URL de error:", failureUrl);
         }
       } else {
         let backendErrorMsg = 'Hubo un problema al procesar tu pago. Inténtalo de nuevo.';

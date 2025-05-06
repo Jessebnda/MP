@@ -50,9 +50,10 @@ export async function POST(req) {
       // Continuamos con el proceso aunque falle la actualización del stock
     }
     
-    // Devolver respuesta exitosa
+    // Devolver respuesta exitosa con los dos estados posibles
     return NextResponse.json({ 
-      status: 'success',
+      status: 'approved',  // Cambiado de 'success' a 'approved'
+      status_detail: 'success', // Mantener 'success' como detalle
       message: 'Pago procesado correctamente' 
     });
     

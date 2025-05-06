@@ -29,10 +29,12 @@ export async function POST(req) {
     // Procesar acción según el tipo
     switch (body.action) {
       case 'fetch':
+      case 'get_products':  // Añadir compatibilidad
         const data = await fetchData();
         return NextResponse.json(data);
         
-      case 'update_stock':
+      case 'update':
+      case 'update_stock':  // Añadir compatibilidad
         if (!body.updates || !Array.isArray(body.updates)) {
           return NextResponse.json({
             success: false,
@@ -49,7 +51,9 @@ export async function POST(req) {
             error: 'Formato de datos inválido para actualización de productos'
           }, { status: 400 });
         }
-        const productsResult = await updateProducts(body.products);
+        
+        // Use the new function to populate from sheet data
+        const productsResult = await populateProductsFromData(body.products);
         return NextResponse.json(productsResult);
         
       default:
