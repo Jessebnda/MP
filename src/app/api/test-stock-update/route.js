@@ -3,19 +3,27 @@ import { kv, updateProductStock } from '../../../lib/kv';
 
 export async function GET() {
   try {
-    // Obtener el stock actual para mostrar antes y después
+    // Obtener el stock actual DIRECTAMENTE desde KV
     const productId = '1';
-    const beforeStock = await kv.get(`product:${productId}:stock`);
+    
+    // Forzar lectura directa de KV
+    const stockKey = `product:${productId}:stock`;
+    const beforeStock = await kv.get(stockKey);
+    
+    console.log(`Stock actual leído directamente: ${beforeStock}`);
     
     // Intentar actualizar el stock (incrementando en 1)
-    const updateResult = await updateProductStock(productId, beforeStock + 1);
+    const newStock = (beforeStock || 0) + 1;
     
-    // Obtener el stock actualizado
-    const afterStock = await kv.get(`product:${productId}:stock`);
+    // Actualizar directamente sin usar la función auxiliar
+    await kv.set(stockKey, newStock);
+    
+    // Verificar que se actualizó correctamente
+    const afterStock = await kv.get(stockKey);
     
     // Devolver todos los resultados para diagnóstico
     return NextResponse.json({
-      success: updateResult,
+      directUpdate: true,
       beforeUpdate: beforeStock,
       afterUpdate: afterStock,
       kv_url_present: !!process.env.KV_URL,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { getProductById } from '../../../data/products';
-import { updateProductStock } from '../../../lib/kv';
+import { updateProductStock,getProductStock } from '../../../lib/kv';
 
 export async function POST(req) {
   try {
@@ -27,7 +27,7 @@ export async function POST(req) {
     }
 
     // Verificar stock disponible - usar stockAvailable desde el objeto product
-    const currentStock = product.stockAvailable;
+    const currentStock = await getProductStock(productId);
     if (currentStock < quantity) {
       return NextResponse.json({
         error: `Stock insuficiente para "${product.name}". Solo quedan ${currentStock} unidades disponibles.`
