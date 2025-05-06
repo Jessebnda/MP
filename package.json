@@ -19,7 +19,12 @@
   "type": "module",
   "dependencies": {
     "@mercadopago/sdk-react": "^0.0.15",
+    "@upstash/redis": "^1.34.8",
+    "@vercel/kv": "^3.0.0",
     "clsx": "^2.1.1",
+    "dotenv": "^16.5.0",
+    "google-auth-library": "^9.15.1",
+    "google-spreadsheet": "^4.1.4",
     "mercadopago": "^2.4.0",
     "next": "^14.0.4",
     "react": "^18.2.0",
