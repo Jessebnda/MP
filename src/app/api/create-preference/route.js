@@ -4,6 +4,7 @@ import { getProductById } from '../../../data/products';
 
 export async function POST(req) {
   try {
+    
     // Desestructurar también las URLs personalizadas
     const { productId, quantity, successUrl, pendingUrl, failureUrl } = await req.json();
     
