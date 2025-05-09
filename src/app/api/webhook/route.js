@@ -110,7 +110,7 @@ export async function POST(req) {
   try {
     // 2. Obtener el cuerpo de la notificación (ahora podemos usar .json())
     const notification = await req.json();
-    console.log('Webhook notification body (validated):', JSON.stringify(notification, null, 2));
+    console.log(`Webhook received: type=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
 
     // 3. Verificar si es una notificación de pago y obtener el ID
     if (notification.type === 'payment' && notification.data?.id) {
@@ -119,7 +119,7 @@ export async function POST(req) {
 
       // 4. Obtener el estado REAL del pago desde la API de Mercado Pago
       const paymentInfo = await paymentClient.get({ id: paymentId });
-      console.log(`Payment ID ${paymentId} - Actual Status from API: ${paymentInfo.status}`);
+      console.log(`Payment ${paymentId.substring(0, 4)}... status: ${paymentInfo.status}`);
 
       // 5. Lógica para actualizar tu base de datos
       console.log(`Simulating database update for Order related to Payment ID ${paymentId} to status: ${paymentInfo.status}`);

@@ -105,7 +105,7 @@ export default function MercadoPagoProvider({
     if (isSubmitting || !productData) return;
 
     // --- LOG PARA DEBUG EN VERCEL ---
-    console.log('FormData received from Payment Brick:', JSON.stringify(formData, null, 2)); 
+    console.log(`Payment form submitted for product: ${sanitizedProductId}, quantity: ${sanitizedQuantity}`);
     // ---------------------------------
 
     setIsSubmitting(true);

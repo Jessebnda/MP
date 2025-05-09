@@ -6,7 +6,7 @@ import { updateProductStock,getProductStock } from '../../../lib/kv';
 export async function POST(req) {
   try {
     const body = await req.json();
-    console.log('Received payment request:', JSON.stringify(body, null, 2));
+    console.log(`Payment request received for product: ${body.productId}, quantity: ${body.quantity}`);
     
     const { formData: formDataWrapper, productId, quantity } = body;
     const formData = formDataWrapper?.formData || formDataWrapper;
