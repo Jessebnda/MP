@@ -1,7 +1,46 @@
+/* Contenedor general para centrar y ajustar ancho */
 .paymentBrickContainer {
   max-width: 400px;
-  margin: 2rem auto;
+  margin: 0 auto;
   padding: 1rem;
-  background: var(--mp-form-background-color, #fff);
-  border-radius: 8px;
 }
+
+/* Override de título de sección */
+.paymentBrickContainer :global(.mp-Payment-brick__section-title) {
+  font-family: var(--mp-font-family-heading) !important;
+  font-size: var(--mp-font-size-heading) !important;
+  text-transform: uppercase !important;
+  margin-bottom: 1rem !important;
+  letter-spacing: -0.5px !important;
+}
+
+/* Override de labels (DÍA, CVV, etc.) */
+.paymentBrickContainer :global(.mp-Payment-brick__label) {
+  font-size: var(--mp-font-size-label) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* Override de inputs */
+.paymentBrickContainer :global(.mp-Payment-brick__input) {
+  border: var(--mp-input-border-width) solid var(--mp-input-border-color) !important;
+  border-radius: var(--mp-input-border-radius) !important;
+  padding: var(--mp-input-padding) !important;
+  font-family: monospace !important;
+  font-size: var(--mp-font-size-base) !important;
+  color: var(--mp-text-primary-color) !important;
+}
+
+/* Override de botón “PAGAR” */
+.paymentBrickContainer :global(.mp-Payment-brick__submit) {
+  background-color: var(--mp-button-background-color) !important;
+  border-radius: var(--mp-button-border-radius) !important;
+  padding: 12px 24px !important;
+  text-transform: var(--mp-button-text-transform) !important;
+  font-weight: var(--mp-button-font-weight) !important;
+  font-size: var(--mp-button-font-size) !important;
+  margin-top: 1.5rem !important;
+}
+
+
