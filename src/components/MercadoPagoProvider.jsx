@@ -113,6 +113,14 @@ export default function MercadoPagoProvider({
     setStatusMsg('Procesando pago...');
     setDisplayError(null);
 
+    // Setting maximum processing time
+    const paymentTimeout = setTimeout(() => {
+      if (isSubmitting) {
+        setIsSubmitting(false);
+        setDisplayError('El procesamiento del pago ha tomado demasiado tiempo. Por favor intente nuevamente.');
+      }
+    }, 60000); // 60 seconds timeout
+
     let redirectUrl = failureUrl;
 
     try {
@@ -161,22 +169,30 @@ export default function MercadoPagoProvider({
         // This will send a message to the parent window before redirecting
         try {
           if (window.parent && window.parent !== window) {
-            // Send message to parent (Framer) before redirecting
+            // More robust message with additional data
             window.parent.postMessage({
               type: 'MP_REDIRECT',
               url: redirectUrl,
-              status: paymentStatus
-            }, '*');
+              status: paymentStatus,
+              orderId: data.id || '',
+              amount: totalAmount
+            }, '*'); // Consider restricting to your specific Framer domain for security
             
             console.log('Sending redirect message to parent:', redirectUrl);
             
-            // Don't redirect the iframe itself, let the parent handle it
-            // This prevents the issue where only the iframe redirects
-            return;
+            // Send a confirmation message after short delay to ensure receipt
+            setTimeout(() => {
+              window.parent.postMessage({
+                type: 'MP_REDIRECT_CONFIRM',
+                url: redirectUrl
+              }, '*');
+            }, 500);
+            
+            return; // Don't redirect the iframe
           }
         } catch (commError) {
           console.error('Error communicating with parent frame:', commError);
-          // Fall back to regular redirect if communication fails
+          // Fall back to regular redirect
         }
 
         // If we're not in an iframe or communication failed, redirect normally
@@ -206,6 +222,7 @@ export default function MercadoPagoProvider({
       setDisplayError('No se pudo completar el pago. Inténtalo nuevamente.');
       if (onError) onError(e);
     } finally {
+      clearTimeout(paymentTimeout); // Clear timeout when done
       setIsSubmitting(false);
     }
   };
