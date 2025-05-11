@@ -51,16 +51,30 @@
   letter-spacing: 0.05rem;
 }
 
+/* Selector base */
 .mp-select-input,
 .mp-number-input {
   width: 100%;
-  padding: 0.75rem 1rem;  /* Reducido de 1rem para más elegancia */
+  padding: 0.75rem 1rem;
   border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 0.95rem;  /* Reducido ligeramente */
+  font-size: 0.95rem;
   font-family: inherit;
-  height: 42px;  /* Altura fija para todos los inputs */
+  height: 60px;  /* Altura base en todas las pantallas */
   box-sizing: border-box;
+}
+
+/* Mejoras específicas para el select */
+.mp-select-input {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 16px;
+  padding-right: 2.5rem; /* Espacio para el ícono de flecha */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  line-height: 1.5;
 }
 
 .mp-product-details {
@@ -111,6 +125,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
+  flex-wrap: wrap; /* Para que los botones se apilen si no caben */
 }
 
 .mp-button {
@@ -123,6 +138,15 @@
   font-family: 'Inter', sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.05rem;
+  flex-grow: 1; /* Permite que los botones crezcan para llenar el espacio en móvil */
+  min-width: 150px; /* Un ancho mínimo para legibilidad */
+  text-align: center;
+}
+
+@media (min-width: 600px) {
+  .mp-button {
+    flex-grow: 0; /* Evita que crezcan demasiado en pantallas más grandes si no quieres */
+  }
 }
 
 /* Botón principal naranja */
@@ -194,30 +218,53 @@
 
 .mp-summary-item {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-between; /* Mantiene los elementos en extremos opuestos */
+  align-items: flex-start; /* Alinea los items al inicio del eje transversal (útil si un span es más alto que el otro) */
   padding: 0.75rem 0;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.mp-summary-item:last-child {
-  border-bottom: none;
-}
-
-/* Estilos para las etiquetas en el resumen */
-.mp-summary-item span:first-child {
+.mp-summary-item span:first-child { /* Etiqueta (ej: "Descripción:") */
   font-family: 'Inter', sans-serif;
   font-weight: 600;
   text-transform: uppercase;
   font-size: 0.8rem;
   letter-spacing: 0.05em;
   color: #555;
+  margin-right: 1rem; /* Aumentar un poco el margen para más separación */
+  flex-shrink: 0; /* No permitir que la etiqueta se encoja */
 }
 
-/* Valores en el resumen con mejor legibilidad */
-.mp-summary-item span:last-child {
+.mp-summary-item span:last-child { /* Valor (ej: "Descripción del producto ejemplo") */
   font-family: 'Inter', sans-serif;
   font-weight: 400;
   font-size: 0.95rem;
+  text-align: right; /* Alinear el texto a la derecha DENTRO de este span */
+  flex-grow: 1; /* Hacer que este span ocupe el espacio restante */
+  word-break: break-word; /* Romper palabras largas para evitar desbordamiento */
+}
+
+.mp-summary-item:last-child {
+  border-bottom: none;
+}
+
+/* Media query para pantallas pequeñas */
+@media (max-width: 520px) { /* Ajusta el breakpoint si es necesario */
+  .mp-summary-item {
+    flex-direction: column; /* Apila etiqueta y valor verticalmente */
+    align-items: flex-start; /* Alinea todo a la izquierda */
+    flex-wrap: wrap; /* Permitir el ajuste si el contenido es muy largo incluso en columna */
+  }
+
+  .mp-summary-item span:first-child {
+    margin-right: 0; /* No necesita margen a la derecha cuando está en columna */
+    margin-bottom: 0.25rem; /* Espacio entre etiqueta y valor */
+  }
+
+  .mp-summary-item span:last-child {
+    text-align: left; /* Alinear el valor a la izquierda cuando está apilado */
+    width: 100%; /* Ocupar todo el ancho disponible para el valor */
+  }
 }
 
 /* Estilo para el precio total más destacado */
@@ -254,6 +301,230 @@
 
 .mp-confirmation-actions {
   margin-top: 1.5rem;
+}
+
+/* Ajustes responsivos para la confirmación del pedido */
+@media (max-width: 767px) {
+  /* Reducir el padding en contenedores para móviles */
+  .mp-confirmation-container {
+    padding: 1.25rem;
+    margin: 0 auto 1rem;
+  }
+  
+  /* Ajustar tamaño del título en móvil */
+  .mp-confirmation-container h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* El contenedor de botones en móvil debe apilar verticalmente */
+  .mp-confirmation-actions .mp-button-container {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  /* Botones a ancho completo en móvil */
+  .mp-confirmation-actions .mp-button {
+    width: 100%;
+    margin-right: 0;
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Ajustar nota de confirmación */
+  .mp-confirmation-note {
+    font-size: 0.8rem;
+    padding: 0.75rem;
+    margin: 1.5rem 0;
+  }
+  
+  /* Ajustar márgenes del total */
+  .mp-total {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Reducir tamaño de texto del total */
+  .mp-total span:last-child {
+    font-size: 1.1rem;
+  }
+  
+  /* Campos de formulario en vista móvil - manteniendo altura original */
+  .mp-select-input,
+  .mp-number-input {
+    height: 60px !important; /* Forzar la misma altura */
+    font-size: 16px; /* Este tamaño previene zoom en iOS */
+    line-height: 1.2; /* Asegura que el texto esté centrado verticalmente */
+  }
+}
+
+/* Para pantallas muy pequeñas */
+@media (max-width: 480px) {
+  /* Reducir aún más el padding */
+  .mp-confirmation-container {
+    padding: 1rem;
+  }
+  
+  /* Ajustar texto de botón grande */
+  .mp-confirmation-actions .mp-button.mp-primary {
+    font-size: 0.8rem;
+    white-space: normal; /* Permitir que el texto se rompa en varias líneas */
+    height: auto;
+    padding: 0.75rem 0.5rem;
+  }
+  
+  .mp-select-input,
+  .mp-number-input {
+    height: 60px !important; /* Mantener altura */
+    font-size: 16px; /* Mantener tamaño de fuente */
+  }
+}
+
+/* Ajustes responsivos generales para todo el flujo de pago */
+@media (max-width: 767px) {
+  /* Contenedor principal más compacto */
+  .mp-container {
+    padding: 1rem;
+  }
+  
+  /* Título principal más pequeño */
+  .mp-page-title {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  /* Contenedor de confirmación */
+  .mp-confirmation-container {
+    padding: 1.25rem;
+    margin: 0 auto 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* Título del resumen más pequeño */
+  .mp-confirmation-container h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* Ajustar tamaño del resumen para mejorar legibilidad */
+  .mp-summary {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  /* Botones en columna con tamaño completo */
+  .mp-confirmation-actions .mp-button-container {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .mp-confirmation-actions .mp-button {
+    width: 100%;
+    margin-right: 0;
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
+    min-height: 44px; /* Altura mínima para área táctil */
+  }
+  
+  /* Nota de confirmación más compacta */
+  .mp-confirmation-note {
+    font-size: 0.8rem;
+    padding: 0.75rem;
+    margin: 1.5rem 0;
+  }
+  
+  /* Total más compacto pero manteniendo visibilidad */
+  .mp-total {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .mp-total span:last-child {
+    font-size: 1.1rem;
+  }
+  
+  /* Campos de formulario */
+  .mp-select-input,
+  .mp-number-input {
+    height: 60px !important; /* Forzar la misma altura */
+    font-size: 16px; /* Este tamaño previene zoom en iOS */
+  }
+  
+  /* Detalles del producto más compactos */
+  .mp-product-details {
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+  
+  .mp-product-details h3 {
+    font-size: 1.1rem;
+    padding-bottom: 0.6rem;
+    margin-bottom: 1rem;
+  }
+  
+  .mp-product-price {
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .mp-price-value {
+    font-size: 1.2rem;
+  }
+}
+
+/* Ajustes específicos para pantallas muy pequeñas */
+@media (max-width: 480px) {
+  /* Contenedor principal aún más compacto */
+  .mp-container {
+    padding: 0.75rem;
+  }
+  
+  /* Título principal más pequeño */
+  .mp-page-title {
+    font-size: 1.3rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Contenedor de confirmación */
+  .mp-confirmation-container {
+    padding: 1rem;
+    border-radius: 3px;
+  }
+  
+  /* Ajustar texto de botón grande */
+  .mp-confirmation-actions .mp-button.mp-primary {
+    font-size: 0.8rem;
+    white-space: normal;
+    height: auto;
+    padding: 0.75rem 0.5rem;
+    min-height: 44px;
+  }
+  
+  /* Reducir el espacio vertical entre items */
+  .mp-summary-item {
+    padding: 0.5rem 0;
+  }
+  
+  /* Ajustar tamaño del formulario */
+  .mp-form-group label {
+    font-size: 0.75rem;
+  }
+  
+  /* Order preview más compacto */
+  .mp-order-preview {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .mp-order-preview h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+  }
 }
 
 /* Payment page */
