@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 import styles from '../styles/MercadoPagoProvider.module.css';
+import '../styles/mercadopago-globals.css'; // Changed to import the non-module CSS file
 import { cn } from '../lib/utils'; // Import the utility
 
 // Función para sanitizar datos de entrada (sin cambios)
@@ -155,6 +156,35 @@ export default function MercadoPagoProvider({
           redirectUrl = failureUrl;
           console.log("Redirigiendo a URL de error:", failureUrl);
         }
+
+        // Add this new section before the window.location.href redirect
+        // This will send a message to the parent window before redirecting
+        try {
+          if (window.parent && window.parent !== window) {
+            // Send message to parent (Framer) before redirecting
+            window.parent.postMessage({
+              type: 'MP_REDIRECT',
+              url: redirectUrl,
+              status: paymentStatus
+            }, '*');
+            
+            console.log('Sending redirect message to parent:', redirectUrl);
+            
+            // Don't redirect the iframe itself, let the parent handle it
+            // This prevents the issue where only the iframe redirects
+            return;
+          }
+        } catch (commError) {
+          console.error('Error communicating with parent frame:', commError);
+          // Fall back to regular redirect if communication fails
+        }
+
+        // If we're not in an iframe or communication failed, redirect normally
+        if (redirectUrl) {
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 1800);
+        }
       } else {
         let backendErrorMsg = 'Hubo un problema al procesar tu pago. Inténtalo de nuevo.';
         try {
@@ -177,12 +207,6 @@ export default function MercadoPagoProvider({
       if (onError) onError(e);
     } finally {
       setIsSubmitting(false);
-      if (redirectUrl) {
-        // Añadir un pequeño retraso antes de redireccionar
-        setTimeout(() => {
-          window.location.href = redirectUrl;
-        }, 1800);
-      }
     }
   };
 
@@ -233,8 +257,56 @@ export default function MercadoPagoProvider({
 
   const initialization = { amount: totalAmount };
   const customization = {
-    visual: { hideFormTitle: false, hidePaymentButton: false },
-    paymentMethods: { creditCard: 'all', debitCard: 'all' },
+    visual: { 
+      hideFormTitle: false, 
+      hidePaymentButton: false,
+      style: {
+        theme: 'default', // o 'dark', 'bootstrap', 'flat'
+        customVariables: {
+          // Colores de texto
+          textPrimaryColor: '#333333',
+          textSecondaryColor: '#555555',
+          
+          // Colores de fondo
+          formBackgroundColor: '#FFFFFF',
+          baseColor: '#F26F32',       // Color principal (naranja en tu caso)
+          
+          // Inputs
+          inputBackgroundColor: '#FFFFFF',
+          inputTextColor: '#333333',
+          inputBorderColor: '#DDDDDD',
+          
+          // Botones
+          buttonTextColor: '#FFFFFF',
+          buttonBackgroundColor: '#F26F32',
+          buttonBorderColor: '#F26F32',
+          
+          // Estado hover
+          hoverButtonBackgroundColor: '#e05b22',
+          
+          // Estado error
+          errorColor: '#e74c3c',
+          
+          // Bordes
+          borderRadiusLarge: '4px',
+          borderRadiusMedium: '4px',
+          borderRadiusSmall: '4px',
+          
+          // Tipografía
+          fontSizeExtraLarge: '1.25rem',
+          fontSizeLarge: '1rem',
+          fontSizeMedium: '0.9rem',
+          fontSizeSmall: '0.85rem',
+          
+          // Font family - usando variables CSS
+          fontFamilyPrimary: 'var(--font-inter)'
+        }
+      }
+    },
+    paymentMethods: { 
+      creditCard: 'all', 
+      debitCard: 'all' 
+    }
   };
 
   return (

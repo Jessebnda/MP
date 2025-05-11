@@ -1,31 +1,40 @@
-/* Estilos encapsulados con prefijo mp- para evitar conflictos */
+/* Estilos para el flujo de pago */
 .mp-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  max-width: 800px;
+  font-family: 'Inter', sans-serif;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 2rem;
   color: #333;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
+/* Estilos mejorados para el resumen y confirmación del pedido */
 .mp-page-title {
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
+  font-family: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
+  font-size: 2rem;
+  font-weight: 400;
+  margin-bottom: 3rem;
   text-align: center;
-  border-bottom: 2px solid #3498db;
-  padding-bottom: 0.5rem;
-  color: #2980b9;
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  position: relative;
+}
+
+.mp-page-title::after {
+  content: '';
+  position: absolute;
+  bottom: -0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3rem;
+  height: 1px;
+  background-color: #F26F32;
 }
 
 /* Formulario y selección de productos */
 .mp-product-selection-container {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  max-width: 650px;
+  margin: 0 auto 2rem;
 }
 
 .mp-form-group {
@@ -34,266 +43,278 @@
 
 .mp-form-group label {
   display: block;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
   margin-bottom: 0.5rem;
-  font-weight: 600;
-  color: #333;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
 }
 
 .mp-select-input,
 .mp-number-input {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
+  padding: 0.75rem 1rem;  /* Reducido de 1rem para más elegancia */
+  border: 1px solid #ccc;
   border-radius: 4px;
-  font-size: 1rem;
-  background-color: white;
-  transition: border 0.2s;
+  font-size: 0.95rem;  /* Reducido ligeramente */
+  font-family: inherit;
+  height: 42px;  /* Altura fija para todos los inputs */
+  box-sizing: border-box;
 }
 
-.mp-select-input:focus,
-.mp-number-input:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
-}
-
-/* Detalles del producto */
 .mp-product-details {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #ddd;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 1.25rem;  /* Algo más compacto */
+  margin: 1.5rem 0;
+  transition: all 0.2s ease;
+}
+
+.mp-product-details:hover {
+  box-shadow: var(--box-shadow);
 }
 
 .mp-product-details h3 {
-  color: #2980b9;
-  margin-top: 0;
-  margin-bottom: 1rem;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.8rem;
+  margin-bottom: 1.2rem;
 }
 
 .mp-product-description {
-  color: #666;
   margin-bottom: 1.5rem;
+  line-height: 1.6;
 }
 
 .mp-product-price {
-  background-color: #3498db;
-  color: white;
-  padding: 1rem;
+  background-color: #f9f9f9;
   border-radius: 4px;
+  padding: 1.25rem;
+  margin-top: 1.25rem;
+  font-weight: 500;
+  border-left: 3px solid #F26F32;  /* Más sutil */
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 1.2rem;
 }
 
 .mp-price-value {
-  font-weight: bold;
-  font-size: 1.5rem;
+  font-size: 1.4rem;  /* Reducido de 1.8rem */
+  font-weight: 600;
+  color: #333;
 }
 
 /* Botones */
 .mp-button-container {
+  margin-top: 2rem;
   display: flex;
-  justify-content: space-between;
-  margin-top: 1.5rem;
+  justify-content: flex-end;
   gap: 1rem;
 }
 
 .mp-button {
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.5rem;  /* Más compacto */
   border: none;
   border-radius: 4px;
+  font-size: 0.9rem;  /* Ligeramente más pequeño */
   cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.2s;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
 }
 
+/* Botón principal naranja */
 .mp-button.mp-primary {
-  background-color: #3498db;
+  background-color: #F26F32;
   color: white;
-}
-
-.mp-button.mp-secondary {
-  background-color: #95a5a6;
-  color: white;
+  font-weight: 600;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .mp-button.mp-primary:hover {
-  background-color: #2980b9;
+  background-color: #e05b22;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+}
+
+/* Botón secundario */
+.mp-button.mp-secondary {
+  background-color: #E5E5E5;
+  color: #333;
+  margin-right: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
 }
 
 .mp-button.mp-secondary:hover {
-  background-color: #7f8c8d;
+  background-color: #d5d5d5;
 }
 
-/* Confirmación */
+/* Botón grande de confirmación */
+.mp-confirmation-actions .mp-button.mp-primary {
+  padding: 0.85rem 2rem;
+}
+
+/* Confirmation page */
 .mp-confirmation-container {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
+  max-width: 700px;
+  margin: 0 auto 2rem;
+  background-color: #fafafa;
+  border-radius: 4px;
+  border: 1px solid #eee;
+  padding: 2rem;
 }
 
-.mp-order-summary {
+/* Título del resumen con estilo elegante */
+.mp-confirmation-container h3 {
+  font-family: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
+  font-size: 1.3rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   margin-bottom: 1.5rem;
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 8px;
-  border: 1px solid #ddd;
+  color: #333;
 }
 
-.mp-order-summary h3 {
-  margin-top: 0;
-  margin-bottom: 1.25rem;
-  color: #2980b9;
+.mp-confirmation-title {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.mp-summary {
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 2rem;
 }
 
 .mp-summary-item {
   display: flex;
   justify-content: space-between;
   padding: 0.75rem 0;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #f0f0f0;
 }
 
-.mp-summary-item span:first-child {
-  font-weight: 600;
-}
-
-.mp-summary-item.mp-total {
-  font-weight: bold;
-  font-size: 1.25rem;
-  margin-top: 1rem;
-  border-top: 2px solid #ddd;
+.mp-summary-item:last-child {
   border-bottom: none;
-  padding: 1rem;
-  background-color: rgba(52, 152, 219, 0.1);
+}
+
+/* Estilos para las etiquetas en el resumen */
+.mp-summary-item span:first-child {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  color: #555;
+}
+
+/* Valores en el resumen con mejor legibilidad */
+.mp-summary-item span:last-child {
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  font-size: 0.95rem;
+}
+
+/* Estilo para el precio total más destacado */
+.mp-total {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #222;
+  background-color: #f9f9f9;
+  padding: 0.75rem 1rem;
   border-radius: 4px;
+  margin-top: 1rem;
+}
+
+.mp-total span:first-child {
+  font-weight: 700;
+  color: #333;
+}
+
+.mp-total span:last-child {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #333;
 }
 
 .mp-confirmation-note {
-  position: relative;
-  background-color: #fff8e1;
-  border-left: 4px solid #ffc107;
-  padding: 1.25rem 1.25rem 1.25rem 2.5rem;
-  margin: 1.5rem 0;
-  border-radius: 4px;
+  background-color: #fff8f6;
+  border-left: 4px solid var(--primary-color);
+  padding: 1rem;
+  margin: 2rem 0;
+  font-size: 0.9rem;
+  color: #666;
+  border-radius: 0 var(--border-radius) var(--border-radius) 0;
 }
 
-.mp-confirmation-note::before {
-  content: "⚠️";
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1.2rem;
+.mp-confirmation-actions {
+  margin-top: 1.5rem;
 }
 
-/* Pago */
+/* Payment page */
 .mp-payment-container {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
+  max-width: 650px;
+  margin: 0 auto;
 }
 
 .mp-order-preview {
-  background-color: #f0f7ff;
-  padding: 1.5rem;
-  border-radius: 8px;
   margin-bottom: 1.5rem;
-  border: 1px solid #cce5ff;
+  background-color: #f8f8f8;
+  padding: 1rem;
+  border-radius: 4px;
 }
 
 .mp-order-preview h3 {
-  color: #2980b9;
-  margin-top: 0;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(41, 128, 185, 0.2);
+  font-size: 1rem;
+  margin-bottom: 1rem;
 }
 
 .mp-locked-value {
-  font-weight: bold;
-  font-size: 1.4rem;
-  color: #2980b9;
-  padding: 0.25rem 0.75rem;
-  background-color: rgba(52, 152, 219, 0.1);
-  border-radius: 4px;
-  border: 1px dashed rgba(52, 152, 219, 0.3);
+  font-weight: 600;
 }
 
 .mp-payment-wrapper {
-  margin: 1.5rem 0;
+  margin-bottom: 2rem;
 }
 
 .mp-payment-actions {
-  border-top: 1px solid #ddd;
-  padding-top: 1.5rem;
-  text-align: right;
+  margin-top: 1.5rem;
 }
 
-/* Estados de carga y error */
-.mp-loading-spinner,
+/* Estado de error/carga */
 .mp-loading {
   text-align: center;
-  padding: 2rem 0;
+  padding: 2rem;
 }
 
 .mp-spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-left-color: #3498db;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #F26F32; /* Cambiado a naranja */
   border-radius: 50%;
   width: 40px;
   height: 40px;
-  animation: mp-spin 1s linear infinite;
+  animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
 }
 
-@keyframes mp-spin {
-  to { transform: rotate(360deg); }
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-.mp-error-container,
-.mp-error {
-  text-align: center;
-  padding: 2rem;
+.mp-error-container {
+  padding: 1.5rem;
   background-color: #fff3f3;
-  border-radius: 8px;
-  border: 1px solid #e74c3c;
-  color: #e74c3c;
+  border-left: 4px solid #e74c3c;
+  margin: 1.5rem 0;
 }
 
 .mp-empty-state {
   text-align: center;
-  padding: 2rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  color: #666;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .mp-container {
-    padding: 1rem;
-  }
-  
-  .mp-product-selection-container,
-  .mp-payment-container,
-  .mp-confirmation-container {
-    padding: 1rem;
-  }
-  
-  .mp-button-container {
-    flex-direction: column;
-  }
-  
-  .mp-button-container .mp-button {
-    width: 100%;
-    margin-bottom: 0.5rem;
-  }
-}
-
-/* Wallet specific styles */
-.mp-wallet-container {
-  width: 100%;
+  padding: 3rem 0;
 }

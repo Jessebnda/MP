@@ -41,7 +41,6 @@ export default function PaymentFlow({
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
@@ -137,6 +136,7 @@ export default function PaymentFlow({
         failureUrl={failureUrl}
         onSuccess={handlePaymentSuccess}
         onError={onError}
+        hideTitle={true}
       />
     );
   };
@@ -144,7 +144,7 @@ export default function PaymentFlow({
   if (loading) {
     return (
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
-        <div className={styles['mp-loading-spinner']}>
+        <div className={styles['mp-loading']}>
           <div className={styles['mp-spinner']}></div>
           <p>Cargando productos...</p>
         </div>
@@ -242,8 +242,7 @@ export default function PaymentFlow({
         {!hideTitle && <h2 className={styles['mp-page-title']}>Confirmar Pedido</h2>}
         
         <div className={styles['mp-confirmation-container']}>
-          <div className={styles['mp-order-summary']}>
-            <h3>Resumen del Pedido</h3>
+          <div className={styles['mp-summary']}>
             <div className={styles['mp-summary-item']}>
               <span>Producto:</span>
               <span>{selectedProduct.name}</span>
@@ -253,7 +252,7 @@ export default function PaymentFlow({
               <span>{selectedProduct.description}</span>
             </div>
             <div className={styles['mp-summary-item']}>
-              <span>Precio unitario:</span>
+              <span>Precio Unitario:</span>
               <span>${selectedProduct.price.toFixed(2)}</span>
             </div>
             <div className={styles['mp-summary-item']}>
@@ -261,7 +260,7 @@ export default function PaymentFlow({
               <span>{quantity}</span>
             </div>
             <div className={cn(styles['mp-summary-item'], styles['mp-total'])}>
-              <span>Total a pagar:</span>
+              <span>Total a Pagar:</span>
               <span>${(selectedProduct.price * quantity).toFixed(2)}</span>
             </div>
           </div>
