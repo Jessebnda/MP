@@ -1,38 +1,56 @@
 'use client'
 
+import { Suspense } from 'react' // Importa Suspense
 import { useSearchParams } from 'next/navigation'
 import PaymentFlow from '../components/PaymentFlow'
 import MercadoPagoProvider from '../components/MercadoPagoProvider'
 
-export default function Home() {
+// Nuevo componente que encapsula la lógica que usa useSearchParams
+function HomePageContent() {
   const params = useSearchParams()
 
-  // 1. Leemos todos los query params (los que ponga tu iframe)
+  // Lee los query params con fallbacks a variables de entorno o valores por defecto
   const productId  = params.get('productId')  || ''
-  const publicKey  = params.get('publicKey')  || ''
-  const successUrl = params.get('successUrl') || ''
-  const pendingUrl = params.get('pendingUrl') || ''
-  const failureUrl = params.get('failureUrl') || ''
+  const publicKey  = params.get('publicKey')  || process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY || ''
+  const apiBaseUrl = params.get('apiBaseUrl') || process.env.NEXT_PUBLIC_HOST_URL || ''
+  
+  // Construye URLs de redirección con fallbacks si no se proveen
+  const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || '';
+  const successUrl = params.get('successUrl') || (hostUrl ? `${hostUrl}/success` : '')
+  const pendingUrl = params.get('pendingUrl') || (hostUrl ? `${hostUrl}/pending` : '')
+  const failureUrl = params.get('failureUrl') || (hostUrl ? `${hostUrl}/failure` : '')
+  
   const hideTitle  = params.get('hideTitle') === 'true'
   const quantity   = parseInt(params.get('quantity') || '1', 10)
-  const apiBaseUrl = params.get('apiBaseUrl') || process.env.NEXT_PUBLIC_HOST_URL || ''
+
+  // PaymentFlow y MercadoPagoProvider tienen sus propias validaciones para props requeridas como publicKey y apiBaseUrl.
+  // Si publicKey o apiBaseUrl están vacíos aquí, los componentes hijos mostrarán sus respectivos errores de configuración.
 
   return (
+    <PaymentFlow
+      apiBaseUrl={apiBaseUrl}
+      productsEndpoint="/api/products"
+      mercadoPagoPublicKey={publicKey}
+      PaymentProviderComponent={MercadoPagoProvider}
+      successUrl={successUrl}
+      pendingUrl={pendingUrl}
+      failureUrl={failureUrl}
+      onSuccess={(data) => console.log('Pago exitoso', data)}
+      onError={(error) => console.error('Error en el pago', error)}
+      hideTitle={hideTitle}
+      productId={productId} // Asegúrate que PaymentFlow maneje este prop si es necesario
+      quantity={quantity}   // Asegúrate que PaymentFlow maneje este prop si es necesario
+    />
+  )
+}
+
+export default function Home() {
+  return (
     <div>
-      <PaymentFlow
-        apiBaseUrl={apiBaseUrl}
-        productsEndpoint="/api/products"
-        mercadoPagoPublicKey={publicKey}
-        PaymentProviderComponent={MercadoPagoProvider}
-        successUrl={successUrl}
-        pendingUrl={pendingUrl}
-        failureUrl={failureUrl}
-        onSuccess={(data) => console.log('Pago exitoso', data)}
-        onError={(error) => console.error('Error en el pago', error)}
-        hideTitle={hideTitle}
-        productId={productId}
-        quantity={quantity}
-      />
+      {/* Envuelve el contenido dependiente del cliente con Suspense */}
+      <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración de pago...</div>}>
+        <HomePageContent />
+      </Suspense>
     </div>
   )
 }
