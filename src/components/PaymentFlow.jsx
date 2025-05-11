@@ -137,6 +137,7 @@ export default function PaymentFlow({
         failureUrl={failureUrl}
         onSuccess={handlePaymentSuccess}
         onError={onError}
+        hideTitle={true} // Ocultar el título del componente de pago para que coincida con la imagen
       />
     );
   };
