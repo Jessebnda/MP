@@ -73,13 +73,25 @@ export default function PaymentFlow({
     fetchProducts();
   }, [apiBaseUrl, productsEndpoint, onError]);
 
+  const getAvailableProducts = (currentIndex) => {
+    const selectedIds = selectedProducts
+      .filter((_, index) => index !== currentIndex)
+      .map(item => item.productId);
+    return products.filter(product => !selectedIds.includes(product.id));
+  };
+
   const handleAddProduct = () => {
     if (products.length > 0) {
+      const availableProducts = getAvailableProducts(-1);
+      if (availableProducts.length === 0) {
+        alert('Ya has agregado todos los productos disponibles');
+        return;
+      }
       setSelectedProducts([
         ...selectedProducts,
         {
-          productId: products[0].id,
-          product: products[0],
+          productId: availableProducts[0].id,
+          product: availableProducts[0],
           quantity: 1
         }
       ]);
@@ -196,12 +208,9 @@ export default function PaymentFlow({
   const renderPaymentProvider = () => {
     if (selectedProducts.length === 0 || !mercadoPagoPublicKey) return null;
 
-    // Si hay múltiples productos, envía solo el ID del primer producto
-    // pero con el precio total consolidado
     const firstProduct = selectedProducts[0];
     const totalAmount = calculateTotalPrice();
     
-    // Log del resumen antes de enviar a MercadoPago
     console.log('====== RESUMEN DE PAGO ======');
     console.log('Monto total a procesar:', totalAmount.toFixed(2));
     console.log('Productos en el carrito:');
@@ -213,8 +222,8 @@ export default function PaymentFlow({
     return (
       <PaymentProviderComponent
         productId={firstProduct.productId}
-        quantity={1} // Cantidad siempre 1 cuando consolidamos
-        totalAmount={totalAmount} // Pasar el precio total como prop adicional
+        quantity={1}
+        totalAmount={totalAmount}
         publicKey={mercadoPagoPublicKey}
         apiBaseUrl={apiBaseUrl}
         successUrl={successUrl}
@@ -223,7 +232,6 @@ export default function PaymentFlow({
         onSuccess={handlePaymentSuccess}
         onError={handlePaymentError}
         hideTitle={true}
-        // Incluir productId en el orderSummary
         orderSummary={selectedProducts.map(product => ({
           productId: product.productId,
           name: product.product.name,
@@ -290,11 +298,16 @@ export default function PaymentFlow({
                   onChange={(e) => handleProductChange(e, index)}
                   className={styles['mp-select-input']}
                 >
-                  {products.map(product => (
+                  {getAvailableProducts(index).map(product => (
                     <option key={product.id} value={product.id}>
                       {product.name} - ${product.price.toFixed(2)}
                     </option>
                   ))}
+                  {selectedProduct.productId && !getAvailableProducts(index).find(p => p.id === selectedProduct.productId) && (
+                    <option key={selectedProduct.productId} value={selectedProduct.productId}>
+                      {selectedProduct.product.name} - ${selectedProduct.product.price.toFixed(2)}
+                    </option>
+                  )}
                 </select>
               </div>
 
