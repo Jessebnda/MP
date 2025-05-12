@@ -5,6 +5,13 @@ import styles from '../styles/PaymentFlow.module.css';
 import MercadoPagoProvider from './MercadoPagoProvider';
 import { cn } from '../lib/utils';
 
+const formatPrice = (price) => {
+  return Number(price).toLocaleString('es-MX', {
+    minimumFractionDigits: 2, 
+    maximumFractionDigits: 2
+  });
+};
+
 export default function PaymentFlow({
   apiBaseUrl,
   productsEndpoint = '/api/products',
@@ -73,6 +80,28 @@ export default function PaymentFlow({
     fetchProducts();
   }, [apiBaseUrl, productsEndpoint, onError]);
 
+  useEffect(() => {
+    // Limpiar cuando el componente se desmonte
+    return () => {
+      // Limpiar cualquier estado global o servicios externos
+      console.log("Limpiando el flujo de pago");
+    };
+  }, []);
+
+  // Usa useEffect para manejar transiciones de estado complejas
+  useEffect(() => {
+    // Si regresamos al paso 1 desde el paso 3, asegurarnos que tengamos productos válidos
+    if (currentStep === 1 && confirmedOrder === null && selectedProducts.length === 0 && products.length > 0) {
+      setSelectedProducts([
+        {
+          productId: products[0].id,
+          product: products[0],
+          quantity: 1
+        }
+      ]);
+    }
+  }, [currentStep, confirmedOrder, selectedProducts.length, products]);
+
   const getAvailableProducts = (currentIndex) => {
     const selectedIds = selectedProducts
       .filter((_, index) => index !== currentIndex)
@@ -120,7 +149,7 @@ export default function PaymentFlow({
 
   const handleQuantityChange = (e, index) => {
     const value = parseInt(e.target.value);
-    if (!isNaN(value) && value > 0 && value <= 100) {
+    if (!isNaN(value) && value > 0) {
       const updatedProducts = [...selectedProducts];
       updatedProducts[index] = {
         ...updatedProducts[index],
@@ -152,10 +181,10 @@ export default function PaymentFlow({
     selectedProducts.forEach((prod, i) => {
       console.log(`${i+1}. ${prod.product.name} (ID: ${prod.productId})`);
       console.log(`   Cantidad: ${prod.quantity}`);
-      console.log(`   Precio unitario: $${prod.product.price.toFixed(2)}`);
-      console.log(`   Subtotal: $${(prod.product.price * prod.quantity).toFixed(2)}`);
+      console.log(`   Precio unitario: $${formatPrice(prod.product.price)}`);
+      console.log(`   Subtotal: $${formatPrice(prod.product.price * prod.quantity)}`);
     });
-    console.log('TOTAL A PAGAR: $' + totalPrice.toFixed(2));
+    console.log('TOTAL A PAGAR: $' + formatPrice(totalPrice));
     console.log('============================');
     
     setConfirmedOrder({
@@ -174,7 +203,13 @@ export default function PaymentFlow({
   const handleCancel = () => {
     if (window.confirm('¿Seguro que deseas cancelar este pedido?')) {
       setCurrentStep(1);
-      setSelectedProducts(products[0] ? [{ ...products[0], quantity: 1 }] : []);
+      setSelectedProducts(products.length > 0 
+        ? [{ 
+            productId: products[0].id,
+            product: products[0],
+            quantity: 1
+          }] 
+        : []);
       setConfirmedOrder(null);
     }
   };
@@ -182,7 +217,7 @@ export default function PaymentFlow({
   const handlePaymentSuccess = (data) => {
     console.log('====== PAGO EXITOSO ======');
     console.log('Detalles de la transacción:', data);
-    console.log('Monto total:', calculateTotalPrice().toFixed(2));
+    console.log('Monto total:', formatPrice(calculateTotalPrice()));
     console.log('Productos:', selectedProducts.map(p => ({
       id: p.productId,
       nombre: p.product.name,
@@ -199,23 +234,23 @@ export default function PaymentFlow({
     console.error('====== ERROR EN PAGO ======');
     console.error('Detalle del error:', error);
     console.error('Productos intentados:', selectedProducts.map(p => p.product.name).join(', '));
-    console.error('Monto total intentado:', calculateTotalPrice().toFixed(2));
+    console.error('Monto total intentado:', formatPrice(calculateTotalPrice()));
     console.error('===========================');
     
     if (onError) onError(error);
   };
 
   const renderPaymentProvider = () => {
-    if (selectedProducts.length === 0 || !mercadoPagoPublicKey) return null;
+    if (!confirmedOrder || selectedProducts.length === 0 || !mercadoPagoPublicKey) return null;
 
     const firstProduct = selectedProducts[0];
     const totalAmount = calculateTotalPrice();
     
     console.log('====== RESUMEN DE PAGO ======');
-    console.log('Monto total a procesar:', totalAmount.toFixed(2));
+    console.log('Monto total a procesar:', formatPrice(totalAmount));
     console.log('Productos en el carrito:');
     selectedProducts.forEach((prod, i) => {
-      console.log(`${i+1}. ${prod.product.name} x ${prod.quantity} = $${(prod.product.price * prod.quantity).toFixed(2)}`);
+      console.log(`${i+1}. ${prod.product.name} x ${prod.quantity} = $${formatPrice(prod.product.price * prod.quantity)}`);
     });
     console.log('============================');
     
@@ -300,12 +335,12 @@ export default function PaymentFlow({
                 >
                   {getAvailableProducts(index).map(product => (
                     <option key={product.id} value={product.id}>
-                      {product.name} - ${product.price.toFixed(2)}
+                      {product.name} - ${formatPrice(product.price)}
                     </option>
                   ))}
                   {selectedProduct.productId && !getAvailableProducts(index).find(p => p.id === selectedProduct.productId) && (
                     <option key={selectedProduct.productId} value={selectedProduct.productId}>
-                      {selectedProduct.product.name} - ${selectedProduct.product.price.toFixed(2)}
+                      {selectedProduct.product.name} - ${formatPrice(selectedProduct.product.price)}
                     </option>
                   )}
                 </select>
@@ -317,7 +352,6 @@ export default function PaymentFlow({
                   id={`mp-quantity-input-${index}`}
                   type="number"
                   min="1"
-                  max="100"
                   value={selectedProduct.quantity || 1}
                   onChange={(e) => handleQuantityChange(e, index)}
                   className={styles['mp-number-input']}
@@ -330,7 +364,9 @@ export default function PaymentFlow({
                   <p className={styles['mp-product-description']}>{selectedProduct.product.description}</p>
                   <div className={styles['mp-product-price']}>
                     <span>Precio Total:</span>
-                    <span className={styles['mp-price-value']}>${(selectedProduct.product.price * selectedProduct.quantity).toFixed(2)}</span>
+                    <span className={styles['mp-price-value']}>
+                      ${formatPrice(selectedProduct.product.price * selectedProduct.quantity)}
+                    </span>
                   </div>
                 </div>
               )}
@@ -353,7 +389,7 @@ export default function PaymentFlow({
 
           <div className={styles['mp-total-price']}>
             <span>Total:</span>
-            <span>${calculateTotalPrice().toFixed(2)}</span>
+            <span>${formatPrice(calculateTotalPrice())}</span>
           </div>
 
           <div className={styles['mp-button-container']}>
@@ -382,18 +418,18 @@ export default function PaymentFlow({
                 <span>{product.product.description}</span>
                 
                 <span>Precio Unitario:</span>
-                <span>${product.product.price.toFixed(2)}</span>
+                <span>${formatPrice(product.product.price)}</span>
                 
                 <span>Cantidad:</span>
                 <span>{product.quantity}</span>
                 
                 <span>Total:</span>
-                <span>${(product.product.price * product.quantity).toFixed(2)}</span>
+                <span>${formatPrice(product.product.price * product.quantity)}</span>
               </div>
             ))}
             <div className={cn(styles['mp-summary-item'], styles['mp-total'])}>
               <span>Total a Pagar:</span>
-              <span>${calculateTotalPrice().toFixed(2)}</span>
+              <span>${formatPrice(calculateTotalPrice())}</span>
             </div>
           </div>
 
@@ -425,19 +461,21 @@ export default function PaymentFlow({
         <div className={styles['mp-payment-container']}>
           <div className={styles['mp-order-preview']}>
             <h3>Resumen del Pedido (Confirmado)</h3>
-            {confirmedOrder.products.map((order, index) => (
+            {confirmedOrder && confirmedOrder.products && confirmedOrder.products.map((order, index) => (
               <div key={index} className={styles['mp-summary-item']}>
                 <span>Producto:</span>
                 <span>{order.productId}</span>
+                <span>Precio unitario:</span>
+                <span>${order.product && formatPrice(order.product.price)}</span>
                 <span>Cantidad:</span>
                 <span>{order.quantity}</span>
                 <span>Total:</span>
-                <span>${(order.product.price * order.quantity).toFixed(2)}</span>
+                <span>${order.product && formatPrice(order.product.price * order.quantity)}</span>
               </div>
             ))}
             <div className={styles['mp-summary-item']}>
               <span>Total a pagar:</span>
-              <span className={styles['mp-locked-value']}>${confirmedOrder.totalPrice.toFixed(2)}</span>
+              <span className={styles['mp-locked-value']}>${formatPrice(confirmedOrder.totalPrice)}</span>
             </div>
           </div>
           

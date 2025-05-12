@@ -262,21 +262,19 @@ export default function MercadoPagoProvider({
       
       console.log("Respuesta recibida del backend, status:", response.status);
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
-        throw new Error(errorData.error || `Error del servidor: ${response.status}`);
-      }
-      
       const data = await response.json();
       console.log("Datos recibidos del backend:", data);
-      
+
       if (data.error) {
         throw new Error(`Error en el pago: ${data.error}`);
       }
-      
+
       // El pago fue exitoso
       setIsSubmitting(false);
       setStatusMsg(`¡Pago procesado correctamente! ID: ${data.id}`);
+      // Usar el monto formateado si está disponible
+      const displayAmount = data.formattedAmount || data.amount.toLocaleString('es-MX');
+      console.log(`Monto pagado: $${displayAmount}`);
       
       // Llamar al callback de éxito
       if (onSuccess) onSuccess(data);
@@ -309,6 +307,19 @@ export default function MercadoPagoProvider({
     // Optional: Clear status message or set a 'ready' message
     // setStatusMsg('Formulario listo.');
   };
+
+  useEffect(() => {
+    // Pequeño retraso para asegurar que el DOM esté completamente renderizado
+    const timer = setTimeout(() => {
+      const container = document.getElementById('paymentBrick_container');
+      if (container) {
+        // Aquí podrías reiniciar la inicialización si es necesario
+        console.log('Contenedor de pago encontrado y listo');
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   if (loading && !productData) {
     return (

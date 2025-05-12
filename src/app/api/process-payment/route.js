@@ -62,9 +62,11 @@ export async function POST(req) {
       
       // Devolver respuesta exitosa con los dos estados posibles
       return NextResponse.json({ 
-        status: 'approved',  // Cambiado de 'success' a 'approved'
-        status_detail: 'success', // Mantener 'success' como detalle
-        message: 'Pago procesado correctamente' 
+        status: 'approved',
+        status_detail: 'success',
+        message: 'Pago procesado correctamente',
+        amount: totalAmount,
+        formattedAmount: Number(totalAmount).toLocaleString('es-MX') // Agrega formato con comas
       });
     } else {
       // Lógica para pedidos múltiples
@@ -206,6 +208,7 @@ export async function POST(req) {
             status: 'success',
             id: paymentResponse.id || Date.now().toString(),
             amount: totalAmount,
+            formattedAmount: Number(totalAmount).toLocaleString('es-MX'), // Agrega formato con comas
             paymentDetails: paymentResponse.status_detail
           });
         } catch (mpError) {
