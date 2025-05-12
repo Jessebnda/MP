@@ -1,9 +1,10 @@
 .paymentFormContainer {
-  /* Styles for the main container if needed */
+  /* Styles for the main container */
   padding: 1rem;
   border: 1px solid #eee;
   border-radius: 4px;
   margin-top: 1rem;
+  font-family: 'Inter', sans-serif;
 }
 
 .loading, .errorContainer {
@@ -13,7 +14,7 @@
   justify-content: center;
   padding: 2rem;
   text-align: center;
-  min-height: 150px; /* Ensure some space */
+  min-height: 150px;
 }
 
 .spinner {
@@ -21,7 +22,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border-left-color: #09f;
+  border-left-color: #F26F32;
   animation: spin 1s ease infinite;
   margin-bottom: 1rem;
 }
@@ -31,36 +32,30 @@
   100% { transform: rotate(360deg); }
 }
 
-.statusMessage, .errorMessage {
-  padding: 0.75rem 1rem;
-  margin-bottom: 1rem;
+.generateButton {
+  background-color: #009ee3; /* Color azul de MercadoPago */
+  color: white;
+  padding: 12px 20px;
+  font-size: 16px;
+  border: none;
   border-radius: 4px;
-  text-align: center;
-}
-
-.statusMessage {
-  background-color: #e6f7ff;
-  border: 1px solid #91d5ff;
-  color: #096dd9;
-}
-
-.errorMessage {
-  background-color: #fff1f0;
-  border: 1px solid #ffa39e;
-  color: #cf1322;
-}
-
-.retryButton {
-  /* Add styles similar to your other buttons */
-  padding: 0.5rem 1rem;
-  margin-top: 0.5rem;
   cursor: pointer;
-  border: 1px solid #ccc;
-  background-color: #f0f0f0;
-  border-radius: 4px;
+  transition: background-color 0.3s;
+  width: 100%;
+  max-width: 400px;
+  margin: 20px auto;
+  display: block;
+  text-align: center;
+  font-weight: 600;
 }
 
-.retryButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.generateButton:hover {
+  background-color: #007eb5;
 }
+
+.generateButton:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* El resto del archivo CSS con ajustes de fuentes */

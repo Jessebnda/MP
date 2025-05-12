@@ -1,0 +1,47 @@
+/* Estilos específicos para el formulario de tarjeta */
+:global(.mp-checkout-container) {
+  font-family: 'Inter', sans-serif !important;
+}
+
+:global(.mp-checkout-container input),
+:global(.mp-checkout-container select) {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 1rem !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  padding: 0.75rem 1rem !important;
+}
+
+:global(.mp-checkout-container label) {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  color: #333 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03rem !important;
+}
+
+:global(.mp-checkout-container h3) {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 1.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03rem !important;
+}
+
+:global(.mp-checkout-container button[type="submit"]) {
+  background-color: #F26F32 !important;
+  color: white !important;
+  border: none !important;
+  padding: 0.75rem 2rem !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05rem !important;
+  border-radius: 4px !important;
+}
+
+:global(.mp-checkout-spinner) {
+  border-color: rgba(242, 111, 50, 0.3) !important;
+  border-top-color: #F26F32 !important;
+}

@@ -1,31 +1,40 @@
-/* Estilos encapsulados con prefijo mp- para evitar conflictos */
+/* Estilos para el flujo de pago */
 .mp-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  max-width: 800px;
+  font-family: 'Inter', sans-serif;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 2rem;
   color: #333;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
+/* Estilos mejorados para el resumen y confirmación del pedido */
 .mp-page-title {
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
+  font-family: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
+  font-size: 2rem;
+  font-weight: 400;
+  margin-bottom: 3rem;
   text-align: center;
-  border-bottom: 2px solid #3498db;
-  padding-bottom: 0.5rem;
-  color: #2980b9;
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  position: relative;
+}
+
+.mp-page-title::after {
+  content: '';
+  position: absolute;
+  bottom: -0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3rem;
+  height: 1px;
+  background-color: #F26F32;
 }
 
 /* Formulario y selección de productos */
 .mp-product-selection-container {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  max-width: 650px;
+  margin: 0 auto 2rem;
 }
 
 .mp-form-group {
@@ -34,266 +43,667 @@
 
 .mp-form-group label {
   display: block;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
   margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+}
+
+/* Selector base */
+.mp-select-input,
+.mp-number-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  height: 60px;  /* Altura base en todas las pantallas */
+  box-sizing: border-box;
+}
+
+/* Mejoras específicas para el select */
+.mp-select-input {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 16px;
+  padding-right: 2.5rem; /* Espacio para el ícono de flecha */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  line-height: 1.5;
+}
+
+.mp-product-details {
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 1.25rem;  /* Algo más compacto */
+  margin: 1.5rem 0;
+  transition: all 0.2s ease;
+}
+
+.mp-product-details:hover {
+  box-shadow: var(--box-shadow);
+}
+
+.mp-product-details h3 {
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.8rem;
+  margin-bottom: 1.2rem;
+}
+
+.mp-product-description {
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.mp-product-price {
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  padding: 1.25rem;
+  margin-top: 1.25rem;
+  font-weight: 500;
+  border-left: 3px solid #F26F32;  /* Más sutil */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mp-price-value {
+  font-size: 1.4rem;  /* Reducido de 1.8rem */
   font-weight: 600;
   color: #333;
 }
 
-.mp-select-input,
-.mp-number-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  background-color: white;
-  transition: border 0.2s;
-}
-
-.mp-select-input:focus,
-.mp-number-input:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
-}
-
-/* Detalles del producto */
-.mp-product-details {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #ddd;
-}
-
-.mp-product-details h3 {
-  color: #2980b9;
-  margin-top: 0;
-  margin-bottom: 1rem;
-}
-
-.mp-product-description {
-  color: #666;
-  margin-bottom: 1.5rem;
-}
-
-.mp-product-price {
-  background-color: #3498db;
-  color: white;
-  padding: 1rem;
-  border-radius: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 1.2rem;
-}
-
-.mp-price-value {
-  font-weight: bold;
-  font-size: 1.5rem;
-}
-
 /* Botones */
 .mp-button-container {
+  margin-top: 2rem;
   display: flex;
-  justify-content: space-between;
-  margin-top: 1.5rem;
+  justify-content: flex-end;
   gap: 1rem;
+  flex-wrap: wrap; /* Para que los botones se apilen si no caben */
 }
 
 .mp-button {
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.5rem;  /* Más compacto */
   border: none;
   border-radius: 4px;
+  font-size: 0.9rem;  /* Ligeramente más pequeño */
   cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.2s;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+  flex-grow: 1; /* Permite que los botones crezcan para llenar el espacio en móvil */
+  min-width: 150px; /* Un ancho mínimo para legibilidad */
+  text-align: center;
 }
 
+@media (min-width: 600px) {
+  .mp-button {
+    flex-grow: 0; /* Evita que crezcan demasiado en pantallas más grandes si no quieres */
+  }
+}
+
+/* Botón principal naranja */
 .mp-button.mp-primary {
-  background-color: #3498db;
+  background-color: #F26F32;
   color: white;
-}
-
-.mp-button.mp-secondary {
-  background-color: #95a5a6;
-  color: white;
+  font-weight: 600;
+  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .mp-button.mp-primary:hover {
-  background-color: #2980b9;
+  background-color: #e05b22;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+}
+
+/* Botón secundario */
+.mp-button.mp-secondary {
+  background-color: #E5E5E5;
+  color: #333;
+  margin-right: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
 }
 
 .mp-button.mp-secondary:hover {
-  background-color: #7f8c8d;
+  background-color: #d5d5d5;
 }
 
-/* Confirmación */
+/* Botón grande de confirmación */
+.mp-confirmation-actions .mp-button.mp-primary {
+  padding: 0.85rem 2rem;
+}
+
+/* Confirmation page */
 .mp-confirmation-container {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
+  max-width: 700px;
+  margin: 0 auto 2rem;
+  background-color: #fafafa;
+  border-radius: 4px;
+  border: 1px solid #eee;
+  padding: 2rem;
 }
 
-.mp-order-summary {
+/* Título del resumen con estilo elegante */
+.mp-confirmation-container h3 {
+  font-family: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
+  font-size: 1.3rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   margin-bottom: 1.5rem;
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-  border-radius: 8px;
-  border: 1px solid #ddd;
+  color: #333;
 }
 
-.mp-order-summary h3 {
-  margin-top: 0;
-  margin-bottom: 1.25rem;
-  color: #2980b9;
+.mp-confirmation-title {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
+.mp-summary {
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 2rem;
+}
+
+/* Mejora el espaciado en los items del resumen */
 .mp-summary-item {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 40% 60%;
   padding: 0.75rem 0;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #f0f0f0;
+  gap: 1rem;
+  align-items: start;
 }
 
+/* Asegura que las etiquetas tengan el ancho adecuado */
 .mp-summary-item span:first-child {
   font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  color: #555;
 }
 
-.mp-summary-item.mp-total {
-  font-weight: bold;
-  font-size: 1.25rem;
-  margin-top: 1rem;
-  border-top: 2px solid #ddd;
+/* Mejora la presentación de los valores */
+.mp-summary-item span:last-child {
+  font-weight: 400;
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+.mp-summary-item:last-child {
   border-bottom: none;
-  padding: 1rem;
-  background-color: rgba(52, 152, 219, 0.1);
+}
+
+/* Media query para pantallas pequeñas */
+@media (max-width: 520px) { /* Ajusta el breakpoint si es necesario */
+  .mp-summary-item {
+    grid-template-columns: 1fr;
+    row-gap: 0.25rem;
+    padding: 0.85rem 0;
+  }
+  
+  .mp-summary-item span:first-child {
+    margin-bottom: 0.25rem;
+  }
+}
+
+/* Estilo para el precio total más destacado */
+.mp-total {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #222;
+  background-color: #f9f9f9;
+  padding: 0.75rem 1rem;
   border-radius: 4px;
+  margin-top: 1rem;
+}
+
+.mp-total span:first-child {
+  font-weight: 700;
+  color: #333;
+}
+
+.mp-total span:last-child {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #333;
 }
 
 .mp-confirmation-note {
-  position: relative;
-  background-color: #fff8e1;
-  border-left: 4px solid #ffc107;
-  padding: 1.25rem 1.25rem 1.25rem 2.5rem;
-  margin: 1.5rem 0;
-  border-radius: 4px;
-}
-
-.mp-confirmation-note::before {
-  content: "⚠️";
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1.2rem;
-}
-
-/* Pago */
-.mp-payment-container {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-}
-
-.mp-order-preview {
-  background-color: #f0f7ff;
-  padding: 1.5rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  border: 1px solid #cce5ff;
-}
-
-.mp-order-preview h3 {
-  color: #2980b9;
-  margin-top: 0;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(41, 128, 185, 0.2);
-}
-
-.mp-locked-value {
-  font-weight: bold;
-  font-size: 1.4rem;
-  color: #2980b9;
-  padding: 0.25rem 0.75rem;
-  background-color: rgba(52, 152, 219, 0.1);
-  border-radius: 4px;
-  border: 1px dashed rgba(52, 152, 219, 0.3);
-}
-
-.mp-payment-wrapper {
-  margin: 1.5rem 0;
-}
-
-.mp-payment-actions {
-  border-top: 1px solid #ddd;
-  padding-top: 1.5rem;
-  text-align: right;
-}
-
-/* Estados de carga y error */
-.mp-loading-spinner,
-.mp-loading {
-  text-align: center;
-  padding: 2rem 0;
-}
-
-.mp-spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-left-color: #3498db;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: mp-spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes mp-spin {
-  to { transform: rotate(360deg); }
-}
-
-.mp-error-container,
-.mp-error {
-  text-align: center;
-  padding: 2rem;
-  background-color: #fff3f3;
-  border-radius: 8px;
-  border: 1px solid #e74c3c;
-  color: #e74c3c;
-}
-
-.mp-empty-state {
-  text-align: center;
-  padding: 2rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
+  background-color: #fff8f6;
+  border-left: 4px solid var(--primary-color);
+  padding: 1rem;
+  margin: 2rem 0;
+  font-size: 0.9rem;
   color: #666;
+  border-radius: 0 var(--border-radius) var(--border-radius) 0;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .mp-container {
-    padding: 1rem;
+.mp-confirmation-actions {
+  margin-top: 1.5rem;
+}
+
+/* Ajustes responsivos para la confirmación del pedido */
+@media (max-width: 767px) {
+  /* Reducir el padding en contenedores para móviles */
+  .mp-confirmation-container {
+    padding: 1.25rem;
+    margin: 0 auto 1rem;
   }
   
-  .mp-product-selection-container,
-  .mp-payment-container,
+  /* Ajustar tamaño del título en móvil */
+  .mp-confirmation-container h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* El contenedor de botones en móvil debe apilar verticalmente */
+  .mp-confirmation-actions .mp-button-container {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  /* Botones a ancho completo en móvil */
+  .mp-confirmation-actions .mp-button {
+    width: 100%;
+    margin-right: 0;
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Ajustar nota de confirmación */
+  .mp-confirmation-note {
+    font-size: 0.8rem;
+    padding: 0.75rem;
+    margin: 1.5rem 0;
+  }
+  
+  /* Ajustar márgenes del total */
+  .mp-total {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  /* Reducir tamaño de texto del total */
+  .mp-total span:last-child {
+    font-size: 1.1rem;
+  }
+  
+  /* Campos de formulario en vista móvil - manteniendo altura original */
+  .mp-select-input,
+  .mp-number-input {
+    height: 60px !important; /* Forzar la misma altura */
+    font-size: 16px; /* Este tamaño previene zoom en iOS */
+    line-height: 1.2; /* Asegura que el texto esté centrado verticalmente */
+  }
+}
+
+/* Para pantallas muy pequeñas */
+@media (max-width: 480px) {
+  /* Reducir aún más el padding */
   .mp-confirmation-container {
     padding: 1rem;
   }
   
-  .mp-button-container {
-    flex-direction: column;
+  /* Ajustar texto de botón grande */
+  .mp-confirmation-actions .mp-button.mp-primary {
+    font-size: 0.8rem;
+    white-space: normal; /* Permitir que el texto se rompa en varias líneas */
+    height: auto;
+    padding: 0.75rem 0.5rem;
   }
   
-  .mp-button-container .mp-button {
-    width: 100%;
-    margin-bottom: 0.5rem;
+  .mp-select-input,
+  .mp-number-input {
+    height: 60px !important; /* Mantener altura */
+    font-size: 16px; /* Mantener tamaño de fuente */
   }
 }
 
-/* Wallet specific styles */
-.mp-wallet-container {
+/* Ajustes responsivos generales para todo el flujo de pago */
+@media (max-width: 767px) {
+  /* Contenedor principal más compacto */
+  .mp-container {
+    padding: 1rem;
+  }
+  
+  /* Título principal más pequeño */
+  .mp-page-title {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  /* Contenedor de confirmación */
+  .mp-confirmation-container {
+    padding: 1.25rem;
+    margin: 0 auto 1rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* Título del resumen más pequeño */
+  .mp-confirmation-container h3 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+  }
+  
+  /* Ajustar tamaño del resumen para mejorar legibilidad */
+  .mp-summary {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  /* Botones en columna con tamaño completo */
+  .mp-confirmation-actions .mp-button-container {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .mp-confirmation-actions .mp-button {
+    width: 100%;
+    margin-right: 0;
+    font-size: 0.85rem;
+    padding: 0.75rem 1rem;
+    min-height: 44px; /* Altura mínima para área táctil */
+  }
+  
+  /* Nota de confirmación más compacta */
+  .mp-confirmation-note {
+    font-size: 0.8rem;
+    padding: 0.75rem;
+    margin: 1.5rem 0;
+  }
+  
+  /* Total más compacto pero manteniendo visibilidad */
+  .mp-total {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .mp-total span:last-child {
+    font-size: 1.1rem;
+  }
+  
+  /* Campos de formulario */
+  .mp-select-input,
+  .mp-number-input {
+    height: 60px !important; /* Forzar la misma altura */
+    font-size: 16px; /* Este tamaño previene zoom en iOS */
+  }
+  
+  /* Detalles del producto más compactos */
+  .mp-product-details {
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+  
+  .mp-product-details h3 {
+    font-size: 1.1rem;
+    padding-bottom: 0.6rem;
+    margin-bottom: 1rem;
+  }
+  
+  .mp-product-price {
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .mp-price-value {
+    font-size: 1.2rem;
+  }
+}
+
+/* Ajustes específicos para pantallas muy pequeñas */
+@media (max-width: 480px) {
+  /* Contenedor principal aún más compacto */
+  .mp-container {
+    padding: 0.75rem;
+  }
+  
+  /* Título principal más pequeño */
+  .mp-page-title {
+    font-size: 1.3rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Contenedor de confirmación */
+  .mp-confirmation-container {
+    padding: 1rem;
+    border-radius: 3px;
+  }
+  
+  /* Ajustar texto de botón grande */
+  .mp-confirmation-actions .mp-button.mp-primary {
+    font-size: 0.8rem;
+    white-space: normal;
+    height: auto;
+    padding: 0.75rem 0.5rem;
+    min-height: 44px;
+  }
+  
+  /* Reducir el espacio vertical entre items */
+  .mp-summary-item {
+    padding: 0.5rem 0;
+  }
+  
+  /* Ajustar tamaño del formulario */
+  .mp-form-group label {
+    font-size: 0.75rem;
+  }
+  
+  /* Order preview más compacto */
+  .mp-order-preview {
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .mp-order-preview h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+  }
+}
+
+/* Payment page */
+.mp-payment-container {
+  max-width: 650px;
+  margin: 0 auto;
+}
+
+.mp-order-preview {
+  margin-bottom: 1.5rem;
+  background-color: #f8f8f8;
+  padding: 1rem;
+  border-radius: 4px;
+}
+
+.mp-order-preview h3 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.mp-locked-value {
+  font-weight: 600;
+}
+
+.mp-payment-wrapper {
+  margin-bottom: 2rem;
+}
+
+.mp-payment-actions {
+  margin-top: 1.5rem;
+}
+
+/* Estado de error/carga */
+.mp-loading {
+  text-align: center;
+  padding: 2rem;
+}
+
+.mp-spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #F26F32; /* Cambiado a naranja */
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.mp-error-container {
+  padding: 1.5rem;
+  background-color: #fff3f3;
+  border-left: 4px solid #e74c3c;
+  margin: 1.5rem 0;
+}
+
+.mp-empty-state {
+  text-align: center;
+  padding: 3rem 0;
+}
+
+/* Estilos para selección múltiple de productos */
+.mp-product-list {
+  margin-bottom: 1.5rem;
+}
+
+.mp-product-item {
+  padding: 1rem;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.mp-product-item:last-child {
+  margin-bottom: 0;
+}
+
+.mp-remove-product {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #666;
+}
+
+.mp-remove-product:hover {
+  background: #e5e5e5;
+  color: #222;
+}
+
+.mp-add-product-button {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  padding: 0.75rem;
   width: 100%;
+  margin-top: 1rem;
+  cursor: pointer;
+  color: #666;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.mp-add-product-button:hover {
+  border-color: #F26F32;
+  color: #F26F32;
+}
+
+.mp-add-product-button span {
+  margin-left: 0.5rem;
+}
+
+/* Estilos para el resumen con múltiples productos */
+.mp-product-summary {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mp-product-summary:last-of-type {
+  border-bottom: 2px solid #eee;
+  margin-bottom: 1.5rem;
+}
+
+.mp-product-summary h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.mp-product-subtotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-weight: 500;
+}
+
+.mp-grand-total {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #222;
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-top: 1.5rem;
+  border-left: 4px solid #F26F32;
+}
+
+.mp-grand-total span:last-child {
+  font-size: 1.4rem;
+  color: #111;
+}
+
+/* Ajustes responsivos para múltiples productos */
+@media (max-width: 767px) {
+  .mp-product-item {
+    padding: 0.75rem;
+  }
+  
+  .mp-product-summary h4 {
+    font-size: 0.9rem;
+  }
+  
+  .mp-grand-total {
+    padding: 0.75rem;
+    font-size: 1.1rem;
+  }
+  
+  .mp-grand-total span:last-child {
+    font-size: 1.2rem;
+  }
 }

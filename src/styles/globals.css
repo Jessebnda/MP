@@ -1,0 +1,198 @@
+:root {
+  --mp-orange: #F26F32;
+  --mp-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', sans-serif;
+  --mp-font-title: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
+  --mp-font-label: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --primary-color: #F26F32;
+  --secondary-color: #E5E5E5;
+  --text-color: #333333;
+  --border-color: #EEEEEE;
+  --background-light: #F8F8F8;
+  --border-radius: 4px;
+  --box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --transition: all 0.2s ease-in-out;
+}
+
+/* Puedes dejar este archivo vacío si no tienes estilos globales específicos aún */
+/* O si usas Tailwind CSS, las directivas @tailwind irían aquí: */
+/*
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+*/
+
+body {
+  margin: 0;
+  font-family: var(--mp-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #333;
+}
+
+/* Aplicar fuentes para títulos principales */
+h1, h2, h3.mp-main-title {
+  font-family: var(--mp-font-title);
+  letter-spacing: 0.02em;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+/* Estilo para etiquetas de formulario */
+label, .mp-label {
+  font-family: var(--mp-font-label);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+}
+
+/* Estilo para campos de entrada */
+input, select, textarea {
+  font-family: var(--mp-font-body);
+  font-size: 1rem;
+}
+
+/* Botón naranja para pagar */
+.mp-payment-button, .mp-button.mp-primary, button[type="submit"] {
+  background-color: #F26F32 !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+  font-family: var(--mp-font-label) !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05rem !important;
+  padding: 0.75rem 2rem !important;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+/* MercadoPago specific styles */
+/* Estilos específicos para el formulario de tarjeta */
+.mp-checkout-container {
+  font-family: var(--mp-font-body) !important;
+}
+
+.mp-checkout-container input,
+.mp-checkout-container select {
+  font-family: var(--mp-font-body) !important;
+  font-size: 1rem !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  padding: 0.75rem 1rem !important;
+}
+
+.mp-checkout-container label {
+  font-family: var(--mp-font-label) !important;
+  font-size: 0.85rem !important; 
+  font-weight: 500 !important;
+  color: #333 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05rem !important;
+}
+
+/* Este es el título principal del formulario de tarjeta */
+.mp-checkout-container h3 {
+  font-family: var(--mp-font-title) !important;
+  font-size: 1.75rem !important;
+  font-weight: 400 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03rem !important;
+}
+
+/* Spinner de carga */
+.mp-checkout-spinner {
+  border-color: rgba(242, 111, 50, 0.3) !important;
+  border-top-color: #F26F32 !important;
+}
+
+/* Add these styles to your globals.css */
+.mp-container {
+  max-width: 1000px !important;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.mp-page-title {
+  margin-bottom: 3rem !important;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.mp-page-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 3px;
+  background-color: var(--primary-color);
+}
+
+/* Enhanced Card Styling */
+.mp-product-selection-container,
+.mp-confirmation-container,
+.mp-payment-container {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 2rem;
+}
+
+/* Improved Form Elements */
+.mp-select-input,
+.mp-number-input {
+  transition: var(--transition);
+  height: 48px;
+  border: 1px solid #ddd !important;
+}
+
+.mp-select-input:hover,
+.mp-number-input:hover {
+  border-color: var(--primary-color) !important;
+}
+
+.mp-select-input:focus,
+.mp-number-input:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 2px rgba(242, 111, 50, 0.2) !important;
+  outline: none;
+}
+
+/* Button Enhancements */
+.mp-button {
+  transition: var(--transition);
+  font-weight: 600 !important;
+}
+
+.mp-button.mp-primary {
+  background-color: var(--primary-color) !important;
+}
+
+.mp-button.mp-primary:hover {
+  background-color: #e05b22 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(242, 111, 50, 0.3);
+}
+
+.mp-button.mp-secondary:hover {
+  background-color: #d5d5d5;
+}
+
+/* Summary Items Styling */
+.mp-summary-item {
+  padding: 1rem 0 !important;
+}
+
+.mp-product-price, 
+.mp-order-preview {
+  background-color: var(--background-light);
+  border-left: 4px solid var(--primary-color);
+}
+
+/* Loading and Error States */
+.mp-spinner {
+  border-top-color: var(--primary-color) !important;
+}
