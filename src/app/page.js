@@ -23,6 +23,9 @@ function HomePageContent() {
   const hideTitle  = params.get('hideTitle') === 'true'
   const quantity   = parseInt(params.get('quantity') || '1', 10)
 
+  // Buscar ambos parámetros para mayor compatibilidad
+  const initialProductId = params.get('initialProductId') || params.get('productId') || ''
+
   // PaymentFlow y MercadoPagoProvider tienen sus propias validaciones para props requeridas como publicKey y apiBaseUrl.
   // Si publicKey o apiBaseUrl están vacíos aquí, los componentes hijos mostrarán sus respectivos errores de configuración.
 
@@ -38,8 +41,8 @@ function HomePageContent() {
       onSuccess={(data) => console.log('Pago exitoso', data)}
       onError={(error) => console.error('Error en el pago', error)}
       hideTitle={hideTitle}
-      productId={productId} // Asegúrate que PaymentFlow maneje este prop si es necesario
-      quantity={quantity}   // Asegúrate que PaymentFlow maneje este prop si es necesario
+      initialProductId={initialProductId}
+      quantity={quantity}
     />
   )
 }

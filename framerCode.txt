@@ -11,13 +11,7 @@ interface MercadoPagoEmbedProps {
     hideTitle: boolean
     width: number | string
     height: number | string
-    /** Evento que dispara Framer al recibirse el mensaje de redirect */
-    onRedirect?: (event: {
-        url: string
-        status: string
-        orderId: string
-        amount: number
-    }) => void
+    onRedirect?: (event: any) => void
 }
 
 export function MercadoPagoEmbed(
@@ -35,10 +29,9 @@ export function MercadoPagoEmbed(
         onRedirect
     } = props;
     
-    // Construir la URL con el parámetro de productId
     const baseUrl = "https://mercadopagoiframe.vercel.app/";
     const queryParams = new URLSearchParams({
-        productId: productId || '',
+        initialProductId: productId || '',
         publicKey: publicKey || '',
         successUrl: successUrl || '',
         pendingUrl: pendingUrl || '',
@@ -49,12 +42,16 @@ export function MercadoPagoEmbed(
     const iframeSrc = `${baseUrl}?${queryParams}`;
     
     return (
-        <MercadoPagoFrame
+        <iframe
             src={iframeSrc}
             width={width}
             height={height}
-            onRedirect={onRedirect}
-            allowedOrigin={baseUrl}
+            style={{
+                border: "none",
+                borderRadius: "8px",
+                overflow: "hidden"
+            }}
+            allow="payment"
         />
     );
 }
@@ -64,7 +61,7 @@ addPropertyControls(MercadoPagoEmbed, {
     productId: {
         title: "Product ID",
         type: ControlType.String,
-        defaultValue: "2",  // Ahora se usará correctamente el ID "2" y no "product2"
+        defaultValue: "2",
     },
     publicKey: {
         title: "MP Public Key",
@@ -115,7 +112,7 @@ addPropertyControls(MercadoPagoEmbed, {
 
 // Props por defecto en canvas
 MercadoPagoEmbed.defaultProps = {
-    productId: "2", // Corregido para que coincida con el defaultValue de arriba
+    productId: "2",
     publicKey: "",
     successUrl: "https://alturadivina.com/confirmacion-de-compra",
     pendingUrl: "https://alturadivina.com/proceso-de-compra",
