@@ -363,13 +363,17 @@ export default function PaymentFlow({
             {selectedProducts.map((product, index) => (
               <div key={index} className={styles['mp-summary-item']}>
                 <span>Producto:</span>
-                <span>{product?.name || 'Producto'}</span>
+                <span>{product.product.name}</span>
+                
                 <span>Descripción:</span>
                 <span>{product.product.description}</span>
+                
                 <span>Precio Unitario:</span>
                 <span>${product.product.price.toFixed(2)}</span>
+                
                 <span>Cantidad:</span>
                 <span>{product.quantity}</span>
+                
                 <span>Total:</span>
                 <span>${(product.product.price * product.quantity).toFixed(2)}</span>
               </div>

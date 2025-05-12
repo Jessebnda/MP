@@ -6,14 +6,14 @@ import styles from '../styles/MercadoPagoProvider.module.css';
 import '../styles/mercadopago-globals.css'; // Changed to import the non-module CSS file
 import { cn } from '../lib/utils'; // Import the utility
 
-// Función para sanitizar datos de entrada (sin cambios)
+// Función para sanitizar datos de entrada (actualizada)
 function sanitizeInput(value, type) {
   switch(type) {
     case 'productId':
       return typeof value === 'string' ? value.replace(/[^a-zA-Z0-9-]/g, '') : 'default-product-id';
     case 'quantity':
       const qty = parseInt(value);
-      return !isNaN(qty) && qty > 0 && qty <= 100 ? qty : 1;
+      return !isNaN(qty) && qty > 0 ? qty : 1; // Removed the upper limit of 100
     default:
       return value;
   }

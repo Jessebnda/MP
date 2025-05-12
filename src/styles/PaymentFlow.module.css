@@ -216,32 +216,30 @@
   padding-bottom: 2rem;
 }
 
+/* Mejora el espaciado en los items del resumen */
 .mp-summary-item {
-  display: flex;
-  justify-content: space-between; /* Mantiene los elementos en extremos opuestos */
-  align-items: flex-start; /* Alinea los items al inicio del eje transversal (útil si un span es más alto que el otro) */
+  display: grid;
+  grid-template-columns: 40% 60%;
   padding: 0.75rem 0;
   border-bottom: 1px solid #f0f0f0;
+  gap: 1rem;
+  align-items: start;
 }
 
-.mp-summary-item span:first-child { /* Etiqueta (ej: "Descripción:") */
-  font-family: 'Inter', sans-serif;
+/* Asegura que las etiquetas tengan el ancho adecuado */
+.mp-summary-item span:first-child {
   font-weight: 600;
   text-transform: uppercase;
   font-size: 0.8rem;
   letter-spacing: 0.05em;
   color: #555;
-  margin-right: 1rem; /* Aumentar un poco el margen para más separación */
-  flex-shrink: 0; /* No permitir que la etiqueta se encoja */
 }
 
-.mp-summary-item span:last-child { /* Valor (ej: "Descripción del producto ejemplo") */
-  font-family: 'Inter', sans-serif;
+/* Mejora la presentación de los valores */
+.mp-summary-item span:last-child {
   font-weight: 400;
   font-size: 0.95rem;
-  text-align: right; /* Alinear el texto a la derecha DENTRO de este span */
-  flex-grow: 1; /* Hacer que este span ocupe el espacio restante */
-  word-break: break-word; /* Romper palabras largas para evitar desbordamiento */
+  word-break: break-word;
 }
 
 .mp-summary-item:last-child {
@@ -251,19 +249,13 @@
 /* Media query para pantallas pequeñas */
 @media (max-width: 520px) { /* Ajusta el breakpoint si es necesario */
   .mp-summary-item {
-    flex-direction: column; /* Apila etiqueta y valor verticalmente */
-    align-items: flex-start; /* Alinea todo a la izquierda */
-    flex-wrap: wrap; /* Permitir el ajuste si el contenido es muy largo incluso en columna */
+    grid-template-columns: 1fr;
+    row-gap: 0.25rem;
+    padding: 0.85rem 0;
   }
-
+  
   .mp-summary-item span:first-child {
-    margin-right: 0; /* No necesita margen a la derecha cuando está en columna */
-    margin-bottom: 0.25rem; /* Espacio entre etiqueta y valor */
-  }
-
-  .mp-summary-item span:last-child {
-    text-align: left; /* Alinear el valor a la izquierda cuando está apilado */
-    width: 100%; /* Ocupar todo el ancho disponible para el valor */
+    margin-bottom: 0.25rem;
   }
 }
 
