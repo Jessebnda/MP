@@ -2,23 +2,76 @@ import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { getProductById } from '../../../data/products';
 import { updateProductStock, getProductStock } from '../../../lib/kv';
+import { logSecurityEvent } from '../../../lib/security-logger';
+import { cookies } from 'next/headers';
+import { validatePaymentData } from '../../../lib/validation';
 
 export async function POST(req) {
   try {
+    // Validar token CSRF
+    const csrfToken = req.headers.get('x-csrf-token');
+    const storedToken = cookies().get('csrf-token')?.value;
+    
+    // Si el token no existe o no coincide
+    if (!csrfToken || !storedToken || csrfToken !== storedToken) {
+      logSecurityEvent('csrf_validation_failed', {
+        hasToken: !!csrfToken,
+        hasStoredToken: !!storedToken,
+        match: csrfToken === storedToken
+      }, 'warn');
+      
+      return NextResponse.json({ error: 'Token CSRF inválido' }, { status: 403 });
+    }
+    
+    // El token es válido, continúa con el procesamiento normal
+    logSecurityEvent('csrf_validation_success', {}, 'info');
+
+    // Registrar información de solicitud (sin datos sensibles)
+    logSecurityEvent('payment_request', {
+      ip: req.headers.get('x-forwarded-for') || 'unknown',
+      method: req.method,
+      url: req.url,
+    });
+    
+    // Validar el origen de la solicitud
+    const origin = req.headers.get('origin');
+    const validOrigins = [
+      process.env.NEXT_PUBLIC_HOST_URL,
+      'http://localhost:3000'
+    ];
+    
+    if (process.env.NODE_ENV === 'production' && 
+        origin && !validOrigins.includes(origin)) {
+      logSecurityEvent('unauthorized_origin', { origin }, 'warn');
+      return NextResponse.json({ error: 'Origen no autorizado' }, { status: 403 });
+    }
+
     const body = await req.json();
     
-    console.log("Body completo recibido:", JSON.stringify(body, null, 2));
+    // Validar estructura y tipos de datos
+    const validation = validatePaymentData(body);
+    if (!validation.valid) {
+      return NextResponse.json({ 
+        error: 'Datos de pago inválidos',
+        details: validation.errors 
+      }, { status: 400 });
+    }
+    
+    // Usar los datos validados y transformados
+    const validatedData = validation.data;
+    
+    console.log("Body completo recibido:", JSON.stringify(validatedData, null, 2));
     
     // Verificar si es un pedido múltiple
-    const isMultipleOrder = body.isMultipleOrder || false;
-    const orderSummary = body.orderSummary || [];
-    const totalAmount = body.totalAmount;
+    const isMultipleOrder = validatedData.isMultipleOrder || false;
+    const orderSummary = validatedData.orderSummary || [];
+    const totalAmount = validatedData.totalAmount;
     
     // Usa la lógica existente para pedidos simples
     if (!isMultipleOrder) {
-      console.log(`Payment request received for product: ${body.productId}, quantity: ${body.quantity}`);
+      console.log(`Payment request received for product: ${validatedData.productId}, quantity: ${validatedData.quantity}`);
       
-      const { formData: formDataWrapper, productId, quantity } = body;
+      const { formData: formDataWrapper, productId, quantity } = validatedData;
       const formData = formDataWrapper?.formData || formDataWrapper;
       
       if (!formData || !productId || !quantity) {
@@ -115,44 +168,44 @@ export async function POST(req) {
         let token = null;
         let paymentMethodId = null;
         
-        console.log("Backend recibió body completo:", JSON.stringify(body, null, 2));
+        console.log("Backend recibió body completo:", JSON.stringify(validatedData, null, 2));
         
-        // Caso 1: Datos directamente en body.formData (estructura antigua)
-        if (body.formData?.payment_method_id && body.formData?.token) {
-          paymentData = body.formData;
-          token = body.formData.token;
-          paymentMethodId = body.formData.payment_method_id;
+        // Caso 1: Datos directamente en validatedData.formData (estructura antigua)
+        if (validatedData.formData?.payment_method_id && validatedData.formData?.token) {
+          paymentData = validatedData.formData;
+          token = validatedData.formData.token;
+          paymentMethodId = validatedData.formData.payment_method_id;
           console.log("Usando estructura antigua (nivel 1)");
         }
-        // Caso 2: Datos doblemente anidados en body.formData.formData (v1.0.3)
-        else if (body.formData?.formData?.payment_method_id && body.formData?.formData?.token) {
-          paymentData = body.formData.formData;
-          token = body.formData.formData.token;
-          paymentMethodId = body.formData.formData.payment_method_id;
+        // Caso 2: Datos doblemente anidados en validatedData.formData.formData (v1.0.3)
+        else if (validatedData.formData?.formData?.payment_method_id && validatedData.formData?.formData?.token) {
+          paymentData = validatedData.formData.formData;
+          token = validatedData.formData.formData.token;
+          paymentMethodId = validatedData.formData.formData.payment_method_id;
           console.log("Usando estructura nueva anidada (nivel 2)");
         }
-        // Caso 3: Verificar si existen los datos directamente en el body
-        else if (body.payment_method_id && body.token) {
-          paymentData = body;
-          token = body.token;
-          paymentMethodId = body.payment_method_id;
-          console.log("Usando body directo (nivel 0)");
+        // Caso 3: Verificar si existen los datos directamente en validatedData
+        else if (validatedData.payment_method_id && validatedData.token) {
+          paymentData = validatedData;
+          token = validatedData.token;
+          paymentMethodId = validatedData.payment_method_id;
+          console.log("Usando validatedData directo (nivel 0)");
         }
         
         // Verificar si encontramos los datos de pago
         if (!token || !paymentMethodId) {
           console.error("Datos de pago incompletos. Estructura recibida:", {
-            bodyTiene: {
-              payment_method_id: !!body.payment_method_id,
-              token: !!body.token
+            validatedDataTiene: {
+              payment_method_id: !!validatedData.payment_method_id,
+              token: !!validatedData.token
             },
-            formDataNivel1: body.formData ? {
-              payment_method_id: !!body.formData.payment_method_id,
-              token: !!body.formData.token
+            formDataNivel1: validatedData.formData ? {
+              payment_method_id: !!validatedData.formData.payment_method_id,
+              token: !!validatedData.formData.token
             } : 'no existe',
-            formDataNivel2: body.formData?.formData ? {
-              payment_method_id: !!body.formData.formData.payment_method_id,
-              token: !!body.formData.formData.token
+            formDataNivel2: validatedData.formData?.formData ? {
+              payment_method_id: !!validatedData.formData.formData.payment_method_id,
+              token: !!validatedData.formData.formData.token
             } : 'no existe'
           });
           
@@ -180,6 +233,15 @@ export async function POST(req) {
         try {
           const paymentResponse = await payment.create({ body: mercadoPagoPaymentData });
           console.log("Respuesta de MercadoPago:", JSON.stringify(paymentResponse, null, 2));
+          
+          // Para procesar pagos exitosos, mejorar el log de seguridad
+          if (paymentResponse.status === 'approved') {
+            logSecurityEvent('payment_success', {
+              id: paymentResponse.id,
+              amount: totalAmount,
+              status: paymentResponse.status
+            });
+          }
           
           // Actualizar stock de todos los productos en el pedido
           if (Array.isArray(orderSummary)) {
@@ -220,6 +282,10 @@ export async function POST(req) {
         }
       } catch (error) {
         console.error("Error general:", error);
+        logSecurityEvent('payment_error', {
+          message: error.message,
+          stack: process.env.NODE_ENV !== 'production' ? error.stack : null
+        }, 'error');
         return NextResponse.json({ 
           error: 'Error al procesar el pago: ' + (error.message || 'Error desconocido'),
           stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
@@ -228,6 +294,10 @@ export async function POST(req) {
     }
   } catch (error) {
     console.error("Error processing payment:", error);
+    logSecurityEvent('payment_error', {
+      message: error.message,
+      stack: process.env.NODE_ENV !== 'production' ? error.stack : null
+    }, 'error');
     return NextResponse.json({ 
       error: 'Error al procesar el pago: ' + (error.message || 'Error desconocido')
     }, { status: 500 });

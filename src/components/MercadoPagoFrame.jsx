@@ -18,27 +18,48 @@ export function MercadoPagoFrame({
 
   React.useEffect(() => {
     function handleMessage(event) {
-      // 1) Ignorar mensajes de otros orígenes
-      if (event.origin !== allowedOrigin) return;
+      // Validación de origen con logs de seguridad
+      if (event.origin !== allowedOrigin) {
+        console.warn(`Mensaje rechazado de origen no permitido: ${event.origin}`);
+        return;
+      }
 
-      const data = event.data || {};
-      switch (data.type) {
-        case "MP_REDIRECT":
-          // Aquí recibes { url, status, orderId, amount }
-          onRedirect(data.url, {
-            status: data.status,
-            orderId: data.orderId,
-            amount: data.amount,
-          });
-          break;
-
-        case "MP_REDIRECT_CONFIRM":
-          // Confirmación opcional
-          console.log("Parent recibió confirmación de redirect a:", data.url);
-          break;
-
-        default:
-          break;
+      // Validar el formato y estructura de datos
+      try {
+        const data = event.data || {};
+        
+        // Validar que el mensaje tiene un tipo válido
+        if (!data.type || typeof data.type !== 'string') {
+          console.warn('Mensaje con formato incorrecto rechazado');
+          return;
+        }
+        
+        switch (data.type) {
+          case "MP_REDIRECT":
+            // Validar URL antes de redireccionar
+            if (!data.url || typeof data.url !== 'string' || 
+                !(data.url.startsWith('http://') || data.url.startsWith('https://'))) {
+              console.error('URL de redirección inválida:', data.url);
+              return;
+            }
+            
+            onRedirect(data.url, {
+              status: data.status,
+              orderId: data.orderId,
+              amount: data.amount,
+            });
+            break;
+            
+          case "MP_REDIRECT_CONFIRM":
+            console.log("Confirmación de redirección recibida:", data.url);
+            break;
+            
+          default:
+            console.warn(`Tipo de mensaje no reconocido: ${data.type}`);
+            break;
+        }
+      } catch (error) {
+        console.error('Error al procesar mensaje:', error);
       }
     }
 

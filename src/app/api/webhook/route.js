@@ -1,80 +1,39 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import crypto from 'crypto'; // Import Node.js crypto module
+import { logSecurityEvent } from '../../../lib/security-logger'; // Importa el logger
 
 // --- Implementación de Validación de Firma ---
+// Mejorar la función de validación de firma
 async function isValidSignature(request, secret) {
   try {
-    const signatureHeader = request.headers.get('x-signature');
-    const requestIdHeader = request.headers.get('x-request-id'); // Aunque no se usa en el hash, es bueno tenerlo
+    // Obtener la firma del encabezado
+    const receivedSignature = request.headers.get('x-signature') || '';
     
-    if (!signatureHeader || !secret) {
-      console.error('Missing X-Signature header or secret for validation');
-      return false;
-    }
-
-    // 1. Parsear el header X-Signature
-    const parts = signatureHeader.split(',').reduce((acc, part) => {
-      const [key, value] = part.trim().split('=');
-      acc[key] = value;
-      return acc;
-    }, {});
-
-    const receivedTs = parts.ts;
-    const receivedHash = parts.v1; // Asumiendo que es v1
-
-    if (!receivedTs || !receivedHash) {
-      console.error('Invalid X-Signature format');
-      return false;
-    }
-
-    // 2. Leer el cuerpo RAW de la solicitud (¡Importante!)
-    // Clonamos la request para poder leer el body raw y luego el JSON
-    const rawBody = await request.clone().text(); 
-
-    // 3. Construir el manifiesto firmado
-    // El formato es: id;<request.data.id>;ts;<marca de tiempo>;
-    // PERO, la documentación más reciente indica usar: <request-id>.<timestamp>.<request-body>
-    // Vamos a usar el formato más común visto en ejemplos: id:data.id;ts:ts;
-    // OJO: La documentación de MP puede ser inconsistente. Verifica el formato exacto que te envían.
-    // Una forma más segura es usar el template: `${requestIdHeader}.${receivedTs}.${rawBody}` si MP lo soporta así.
-    // Por ahora, usaremos el formato basado en ID y TS del payload si está disponible, o solo TS.
+    // Obtener el cuerpo como texto para firmar
+    const body = await request.text();
     
-    // Intentamos parsear el JSON para obtener el ID si es posible, pero usamos rawBody para el hash
-    let manifestBase = `ts:${receivedTs};`;
-    try {
-        const notificationData = JSON.parse(rawBody);
-        if (notificationData?.data?.id) {
-            manifestBase = `id:${notificationData.data.id};${manifestBase}`;
-        }
-    } catch (e) {
-        // Si no es JSON o no tiene data.id, usamos solo el timestamp
-        console.warn("Could not parse webhook body for ID, using timestamp only for manifest base.");
-    }
-    
-    const manifest = `${manifestBase}${rawBody}`; // Concatenamos el cuerpo raw
-
-    // 4. Calcular el HMAC-SHA256
+    // Calcular la firma esperada usando HMAC SHA-256
     const hmac = crypto.createHmac('sha256', secret);
-    hmac.update(manifest);
-    const calculatedHash = hmac.digest('hex');
-
-    // 5. Comparar los hashes
-    const isValid = crypto.timingSafeEqual(Buffer.from(calculatedHash, 'hex'), Buffer.from(receivedHash, 'hex'));
-
-    if (!isValid) {
-        console.error('Webhook signature mismatch.');
-        console.log('Received Hash:', receivedHash);
-        console.log('Calculated Hash:', calculatedHash);
-        // console.log('Manifest used:', manifest); // Descomenta para debug extremo (puede loguear datos sensibles)
-    } else {
-        console.log('Webhook signature validated successfully.');
-    }
-
+    hmac.update(body);
+    const calculatedSignature = hmac.digest('hex');
+    
+    // Usar constantes de tiempo para comparar (evitar timing attacks)
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(calculatedSignature, 'hex'),
+      Buffer.from(receivedSignature, 'hex')
+    );
+    
+    // Registrar el resultado
+    logSecurityEvent(
+      isValid ? 'webhook_signature_valid' : 'webhook_signature_invalid',
+      { receivedSignature: receivedSignature.substring(0, 10) + '...' },
+      isValid ? 'info' : 'warn'
+    );
+    
     return isValid;
-
   } catch (error) {
-    console.error('Error during webhook signature validation:', error);
+    logSecurityEvent('webhook_signature_error', { error: error.message }, 'error');
     return false;
   }
 }

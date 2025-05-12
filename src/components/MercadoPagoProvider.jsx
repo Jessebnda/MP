@@ -10,10 +10,35 @@ import { cn } from '../lib/utils'; // Import the utility
 function sanitizeInput(value, type) {
   switch(type) {
     case 'productId':
-      return typeof value === 'string' ? value.replace(/[^a-zA-Z0-9-]/g, '') : 'default-product-id';
+      // Validación más estricta para IDs de producto
+      return typeof value === 'string' && /^[a-zA-Z0-9-]{1,64}$/.test(value) 
+        ? value 
+        : 'default-product-id';
+        
     case 'quantity':
       const qty = parseInt(value);
-      return !isNaN(qty) && qty > 0 ? qty : 1; // Removed the upper limit of 100
+      // Establecer un límite razonable superior para evitar DoS
+      const MAX_SAFE_QTY = 100000; 
+      return !isNaN(qty) && qty > 0 && qty <= MAX_SAFE_QTY ? qty : 1;
+      
+    case 'url':
+      // Sanitizar URLs para evitar redireccionamientos maliciosos
+      if (typeof value !== 'string') return '';
+      try {
+        const url = new URL(value, window.location.origin);
+        return url.toString();
+      } catch (e) {
+        console.error("URL inválida:", value);
+        return '';
+      }
+      
+    case 'email':
+      // Validación básica de email
+      return typeof value === 'string' && 
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value)
+        ? value
+        : 'cliente@example.com';
+        
     default:
       return value;
   }
@@ -185,41 +210,62 @@ export default function MercadoPagoProvider({
     }
   };
 
-  const handleSubmit = async (formData) => {
-    // Verificar si tenemos datos de producto (ya sea múltiples o individual)
-    if (isSubmitting || (!productData && (!orderSummary || orderSummary.length === 0))) {
-      console.log("No hay datos de producto para procesar");
-      return;
-    }
-
-    // Añadir logs detallados para depuración
-    console.log("FormData original recibido del SDK:", JSON.stringify(formData, null, 2));
-    
-    // Identificar dónde están los datos críticos
-    // Usando un enfoque flexible para adaptarnos a diferentes versiones del SDK
-    const tokenFromForm = formData.token || formData.formData?.token;
-    const paymentMethodFromForm = formData.payment_method_id || formData.formData?.payment_method_id;
-    
-    if (!tokenFromForm || !paymentMethodFromForm) {
-      console.error("ERROR: Campos críticos faltantes en formData:", { 
-        formDataRecibido: formData,
-        hasToken: !!tokenFromForm, 
-        hasPaymentMethodId: !!paymentMethodFromForm 
-      });
-      setDisplayError("Datos de pago incompletos. Por favor intente nuevamente.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setStatusMsg('Procesando pago...');
-    setDisplayError(null);
-
-    // Calcular monto final
-    const finalAmount = orderSummary 
-      ? orderSummary.reduce((total, item) => total + (item.price * item.quantity), 0)
-      : (productData?.price || 0) * sanitizedQuantity;
-
+  async function getCsrfToken() {
     try {
+      const response = await fetch(`${apiBaseUrl}/api/csrf-token`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CSRF token: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return data.csrfToken;
+    } catch (error) {
+      console.error("Error fetching CSRF token:", error);
+      throw error;
+    }
+  }
+
+  const handleSubmit = async (formData) => {
+    try {
+      // Get CSRF token first
+      const csrfToken = await getCsrfToken();
+
+      // Verificar si tenemos datos de producto (ya sea múltiples o individual)
+      if (isSubmitting || (!productData && (!orderSummary || orderSummary.length === 0))) {
+        console.log("No hay datos de producto para procesar");
+        return;
+      }
+
+      // Añadir logs detallados para depuración
+      console.log("FormData original recibido del SDK:", JSON.stringify(formData, null, 2));
+      
+      // Identificar dónde están los datos críticos
+      // Usando un enfoque flexible para adaptarnos a diferentes versiones del SDK
+      const tokenFromForm = formData.token || formData.formData?.token;
+      const paymentMethodFromForm = formData.payment_method_id || formData.formData?.payment_method_id;
+      
+      if (!tokenFromForm || !paymentMethodFromForm) {
+        console.error("ERROR: Campos críticos faltantes en formData:", { 
+          formDataRecibido: formData,
+          hasToken: !!tokenFromForm, 
+          hasPaymentMethodId: !!paymentMethodFromForm 
+        });
+        setDisplayError("Datos de pago incompletos. Por favor intente nuevamente.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      setStatusMsg('Procesando pago...');
+      setDisplayError(null);
+
+      // Calcular monto final
+      const finalAmount = orderSummary 
+        ? orderSummary.reduce((total, item) => total + (item.price * item.quantity), 0)
+        : (productData?.price || 0) * sanitizedQuantity;
+
       // Construir payload para el backend, asegurando que los campos críticos estén accesibles
       const backendPayload = {
         paymentType: formData.paymentType || "credit_card",
@@ -253,9 +299,11 @@ export default function MercadoPagoProvider({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken, // Incluir token CSRF
         },
         body: JSON.stringify(backendPayload),
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: 'include' // Importante para enviar las cookies
       });
       
       clearTimeout(timeoutId); // Limpiar el timeout si la solicitud se completa

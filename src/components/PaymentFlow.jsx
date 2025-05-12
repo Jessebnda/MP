@@ -25,6 +25,7 @@ export default function PaymentFlow({
   containerStyles = {},
   hideTitle = false,
   className = '',
+  initialProductId = null, // Nuevo prop para controlar qué producto se muestra primero
 }) {
   if (!apiBaseUrl) {
     console.error("PaymentFlow Error: 'apiBaseUrl' prop is required.");
@@ -62,10 +63,21 @@ export default function PaymentFlow({
         const data = await response.json();
         setProducts(data);
         if (data.length > 0) {
+          // Encontrar el producto inicial según el ID proporcionado o usar el primero por defecto
+          let initialProduct = data[0]; // Producto por defecto (el primero)
+          
+          // Si se proporciona un ID inicial válido, buscar ese producto
+          if (initialProductId) {
+            const foundProduct = data.find(p => p.id === initialProductId);
+            if (foundProduct) {
+              initialProduct = foundProduct;
+            }
+          }
+          
           setSelectedProducts([
             {
-              productId: data[0].id,
-              product: data[0],
+              productId: initialProduct.id,
+              product: initialProduct,
               quantity: 1
             }
           ]);
@@ -78,7 +90,7 @@ export default function PaymentFlow({
       }
     };
     fetchProducts();
-  }, [apiBaseUrl, productsEndpoint, onError]);
+  }, [apiBaseUrl, productsEndpoint, onError, initialProductId]);
 
   useEffect(() => {
     // Limpiar cuando el componente se desmonte
@@ -92,15 +104,26 @@ export default function PaymentFlow({
   useEffect(() => {
     // Si regresamos al paso 1 desde el paso 3, asegurarnos que tengamos productos válidos
     if (currentStep === 1 && confirmedOrder === null && selectedProducts.length === 0 && products.length > 0) {
+      // Encontrar el producto inicial según el ID proporcionado o usar el primero por defecto
+      let initialProduct = products[0]; // Producto por defecto (el primero)
+      
+      // Si se proporciona un ID inicial válido, buscar ese producto
+      if (initialProductId) {
+        const foundProduct = products.find(p => p.id === initialProductId);
+        if (foundProduct) {
+          initialProduct = foundProduct;
+        }
+      }
+      
       setSelectedProducts([
         {
-          productId: products[0].id,
-          product: products[0],
+          productId: initialProduct.id,
+          product: initialProduct,
           quantity: 1
         }
       ]);
     }
-  }, [currentStep, confirmedOrder, selectedProducts.length, products]);
+  }, [currentStep, confirmedOrder, selectedProducts.length, products, initialProductId]);
 
   const getAvailableProducts = (currentIndex) => {
     const selectedIds = selectedProducts
@@ -203,10 +226,13 @@ export default function PaymentFlow({
   const handleCancel = () => {
     if (window.confirm('¿Seguro que deseas cancelar este pedido?')) {
       setCurrentStep(1);
+      const initialProduct = initialProductId 
+        ? products.find(product => product.id === initialProductId) || products[0]
+        : products[0];
       setSelectedProducts(products.length > 0 
         ? [{ 
-            productId: products[0].id,
-            product: products[0],
+            productId: initialProduct.id,
+            product: initialProduct,
             quantity: 1
           }] 
         : []);
@@ -464,7 +490,7 @@ export default function PaymentFlow({
             {confirmedOrder && confirmedOrder.products && confirmedOrder.products.map((order, index) => (
               <div key={index} className={styles['mp-summary-item']}>
                 <span>Producto:</span>
-                <span>{order.productId}</span>
+                <span>{order.product && order.product.name || 'Producto desconocido'}</span> {/* Muestra el nombre */}
                 <span>Precio unitario:</span>
                 <span>${order.product && formatPrice(order.product.price)}</span>
                 <span>Cantidad:</span>

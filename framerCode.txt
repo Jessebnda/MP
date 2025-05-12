@@ -1,0 +1,126 @@
+// src/components/MercadoPagoEmbed.tsx
+import * as React from "react"
+import { addPropertyControls, ControlType } from "framer"
+
+interface MercadoPagoEmbedProps {
+    productId: string
+    publicKey: string
+    successUrl: string
+    pendingUrl: string
+    failureUrl: string
+    hideTitle: boolean
+    width: number | string
+    height: number | string
+    /** Evento que dispara Framer al recibirse el mensaje de redirect */
+    onRedirect?: (event: {
+        url: string
+        status: string
+        orderId: string
+        amount: number
+    }) => void
+}
+
+export function MercadoPagoEmbed(
+    props: MercadoPagoEmbedProps
+): React.ReactElement {
+    const {
+        productId,
+        publicKey,
+        successUrl,
+        pendingUrl,
+        failureUrl,
+        hideTitle,
+        width,
+        height,
+        onRedirect
+    } = props;
+    
+    // Construir la URL con el parámetro de productId
+    const baseUrl = "https://mercadopagoiframe.vercel.app/";
+    const queryParams = new URLSearchParams({
+        productId: productId || '',
+        publicKey: publicKey || '',
+        successUrl: successUrl || '',
+        pendingUrl: pendingUrl || '',
+        failureUrl: failureUrl || '',
+        hideTitle: hideTitle ? 'true' : 'false'
+    }).toString();
+    
+    const iframeSrc = `${baseUrl}?${queryParams}`;
+    
+    return (
+        <MercadoPagoFrame
+            src={iframeSrc}
+            width={width}
+            height={height}
+            onRedirect={onRedirect}
+            allowedOrigin={baseUrl}
+        />
+    );
+}
+
+// Controles en el panel de Framer
+addPropertyControls(MercadoPagoEmbed, {
+    productId: {
+        title: "Product ID",
+        type: ControlType.String,
+        defaultValue: "2",  // Ahora se usará correctamente el ID "2" y no "product2"
+    },
+    publicKey: {
+        title: "MP Public Key",
+        type: ControlType.String,
+        defaultValue: "",
+    },
+    successUrl: {
+        title: "Success URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/confirmacion-de-compra",
+    },
+    pendingUrl: {
+        title: "Pending URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/proceso-de-compra",
+    },
+    failureUrl: {
+        title: "Failure URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/error-de-compra",
+    },
+    hideTitle: {
+        title: "Hide Title",
+        type: ControlType.Boolean,
+        defaultValue: false,
+    },
+    width: {
+        title: "Width",
+        type: ControlType.Number,
+        defaultValue: 400,
+        min: 100,
+        max: 2000,
+        step: 10,
+    },
+    height: {
+        title: "Height",
+        type: ControlType.Number,
+        defaultValue: 600,
+        min: 100,
+        max: 3000,
+        step: 10,
+    },
+    onRedirect: {
+        title: "On Redirect",
+        type: ControlType.EventHandler,
+    },
+})
+
+// Props por defecto en canvas
+MercadoPagoEmbed.defaultProps = {
+    productId: "2", // Corregido para que coincida con el defaultValue de arriba
+    publicKey: "",
+    successUrl: "https://alturadivina.com/confirmacion-de-compra",
+    pendingUrl: "https://alturadivina.com/proceso-de-compra",
+    failureUrl: "https://alturadivina.com/error-de-compra",
+    hideTitle: false,
+    width: 300,
+    height: 500,
+}

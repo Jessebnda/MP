@@ -1,0 +1,51 @@
+.errorContainer {
+  padding: 2rem;
+  margin: 1rem auto;
+  max-width: 800px;
+  background-color: #fff9f9;
+  border: 1px solid #ffdddd;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.errorContainer h2 {
+  color: #e74c3c;
+  margin-top: 0;
+}
+
+.retryButton {
+  background-color: #F26F32;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background-color 0.2s;
+}
+
+.retryButton:hover {
+  background-color: #e55e20;
+}
+
+.errorDetails {
+  margin-top: 2rem;
+  text-align: left;
+  border-top: 1px solid #eee;
+  padding-top: 1rem;
+}
+
+.errorDetails summary {
+  cursor: pointer;
+  color: #666;
+  font-weight: 500;
+}
+
+.errorDetails pre {
+  background-color: #f8f8f8;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  border-radius: 4px;
+}
