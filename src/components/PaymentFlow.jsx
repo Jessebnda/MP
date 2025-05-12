@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import styles from '../styles/PaymentFlow.module.css'; 
 import MercadoPagoProvider from './MercadoPagoProvider';
 import { cn } from '../lib/utils';
+import { logInfo, logError, logWarn } from '../lib/logger';
 
 const formatPrice = (price) => {
   return Number(price).toLocaleString('es-MX', {
@@ -28,19 +29,19 @@ export default function PaymentFlow({
   initialProductId = null, // Nuevo prop para controlar qué producto se muestra primero
 }) {
   if (!apiBaseUrl) {
-    console.error("PaymentFlow Error: 'apiBaseUrl' prop is required.");
+    logError("PaymentFlow Error: 'apiBaseUrl' prop is required.");
     return <div className={styles['mp-error-container']}>Error de configuración: Falta apiBaseUrl.</div>;
   }
   if (!mercadoPagoPublicKey) {
-    console.error("PaymentFlow Error: 'mercadoPagoPublicKey' prop is required.");
+    logError("PaymentFlow Error: 'mercadoPagoPublicKey' prop is required.");
     return <div className={styles['mp-error-container']}>Error de configuración: Falta mercadoPagoPublicKey.</div>;
   }
   if (!successUrl || !pendingUrl || !failureUrl) {
-    console.error("PaymentFlow Error: 'successUrl', 'pendingUrl', and 'failureUrl' props are required.");
+    logError("PaymentFlow Error: 'successUrl', 'pendingUrl', and 'failureUrl' props are required.");
     return <div className={styles['mp-error-container']}>Error de configuración: Faltan URLs de redirección.</div>;
   }
   if (!PaymentProviderComponent) {
-    console.error("PaymentFlow Error: 'PaymentProviderComponent' prop is required.");
+    logError("PaymentFlow Error: 'PaymentProviderComponent' prop is required.");
     return <div className={styles['mp-error-container']}>Error de configuración: Falta PaymentProviderComponent.</div>;
   }
 
@@ -96,7 +97,7 @@ export default function PaymentFlow({
     // Limpiar cuando el componente se desmonte
     return () => {
       // Limpiar cualquier estado global o servicios externos
-      console.log("Limpiando el flujo de pago");
+      logInfo("Limpiando el flujo de pago");
     };
   }, []);
 
@@ -199,16 +200,16 @@ export default function PaymentFlow({
   const handleConfirmOrder = () => {
     const totalPrice = calculateTotalPrice();
     
-    console.log('====== ORDEN CONFIRMADA ======');
-    console.log('Productos confirmados:');
+    logInfo('====== ORDEN CONFIRMADA ======');
+    logInfo('Productos confirmados:');
     selectedProducts.forEach((prod, i) => {
-      console.log(`${i+1}. ${prod.product.name} (ID: ${prod.productId})`);
-      console.log(`   Cantidad: ${prod.quantity}`);
-      console.log(`   Precio unitario: $${formatPrice(prod.product.price)}`);
-      console.log(`   Subtotal: $${formatPrice(prod.product.price * prod.quantity)}`);
+      logInfo(`${i+1}. ${prod.product.name} (ID: ${prod.productId})`);
+      logInfo(`   Cantidad: ${prod.quantity}`);
+      logInfo(`   Precio unitario: $${formatPrice(prod.product.price)}`);
+      logInfo(`   Subtotal: $${formatPrice(prod.product.price * prod.quantity)}`);
     });
-    console.log('TOTAL A PAGAR: $' + formatPrice(totalPrice));
-    console.log('============================');
+    logInfo('TOTAL A PAGAR: $' + formatPrice(totalPrice));
+    logInfo('============================');
     
     setConfirmedOrder({
       products: selectedProducts,
@@ -241,27 +242,27 @@ export default function PaymentFlow({
   };
 
   const handlePaymentSuccess = (data) => {
-    console.log('====== PAGO EXITOSO ======');
-    console.log('Detalles de la transacción:', data);
-    console.log('Monto total:', formatPrice(calculateTotalPrice()));
-    console.log('Productos:', selectedProducts.map(p => ({
+    logInfo('====== PAGO EXITOSO ======');
+    logInfo('Detalles de la transacción:', data);
+    logInfo('Monto total:', formatPrice(calculateTotalPrice()));
+    logInfo('Productos:', selectedProducts.map(p => ({
       id: p.productId,
       nombre: p.product.name,
       cantidad: p.quantity,
       precio: p.product.price,
       subtotal: p.product.price * p.quantity
     })));
-    console.log('========================');
+    logInfo('========================');
     
     if (onSuccess) onSuccess(data);
   };
 
   const handlePaymentError = (error) => {
-    console.error('====== ERROR EN PAGO ======');
-    console.error('Detalle del error:', error);
-    console.error('Productos intentados:', selectedProducts.map(p => p.product.name).join(', '));
-    console.error('Monto total intentado:', formatPrice(calculateTotalPrice()));
-    console.error('===========================');
+    logError('====== ERROR EN PAGO ======');
+    logError('Detalle del error:', error);
+    logError('Productos intentados:', selectedProducts.map(p => p.product.name).join(', '));
+    logError('Monto total intentado:', formatPrice(calculateTotalPrice()));
+    logError('===========================');
     
     if (onError) onError(error);
   };
@@ -272,13 +273,13 @@ export default function PaymentFlow({
     const firstProduct = selectedProducts[0];
     const totalAmount = calculateTotalPrice();
     
-    console.log('====== RESUMEN DE PAGO ======');
-    console.log('Monto total a procesar:', formatPrice(totalAmount));
-    console.log('Productos en el carrito:');
+    logInfo('====== RESUMEN DE PAGO ======');
+    logInfo('Monto total a procesar:', formatPrice(totalAmount));
+    logInfo('Productos en el carrito:');
     selectedProducts.forEach((prod, i) => {
-      console.log(`${i+1}. ${prod.product.name} x ${prod.quantity} = $${formatPrice(prod.product.price * prod.quantity)}`);
+      logInfo(`${i+1}. ${prod.product.name} x ${prod.quantity} = $${formatPrice(prod.product.price * prod.quantity)}`);
     });
-    console.log('============================');
+    logInfo('============================');
     
     return (
       <PaymentProviderComponent

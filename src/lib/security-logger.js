@@ -1,6 +1,8 @@
 /**
  * Sistema de logs de seguridad para monitorear eventos de seguridad
  */
+import { logInfo, logWarn, logError } from './logger';
+
 export function logSecurityEvent(type, details, severity = 'info') {
   const event = {
     timestamp: new Date().toISOString(),
@@ -11,8 +13,17 @@ export function logSecurityEvent(type, details, severity = 'info') {
     url: typeof window !== 'undefined' ? window.location.href : null,
   };
   
-  // Registrar en consola durante el desarrollo
-  console[severity](`[SEGURIDAD ${severity.toUpperCase()}] ${type}:`, details);
+  // Log using our centralized logger instead of direct console
+  switch(severity) {
+    case 'error':
+      logError(`[SEGURIDAD] ${type}`, details);
+      break;
+    case 'warn':
+      logWarn(`[SEGURIDAD] ${type}`, details);
+      break;
+    default:
+      logInfo(`[SEGURIDAD] ${type}`, details);
+  }
   
   // En producción, enviar a un servicio de monitoreo
   if (process.env.NODE_ENV === 'production') {
@@ -20,16 +31,17 @@ export function logSecurityEvent(type, details, severity = 'info') {
     // sendToSecurityMonitoring(event);
   }
   
-  // Opcional: Almacenar localmente para debugging
-  try {
-    const securityLogs = JSON.parse(localStorage.getItem('mp_security_logs') || '[]');
-    securityLogs.push(event);
-    // Limitar a los últimos 100 eventos para evitar llenar localStorage
-    while (securityLogs.length > 100) securityLogs.shift();
-    localStorage.setItem('mp_security_logs', JSON.stringify(securityLogs));
-  } catch (e) {
-    // Silenciar errores de localStorage (podría no estar disponible en SSR)
-    console.debug('Error almacenando log de seguridad:', e.message);
+  // Almacenar localmente SOLO en desarrollo para debugging
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      const securityLogs = JSON.parse(localStorage.getItem('mp_security_logs') || '[]');
+      securityLogs.push(event);
+      // Limitar a los últimos 100 eventos para evitar llenar localStorage
+      while (securityLogs.length > 100) securityLogs.shift();
+      localStorage.setItem('mp_security_logs', JSON.stringify(securityLogs));
+    } catch (e) {
+      // Silenciar errores de localStorage
+    }
   }
   
   return event;
@@ -40,7 +52,6 @@ export function logSecurityEvent(type, details, severity = 'info') {
  */
 export function validateSignature(data, signature, secret) {
   // Implementación específica de validación de firma
-  // Este es un ejemplo simplificado
   try {
     // En una implementación real, usarías crypto para validar HMAC o similar
     return true; // Placeholder

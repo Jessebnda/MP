@@ -4,6 +4,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logInfo, logError, logWarn } from '../src/lib/logger';
 
 // Obtener la ruta correcta al directorio actual
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,10 +13,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
 // Verificar que las variables estén cargadas
-console.log('Iniciando población de datos en KV...');
-console.log('KV_URL:', process.env.KV_URL ? 'Presente' : 'Ausente');
-console.log('KV_REST_API_URL:', process.env.KV_REST_API_URL ? 'Presente' : 'Ausente');
-console.log('KV_REST_API_TOKEN:', process.env.KV_REST_API_TOKEN ? 'Presente' : 'Ausente');
+logInfo('Iniciando población de datos en KV...');
+logInfo('KV_URL:', process.env.KV_URL ? 'Presente' : 'Ausente');
+logInfo('KV_REST_API_URL:', process.env.KV_REST_API_URL ? 'Presente' : 'Ausente');
+logInfo('KV_REST_API_TOKEN:', process.env.KV_REST_API_TOKEN ? 'Presente' : 'Ausente');
 
 // Solo importar después de cargar variables
 import { populateProductsFromData } from '../src/lib/kv.js';
@@ -27,22 +28,22 @@ async function populateInitialData() {
     const result = await populateProductsFromData(products);
     
     if (result.success) {
-      console.log('Población completada exitosamente!');
-      console.log('Resultados:', result.results);
+      logInfo('Población completada exitosamente!');
+      logInfo('Resultados:', result.results);
     } else {
-      console.error('Error durante la población:', result.error);
-      console.log('Resultados parciales:', result.results);
+      logError('Error durante la población:', result.error);
+      logInfo('Resultados parciales:', result.results);
     }
   } catch (error) {
-    console.error('Error poblando KV:', error);
-    console.error(error.stack);
+    logError('Error poblando KV:', error);
+    logError(error.stack);
   }
 }
 
 // Ejecutar directamente
 populateInitialData()
-  .then(() => console.log('Script completado'))
-  .catch(err => console.error('Error en script:', err))
+  .then(() => logInfo('Script completado'))
+  .catch(err => logError('Error en script:', err))
   .finally(() => process.exit(0));
 
 export { populateInitialData };

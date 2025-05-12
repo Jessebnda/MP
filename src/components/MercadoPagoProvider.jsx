@@ -5,6 +5,7 @@ import { initMercadoPago, Payment } from '@mercadopago/sdk-react';
 import styles from '../styles/MercadoPagoProvider.module.css';
 import '../styles/mercadopago-globals.css'; // Changed to import the non-module CSS file
 import { cn } from '../lib/utils'; // Import the utility
+import { logInfo, logError, logWarn } from '../lib/logger'; // Import logger
 
 // Función para sanitizar datos de entrada (actualizada)
 function sanitizeInput(value, type) {
@@ -28,7 +29,7 @@ function sanitizeInput(value, type) {
         const url = new URL(value, window.location.origin);
         return url.toString();
       } catch (e) {
-        console.error("URL inválida:", value);
+        logError("URL inválida:", value);
         return '';
       }
       
@@ -77,7 +78,7 @@ export default function MercadoPagoProvider({
       initMercadoPago(publicKey);
     } else {
       const configError = 'Error de configuración: Falta la clave pública.';
-      console.error('MercadoPagoProvider requires a publicKey prop.');
+      logError('MercadoPagoProvider requires a publicKey prop.');
       setDisplayError(configError);
       setLoading(false);
     }
@@ -93,7 +94,7 @@ export default function MercadoPagoProvider({
   const fetchProduct = useCallback(async () => {
     // Si tenemos orderSummary con múltiples productos, no necesitamos hacer fetch individual
     if (orderSummary && orderSummary.length > 0) {
-      console.log('Usando datos de múltiples productos desde orderSummary:', orderSummary);
+      logInfo('Usando datos de múltiples productos desde orderSummary:', orderSummary);
       // Crear un "productData" ficticio solo para que el flujo continúe
       setProductData({ id: 'multiple-products', name: 'Múltiples productos', price: 0 });
       setLoading(false);
@@ -121,7 +122,7 @@ export default function MercadoPagoProvider({
     try {
       const productUrl = `${apiBaseUrl.replace(/\/$/, '')}/api/products/${sanitizedProductId}`;
       if (process.env.NODE_ENV === 'development') {
-        console.log('Fetching specific product from:', productUrl);
+        logInfo('Fetching specific product from:', productUrl);
       }
       const response = await fetch(productUrl);
       if (!response.ok) {
@@ -129,12 +130,12 @@ export default function MercadoPagoProvider({
       }
       const productInfo = await response.json();
       if (process.env.NODE_ENV === 'development') {
-        console.log('Product fetched successfully:', productInfo);
+        logInfo('Product fetched successfully:', productInfo);
       }
       setProductData(productInfo);
       setAttemptCount(0);
     } catch (err) {
-      console.error('Error obteniendo producto:', err);
+      logError('Error obteniendo producto:', err);
       setDisplayError(`Error al cargar datos del producto: ${err.message}`);
       setAttemptCount(prev => prev + 1);
       if (onError) onError(err);
@@ -170,7 +171,7 @@ export default function MercadoPagoProvider({
       const fullPendingUrl = pendingUrl || `${window.location.origin}/pending`;
       const fullFailureUrl = failureUrl || `${window.location.origin}/failure`;
       
-      console.log("Enviando solicitud de preferencia con URLs:", {
+      logInfo("Enviando solicitud de preferencia con URLs:", {
         successUrl: fullSuccessUrl,
         pendingUrl: fullPendingUrl,
         failureUrl: fullFailureUrl
@@ -192,17 +193,17 @@ export default function MercadoPagoProvider({
       const data = await response.json();
       
       if (!response.ok) {
-        console.error("Error creando preferencia:", data);
+        logError("Error creando preferencia:", data);
         throw new Error(data.error || `Error del servidor: ${response.status}`);
       }
       
-      console.log("Preferencia creada:", data);
+      logInfo("Preferencia creada:", data);
       
       setPreferenceId(data.preferenceId);
       setIsSubmitting(false);
       setStatusMsg('');
     } catch (error) {
-      console.error("Error creando preferencia:", error);
+      logError("Error creando preferencia:", error);
       setDisplayError(`Error: ${error.message || 'Error desconocido'}`);
       setIsSubmitting(false);
       setStatusMsg('');
@@ -223,7 +224,7 @@ export default function MercadoPagoProvider({
       const data = await response.json();
       return data.csrfToken;
     } catch (error) {
-      console.error("Error fetching CSRF token:", error);
+      logError("Error fetching CSRF token:", error);
       throw error;
     }
   }
@@ -235,12 +236,14 @@ export default function MercadoPagoProvider({
 
       // Verificar si tenemos datos de producto (ya sea múltiples o individual)
       if (isSubmitting || (!productData && (!orderSummary || orderSummary.length === 0))) {
-        console.log("No hay datos de producto para procesar");
+        logInfo("No hay datos de producto para procesar");
         return;
       }
 
       // Añadir logs detallados para depuración
-      console.log("FormData original recibido del SDK:", JSON.stringify(formData, null, 2));
+      if (process.env.NODE_ENV === 'development') {
+        logInfo("FormData original recibido del SDK:", formData);
+      }
       
       // Identificar dónde están los datos críticos
       // Usando un enfoque flexible para adaptarnos a diferentes versiones del SDK
@@ -248,7 +251,7 @@ export default function MercadoPagoProvider({
       const paymentMethodFromForm = formData.payment_method_id || formData.formData?.payment_method_id;
       
       if (!tokenFromForm || !paymentMethodFromForm) {
-        console.error("ERROR: Campos críticos faltantes en formData:", { 
+        logError("Campos críticos faltantes en formData:", { 
           formDataRecibido: formData,
           hasToken: !!tokenFromForm, 
           hasPaymentMethodId: !!paymentMethodFromForm 
@@ -288,13 +291,13 @@ export default function MercadoPagoProvider({
       };
 
       // Log del payload para verificar la estructura
-      console.log("Payload enviado al backend:", JSON.stringify(backendPayload, null, 2));
+      logInfo("Payload enviado al backend:", backendPayload);
       
       // Implementar un timeout para evitar que se quede esperando infinitamente
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos de timeout
       
-      console.log("Enviando solicitud al backend...");
+      logInfo("Enviando solicitud al backend...");
       const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/process-payment`, {
         method: 'POST',
         headers: {
@@ -308,10 +311,10 @@ export default function MercadoPagoProvider({
       
       clearTimeout(timeoutId); // Limpiar el timeout si la solicitud se completa
       
-      console.log("Respuesta recibida del backend, status:", response.status);
+      logInfo("Respuesta recibida del backend, status:", response.status);
       
       const data = await response.json();
-      console.log("Datos recibidos del backend:", data);
+      logInfo("Datos recibidos del backend:", data);
 
       if (data.error) {
         throw new Error(`Error en el pago: ${data.error}`);
@@ -322,7 +325,7 @@ export default function MercadoPagoProvider({
       setStatusMsg(`¡Pago procesado correctamente! ID: ${data.id}`);
       // Usar el monto formateado si está disponible
       const displayAmount = data.formattedAmount || data.amount.toLocaleString('es-MX');
-      console.log(`Monto pagado: $${displayAmount}`);
+      logInfo(`Monto pagado: $${displayAmount}`);
       
       // Llamar al callback de éxito
       if (onSuccess) onSuccess(data);
@@ -333,20 +336,28 @@ export default function MercadoPagoProvider({
       }
       
     } catch (error) {
-      console.error("Error procesando el pago:", error);
+      logError("Error procesando el pago:", error);
       setDisplayError(`Error: ${error.name === 'AbortError' ? 'Tiempo de espera excedido' : error.message || 'Error desconocido'}`);
       setIsSubmitting(false);
       setStatusMsg('');
       if (onError) onError(error);
+      
+      // Add redirect to failureUrl
+      if (failureUrl) {
+        // Small delay to ensure the error message is visible briefly
+        setTimeout(() => {
+          window.location.href = failureUrl;
+        }, 1500);
+      }
     }
   };
 
   const handleError = (err) => {
-    console.error("Error en Payment Brick:", err);
+    logError("Error en Payment Brick:", err);
     setDisplayError('Error: No se pudo inicializar el formulario de pago.');
     setIsSubmitting(false);
     if (process.env.NODE_ENV === 'development') {
-      console.error('Detalles del error del Payment Brick:', err);
+      logError('Detalles del error del Payment Brick:', err);
     }
     if (onError) onError(err);
   };
@@ -362,7 +373,7 @@ export default function MercadoPagoProvider({
       const container = document.getElementById('paymentBrick_container');
       if (container) {
         // Aquí podrías reiniciar la inicialización si es necesario
-        console.log('Contenedor de pago encontrado y listo');
+        logInfo('Contenedor de pago encontrado y listo');
       }
     }, 100);
     

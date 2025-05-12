@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Frame } from "framer";
+import { logInfo, logError, logWarn } from '../lib/logger';
 
 export function MercadoPagoFrame({
   // Tu deploy en Vercel
@@ -20,7 +21,7 @@ export function MercadoPagoFrame({
     function handleMessage(event) {
       // Validación de origen con logs de seguridad
       if (event.origin !== allowedOrigin) {
-        console.warn(`Mensaje rechazado de origen no permitido: ${event.origin}`);
+        logWarn(`Mensaje rechazado de origen no permitido: ${event.origin}`);
         return;
       }
 
@@ -30,7 +31,7 @@ export function MercadoPagoFrame({
         
         // Validar que el mensaje tiene un tipo válido
         if (!data.type || typeof data.type !== 'string') {
-          console.warn('Mensaje con formato incorrecto rechazado');
+          logWarn('Mensaje con formato incorrecto rechazado');
           return;
         }
         
@@ -39,7 +40,7 @@ export function MercadoPagoFrame({
             // Validar URL antes de redireccionar
             if (!data.url || typeof data.url !== 'string' || 
                 !(data.url.startsWith('http://') || data.url.startsWith('https://'))) {
-              console.error('URL de redirección inválida:', data.url);
+              logError('URL de redirección inválida:', { url: data.url });
               return;
             }
             
@@ -51,15 +52,15 @@ export function MercadoPagoFrame({
             break;
             
           case "MP_REDIRECT_CONFIRM":
-            console.log("Confirmación de redirección recibida:", data.url);
+            logInfo("Confirmación de redirección recibida:", { url: data.url });
             break;
             
           default:
-            console.warn(`Tipo de mensaje no reconocido: ${data.type}`);
+            logWarn("Tipo de mensaje no reconocido", { type: data.type });
             break;
         }
       } catch (error) {
-        console.error('Error al procesar mensaje:', error);
+        logError('Error al procesar mensaje:', { message: error.message });
       }
     }
 

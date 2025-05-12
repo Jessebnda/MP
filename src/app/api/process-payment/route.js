@@ -5,6 +5,7 @@ import { updateProductStock, getProductStock } from '../../../lib/kv';
 import { logSecurityEvent } from '../../../lib/security-logger';
 import { cookies } from 'next/headers';
 import { validatePaymentData } from '../../../lib/validation';
+import { logInfo, logError, logWarn } from '../../../lib/logger';
 
 export async function POST(req) {
   try {
@@ -60,7 +61,7 @@ export async function POST(req) {
     // Usar los datos validados y transformados
     const validatedData = validation.data;
     
-    console.log("Body completo recibido:", JSON.stringify(validatedData, null, 2));
+    logInfo("Body completo recibido:", validatedData);
     
     // Verificar si es un pedido múltiple
     const isMultipleOrder = validatedData.isMultipleOrder || false;
@@ -69,7 +70,7 @@ export async function POST(req) {
     
     // Usa la lógica existente para pedidos simples
     if (!isMultipleOrder) {
-      console.log(`Payment request received for product: ${validatedData.productId}, quantity: ${validatedData.quantity}`);
+      logInfo(`Payment request received for product: ${validatedData.productId}, quantity: ${validatedData.quantity}`);
       
       const { formData: formDataWrapper, productId, quantity } = validatedData;
       const formData = formDataWrapper?.formData || formDataWrapper;
@@ -109,7 +110,7 @@ export async function POST(req) {
         // Reducir el stock - usamos directamente updateProductStock con el ID y el nuevo valor
         await updateProductStock(productId, currentStock - quantity);
       } catch (stockError) {
-        console.error("Error actualizando stock:", stockError);
+        logError("Error actualizando stock:", stockError);
         // Continuamos con el proceso aunque falle la actualización del stock
       }
       
@@ -123,7 +124,7 @@ export async function POST(req) {
       });
     } else {
       // Lógica para pedidos múltiples
-      console.log(`Processing multiple order with total: ${totalAmount}`);
+      logInfo(`Processing multiple order with total: ${totalAmount}`);
       
       const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
       const payment = new Payment(client);
@@ -168,33 +169,33 @@ export async function POST(req) {
         let token = null;
         let paymentMethodId = null;
         
-        console.log("Backend recibió body completo:", JSON.stringify(validatedData, null, 2));
+        logInfo("Backend recibió body completo:", validatedData);
         
         // Caso 1: Datos directamente en validatedData.formData (estructura antigua)
         if (validatedData.formData?.payment_method_id && validatedData.formData?.token) {
           paymentData = validatedData.formData;
           token = validatedData.formData.token;
           paymentMethodId = validatedData.formData.payment_method_id;
-          console.log("Usando estructura antigua (nivel 1)");
+          logInfo("Usando estructura antigua (nivel 1)");
         }
         // Caso 2: Datos doblemente anidados en validatedData.formData.formData (v1.0.3)
         else if (validatedData.formData?.formData?.payment_method_id && validatedData.formData?.formData?.token) {
           paymentData = validatedData.formData.formData;
           token = validatedData.formData.formData.token;
           paymentMethodId = validatedData.formData.formData.payment_method_id;
-          console.log("Usando estructura nueva anidada (nivel 2)");
+          logInfo("Usando estructura nueva anidada (nivel 2)");
         }
         // Caso 3: Verificar si existen los datos directamente en validatedData
         else if (validatedData.payment_method_id && validatedData.token) {
           paymentData = validatedData;
           token = validatedData.token;
           paymentMethodId = validatedData.payment_method_id;
-          console.log("Usando validatedData directo (nivel 0)");
+          logInfo("Usando validatedData directo (nivel 0)");
         }
         
         // Verificar si encontramos los datos de pago
         if (!token || !paymentMethodId) {
-          console.error("Datos de pago incompletos. Estructura recibida:", {
+          logError("Datos de pago incompletos. Estructura recibida:", {
             validatedDataTiene: {
               payment_method_id: !!validatedData.payment_method_id,
               token: !!validatedData.token
@@ -227,12 +228,12 @@ export async function POST(req) {
        
         };
         
-        console.log("Datos de pago a enviar a MP:", JSON.stringify(mercadoPagoPaymentData, null, 2));
+        logInfo("Datos de pago a enviar a MP:", mercadoPagoPaymentData);
         
         // Crear el pago en MercadoPago
         try {
           const paymentResponse = await payment.create({ body: mercadoPagoPaymentData });
-          console.log("Respuesta de MercadoPago:", JSON.stringify(paymentResponse, null, 2));
+          logInfo("Respuesta de MercadoPago:", paymentResponse);
           
           // Para procesar pagos exitosos, mejorar el log de seguridad
           if (paymentResponse.status === 'approved') {
@@ -251,16 +252,16 @@ export async function POST(req) {
               
               // Validar que el ID del producto existe
               if (!itemId) {
-                console.error('Error: Producto sin ID en orderSummary', item);
+                logError('Error: Producto sin ID en orderSummary', item);
                 continue; // Saltar este item si no tiene ID
               }
               
               try {
                 const currentStock = await getProductStock(itemId);
-                console.log(`Actualizando stock para producto ${itemId}: ${currentStock} -> ${currentStock - itemQty}`);
+                logInfo(`Actualizando stock para producto ${itemId}: ${currentStock} -> ${currentStock - itemQty}`);
                 await updateProductStock(itemId, currentStock - itemQty);
               } catch (stockError) {
-                console.error(`Error updating stock for product ${itemId}:`, stockError);
+                logError(`Error updating stock for product ${itemId}:`, stockError);
               }
             }
           }
@@ -274,14 +275,14 @@ export async function POST(req) {
             paymentDetails: paymentResponse.status_detail
           });
         } catch (mpError) {
-          console.error("Error de MercadoPago:", mpError);
+          logError("Error de MercadoPago:", mpError);
           return NextResponse.json({ 
             error: `Error de MercadoPago: ${mpError.message}`, 
             details: mpError.cause || []
           }, { status: 500 });
         }
       } catch (error) {
-        console.error("Error general:", error);
+        logError("Error general:", error);
         logSecurityEvent('payment_error', {
           message: error.message,
           stack: process.env.NODE_ENV !== 'production' ? error.stack : null
@@ -293,7 +294,7 @@ export async function POST(req) {
       }
     }
   } catch (error) {
-    console.error("Error processing payment:", error);
+    logError("Error processing payment:", error);
     logSecurityEvent('payment_error', {
       message: error.message,
       stack: process.env.NODE_ENV !== 'production' ? error.stack : null

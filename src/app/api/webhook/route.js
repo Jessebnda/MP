@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import crypto from 'crypto'; // Import Node.js crypto module
 import { logSecurityEvent } from '../../../lib/security-logger'; // Importa el logger
+import { logInfo, logError, logWarn } from '../../../lib/logger'; // Importa el logger
 
 // --- Implementación de Validación de Firma ---
 // Mejorar la función de validación de firma
@@ -49,7 +50,7 @@ function isSuccessfulPayment(status) {
 }
 
 export async function POST(req) {
-  console.log('Webhook received!');
+  logInfo('Webhook received!');
 
   // Usar el Access Token como secreto para la validación de firma
   // (O un Webhook Secret específico si lo configuraste en Mercado Pago)
@@ -58,7 +59,7 @@ export async function POST(req) {
   // 1. Validar la firma del webhook ANTES de leer el JSON
   const isValid = await isValidSignature(req, secret);
   if (!isValid) {
-    console.error('Invalid webhook signature. Rejecting request.');
+    logError('Invalid webhook signature. Rejecting request.');
     return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
   }
 
@@ -69,39 +70,39 @@ export async function POST(req) {
   try {
     // 2. Obtener el cuerpo de la notificación (ahora podemos usar .json())
     const notification = await req.json();
-    console.log(`Webhook received: type=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
+    logInfo(`Webhook received: type=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
 
     // 3. Verificar si es una notificación de pago y obtener el ID
     if (notification.type === 'payment' && notification.data?.id) {
       const paymentId = notification.data.id;
-      console.log(`Processing validated webhook for payment ID: ${paymentId}`);
+      logInfo(`Processing validated webhook for payment ID: ${paymentId}`);
 
       // 4. Obtener el estado REAL del pago desde la API de Mercado Pago
       const paymentInfo = await paymentClient.get({ id: paymentId });
-      console.log(`Payment ${paymentId.substring(0, 4)}... status: ${paymentInfo.status}`);
+      logInfo(`Payment ${paymentId.substring(0, 4)}... status: ${paymentInfo.status}`);
 
       // 5. Lógica para actualizar tu base de datos
-      console.log(`Simulating database update for Order related to Payment ID ${paymentId} to status: ${paymentInfo.status}`);
+      logInfo(`Simulating database update for Order related to Payment ID ${paymentId} to status: ${paymentInfo.status}`);
       // await updateOrderStatusInDatabase(paymentId, paymentInfo.status);
 
       // 6. Acciones adicionales (ej. enviar email)
       if (isSuccessfulPayment(paymentInfo.status)) {
-        console.log(`Payment ${paymentId} accepted with status: ${paymentInfo.status}. Consider sending confirmation email.`);
+        logInfo(`Payment ${paymentId} accepted with status: ${paymentInfo.status}. Consider sending confirmation email.`);
         // sendConfirmationEmail(paymentInfo.payer.email, paymentId);
       } else if (paymentInfo.status === 'rejected') {
-        console.log(`Payment ${paymentId} rejected.`);
+        logInfo(`Payment ${paymentId} rejected.`);
         // sendRejectionEmail(paymentInfo.payer.email, paymentId);
       }
 
     } else {
-      console.log('Validated webhook received, but not a payment notification or missing data ID.');
+      logInfo('Validated webhook received, but not a payment notification or missing data ID.');
     }
 
     // 7. Responder a Mercado Pago con 200 OK
     return NextResponse.json({ received: true }, { status: 200 });
 
   } catch (error) {
-    console.error('Error processing validated webhook:', error?.cause || error?.message || error);
+    logError('Error processing validated webhook:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }
