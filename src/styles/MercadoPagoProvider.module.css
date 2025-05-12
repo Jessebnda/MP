@@ -32,4 +32,30 @@
   100% { transform: rotate(360deg); }
 }
 
+.generateButton {
+  background-color: #009ee3; /* Color azul de MercadoPago */
+  color: white;
+  padding: 12px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  width: 100%;
+  max-width: 400px;
+  margin: 20px auto;
+  display: block;
+  text-align: center;
+  font-weight: 600;
+}
+
+.generateButton:hover {
+  background-color: #007eb5;
+}
+
+.generateButton:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
 /* El resto del archivo CSS con ajustes de fuentes */

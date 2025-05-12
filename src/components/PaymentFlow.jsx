@@ -37,12 +37,10 @@ export default function PaymentFlow({
   }
 
   const [products, setProducts] = useState([]);
-  const [selectedProductId, setSelectedProductId] = useState(null);
-  const [quantity, setQuantity] = useState(1);
+  const [selectedProducts, setSelectedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedProduct, setSelectedProduct] = useState(null);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
 
   useEffect(() => {
@@ -57,8 +55,13 @@ export default function PaymentFlow({
         const data = await response.json();
         setProducts(data);
         if (data.length > 0) {
-          setSelectedProductId(data[0].id);
-          setSelectedProduct(data[0]);
+          setSelectedProducts([
+            {
+              productId: data[0].id,
+              product: data[0],
+              quantity: 1
+            }
+          ]);
         }
       } catch (e) {
         setError(e.message);
@@ -70,34 +73,82 @@ export default function PaymentFlow({
     fetchProducts();
   }, [apiBaseUrl, productsEndpoint, onError]);
 
-  const handleProductChange = (e) => {
-    const newProductId = e.target.value;
-    setSelectedProductId(newProductId);
-    const product = products.find(p => p.id === newProductId);
-    setSelectedProduct(product);
-  };
-
-  const handleQuantityChange = (e) => {
-    const value = parseInt(e.target.value);
-    if (!isNaN(value) && value > 0 && value <= 100) {
-      setQuantity(value);
+  const handleAddProduct = () => {
+    if (products.length > 0) {
+      setSelectedProducts([
+        ...selectedProducts,
+        {
+          productId: products[0].id,
+          product: products[0],
+          quantity: 1
+        }
+      ]);
     }
   };
 
+  const handleRemoveProduct = (index) => {
+    const newProducts = [...selectedProducts];
+    newProducts.splice(index, 1);
+    setSelectedProducts(newProducts);
+  };
+
+  const handleProductChange = (e, index) => {
+    const productId = e.target.value;
+    const product = products.find(p => p.id === productId);
+    
+    const updatedProducts = [...selectedProducts];
+    updatedProducts[index] = {
+      ...updatedProducts[index],
+      productId: productId,
+      product: product
+    };
+    
+    setSelectedProducts(updatedProducts);
+  };
+
+  const handleQuantityChange = (e, index) => {
+    const value = parseInt(e.target.value);
+    if (!isNaN(value) && value > 0 && value <= 100) {
+      const updatedProducts = [...selectedProducts];
+      updatedProducts[index] = {
+        ...updatedProducts[index],
+        quantity: value
+      };
+      setSelectedProducts(updatedProducts);
+    }
+  };
+
+  const calculateTotalPrice = () => {
+    return selectedProducts.reduce((total, item) => {
+      return total + (item.product?.price || 0) * item.quantity;
+    }, 0);
+  };
+
   const handleContinueToConfirmation = () => {
-    if (!selectedProduct || quantity < 1) {
-      alert('Por favor selecciona un producto válido y cantidad');
+    if (selectedProducts.length === 0 || selectedProducts.some(product => product.quantity < 1)) {
+      alert('Por favor selecciona productos válidos y cantidades');
       return;
     }
     setCurrentStep(2);
   };
 
   const handleConfirmOrder = () => {
+    const totalPrice = calculateTotalPrice();
+    
+    console.log('====== ORDEN CONFIRMADA ======');
+    console.log('Productos confirmados:');
+    selectedProducts.forEach((prod, i) => {
+      console.log(`${i+1}. ${prod.product.name} (ID: ${prod.productId})`);
+      console.log(`   Cantidad: ${prod.quantity}`);
+      console.log(`   Precio unitario: $${prod.product.price.toFixed(2)}`);
+      console.log(`   Subtotal: $${(prod.product.price * prod.quantity).toFixed(2)}`);
+    });
+    console.log('TOTAL A PAGAR: $' + totalPrice.toFixed(2));
+    console.log('============================');
+    
     setConfirmedOrder({
-      productId: selectedProduct.id,
-      quantity: quantity,
-      price: selectedProduct.price,
-      totalPrice: selectedProduct.price * quantity
+      products: selectedProducts,
+      totalPrice: totalPrice
     });
     setCurrentStep(3);
   };
@@ -111,32 +162,75 @@ export default function PaymentFlow({
   const handleCancel = () => {
     if (window.confirm('¿Seguro que deseas cancelar este pedido?')) {
       setCurrentStep(1);
-      setSelectedProductId(products[0]?.id || null);
-      setSelectedProduct(products[0] || null);
-      setQuantity(1);
+      setSelectedProducts(products[0] ? [{ ...products[0], quantity: 1 }] : []);
       setConfirmedOrder(null);
     }
   };
 
   const handlePaymentSuccess = (data) => {
+    console.log('====== PAGO EXITOSO ======');
+    console.log('Detalles de la transacción:', data);
+    console.log('Monto total:', calculateTotalPrice().toFixed(2));
+    console.log('Productos:', selectedProducts.map(p => ({
+      id: p.productId,
+      nombre: p.product.name,
+      cantidad: p.quantity,
+      precio: p.product.price,
+      subtotal: p.product.price * p.quantity
+    })));
+    console.log('========================');
+    
     if (onSuccess) onSuccess(data);
   };
 
-  const renderPaymentProvider = () => {
-    if (!selectedProduct || !mercadoPagoPublicKey) return null;
+  const handlePaymentError = (error) => {
+    console.error('====== ERROR EN PAGO ======');
+    console.error('Detalle del error:', error);
+    console.error('Productos intentados:', selectedProducts.map(p => p.product.name).join(', '));
+    console.error('Monto total intentado:', calculateTotalPrice().toFixed(2));
+    console.error('===========================');
+    
+    if (onError) onError(error);
+  };
 
+  const renderPaymentProvider = () => {
+    if (selectedProducts.length === 0 || !mercadoPagoPublicKey) return null;
+
+    // Si hay múltiples productos, envía solo el ID del primer producto
+    // pero con el precio total consolidado
+    const firstProduct = selectedProducts[0];
+    const totalAmount = calculateTotalPrice();
+    
+    // Log del resumen antes de enviar a MercadoPago
+    console.log('====== RESUMEN DE PAGO ======');
+    console.log('Monto total a procesar:', totalAmount.toFixed(2));
+    console.log('Productos en el carrito:');
+    selectedProducts.forEach((prod, i) => {
+      console.log(`${i+1}. ${prod.product.name} x ${prod.quantity} = $${(prod.product.price * prod.quantity).toFixed(2)}`);
+    });
+    console.log('============================');
+    
     return (
       <PaymentProviderComponent
-        productId={selectedProduct.id}
-        quantity={quantity}
+        productId={firstProduct.productId}
+        quantity={1} // Cantidad siempre 1 cuando consolidamos
+        totalAmount={totalAmount} // Pasar el precio total como prop adicional
         publicKey={mercadoPagoPublicKey}
         apiBaseUrl={apiBaseUrl}
         successUrl={successUrl}
         pendingUrl={pendingUrl}
         failureUrl={failureUrl}
         onSuccess={handlePaymentSuccess}
-        onError={onError}
+        onError={handlePaymentError}
         hideTitle={true}
+        // Incluir productId en el orderSummary
+        orderSummary={selectedProducts.map(product => ({
+          productId: product.productId,
+          name: product.product.name,
+          quantity: product.quantity,
+          price: product.product.price,
+          total: product.product.price * product.quantity
+        }))}
       />
     );
   };
@@ -183,48 +277,71 @@ export default function PaymentFlow({
   if (currentStep === 1) {
     return (
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
-        {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona tu Producto</h2>}
+        {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona tus Productos</h2>}
         
         <div className={styles['mp-product-selection-container']}>
-          <div className={styles['mp-form-group']}>
-            <label htmlFor="mp-product-select">Producto:</label>
-            <select 
-              id="mp-product-select"
-              value={selectedProductId || ''}
-              onChange={handleProductChange}
-              className={styles['mp-select-input']}
-            >
-              {products.map(product => (
-                <option key={product.id} value={product.id}>
-                  {product.name} - ${product.price.toFixed(2)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className={styles['mp-form-group']}>
-            <label htmlFor="mp-quantity-input">Cantidad:</label>
-            <input
-              id="mp-quantity-input"
-              type="number"
-              min="1"
-              max="100"
-              value={quantity}
-              onChange={handleQuantityChange}
-              className={styles['mp-number-input']}
-            />
-          </div>
-          
-          {selectedProduct && (
-            <div className={styles['mp-product-details']}>
-              <h3>{selectedProduct.name}</h3>
-              <p className={styles['mp-product-description']}>{selectedProduct.description}</p>
-              <div className={styles['mp-product-price']}>
-                <span>Precio Total:</span>
-                <span className={styles['mp-price-value']}>${(selectedProduct.price * quantity).toFixed(2)}</span>
+          {selectedProducts.map((selectedProduct, index) => (
+            <div key={index} className={styles['mp-product-item']}>
+              <div className={styles['mp-form-group']}>
+                <label htmlFor={`mp-product-select-${index}`}>Producto:</label>
+                <select 
+                  id={`mp-product-select-${index}`}
+                  value={selectedProduct.productId || ''}
+                  onChange={(e) => handleProductChange(e, index)}
+                  className={styles['mp-select-input']}
+                >
+                  {products.map(product => (
+                    <option key={product.id} value={product.id}>
+                      {product.name} - ${product.price.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              <div className={styles['mp-form-group']}>
+                <label htmlFor={`mp-quantity-input-${index}`}>Cantidad:</label>
+                <input
+                  id={`mp-quantity-input-${index}`}
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={selectedProduct.quantity || 1}
+                  onChange={(e) => handleQuantityChange(e, index)}
+                  className={styles['mp-number-input']}
+                />
+              </div>
+              
+              {selectedProduct.product && (
+                <div className={styles['mp-product-details']}>
+                  <h3>{selectedProduct.product.name}</h3>
+                  <p className={styles['mp-product-description']}>{selectedProduct.product.description}</p>
+                  <div className={styles['mp-product-price']}>
+                    <span>Precio Total:</span>
+                    <span className={styles['mp-price-value']}>${(selectedProduct.product.price * selectedProduct.quantity).toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                className={cn(styles['mp-button'], styles['mp-secondary'])}
+                onClick={() => handleRemoveProduct(index)}
+              >
+                Eliminar Producto
+              </button>
             </div>
-          )}
+          ))}
+
+          <button
+            className={cn(styles['mp-button'], styles['mp-primary'])}
+            onClick={handleAddProduct}
+          >
+            Agregar Producto
+          </button>
+
+          <div className={styles['mp-total-price']}>
+            <span>Total:</span>
+            <span>${calculateTotalPrice().toFixed(2)}</span>
+          </div>
 
           <div className={styles['mp-button-container']}>
             <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleContinueToConfirmation}>
@@ -243,25 +360,23 @@ export default function PaymentFlow({
         
         <div className={styles['mp-confirmation-container']}>
           <div className={styles['mp-summary']}>
-            <div className={styles['mp-summary-item']}>
-              <span>Producto:</span>
-              <span>{selectedProduct.name}</span>
-            </div>
-            <div className={styles['mp-summary-item']}>
-              <span>Descripción:</span>
-              <span>{selectedProduct.description}</span>
-            </div>
-            <div className={styles['mp-summary-item']}>
-              <span>Precio Unitario:</span>
-              <span>${selectedProduct.price.toFixed(2)}</span>
-            </div>
-            <div className={styles['mp-summary-item']}>
-              <span>Cantidad:</span>
-              <span>{quantity}</span>
-            </div>
+            {selectedProducts.map((product, index) => (
+              <div key={index} className={styles['mp-summary-item']}>
+                <span>Producto:</span>
+                <span>{product?.name || 'Producto'}</span>
+                <span>Descripción:</span>
+                <span>{product.product.description}</span>
+                <span>Precio Unitario:</span>
+                <span>${product.product.price.toFixed(2)}</span>
+                <span>Cantidad:</span>
+                <span>{product.quantity}</span>
+                <span>Total:</span>
+                <span>${(product.product.price * product.quantity).toFixed(2)}</span>
+              </div>
+            ))}
             <div className={cn(styles['mp-summary-item'], styles['mp-total'])}>
               <span>Total a Pagar:</span>
-              <span>${(selectedProduct.price * quantity).toFixed(2)}</span>
+              <span>${calculateTotalPrice().toFixed(2)}</span>
             </div>
           </div>
 
@@ -293,6 +408,16 @@ export default function PaymentFlow({
         <div className={styles['mp-payment-container']}>
           <div className={styles['mp-order-preview']}>
             <h3>Resumen del Pedido (Confirmado)</h3>
+            {confirmedOrder.products.map((order, index) => (
+              <div key={index} className={styles['mp-summary-item']}>
+                <span>Producto:</span>
+                <span>{order.productId}</span>
+                <span>Cantidad:</span>
+                <span>{order.quantity}</span>
+                <span>Total:</span>
+                <span>${(order.product.price * order.quantity).toFixed(2)}</span>
+              </div>
+            ))}
             <div className={styles['mp-summary-item']}>
               <span>Total a pagar:</span>
               <span className={styles['mp-locked-value']}>${confirmedOrder.totalPrice.toFixed(2)}</span>

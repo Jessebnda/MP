@@ -22,6 +22,8 @@ function sanitizeInput(value, type) {
 export default function MercadoPagoProvider({
   productId,
   quantity = 1,
+  totalAmount = null, // Nuevo parámetro 
+  orderSummary = null, // Nuevo parámetro para mostrar el resumen detallado
   publicKey,
   apiBaseUrl, // Required, validated in PaymentFlow
   successUrl,
@@ -40,6 +42,7 @@ export default function MercadoPagoProvider({
   const [statusMsg, setStatusMsg] = useState('');
   const [productData, setProductData] = useState(null);
   const [isFetchingProduct, setIsFetchingProduct] = useState(false);
+  const [preferenceId, setPreferenceId] = useState(null); // Agregar estado para preferenceId
 
   const sanitizedProductId = sanitizeInput(productId, 'productId');
   const sanitizedQuantity = sanitizeInput(quantity, 'quantity');
@@ -55,7 +58,25 @@ export default function MercadoPagoProvider({
     }
   }, [publicKey]);
 
+  useEffect(() => {
+    // Solo generar la preferencia cuando tengamos datos y no haya error
+    if (orderSummary?.length > 0 && !displayError && !preferenceId && !isSubmitting) {
+      createPreference();
+    }
+  }, [orderSummary, displayError, preferenceId, isSubmitting]);
+
   const fetchProduct = useCallback(async () => {
+    // Si tenemos orderSummary con múltiples productos, no necesitamos hacer fetch individual
+    if (orderSummary && orderSummary.length > 0) {
+      console.log('Usando datos de múltiples productos desde orderSummary:', orderSummary);
+      // Crear un "productData" ficticio solo para que el flujo continúe
+      setProductData({ id: 'multiple-products', name: 'Múltiples productos', price: 0 });
+      setLoading(false);
+      setAttemptCount(0);
+      return;
+    }
+
+    // El resto del código para el caso de un solo producto
     if (!sanitizedProductId) {
       setDisplayError('Falta el ID del producto');
       setLoading(false);
@@ -96,134 +117,181 @@ export default function MercadoPagoProvider({
       setLoading(false);
       setIsFetchingProduct(false);
     }
-  }, [apiBaseUrl, sanitizedProductId, onError]);
+  }, [apiBaseUrl, sanitizedProductId, orderSummary, onError]);
 
   useEffect(() => {
     fetchProduct();
   }, [fetchProduct]);
 
-  const handleSubmit = async (formData) => {
-    if (isSubmitting || !productData) return;
+  useEffect(() => {
+    // Solo generar la preferencia cuando tengamos datos y no haya error
+    if (productData && orderSummary?.length > 0 && !displayError && !preferenceId && !isSubmitting) {
+      createPreference();
+    }
+  }, [productData, orderSummary, displayError, preferenceId, isSubmitting]);
 
-    // --- LOG PARA DEBUG EN VERCEL ---
-    console.log(`Payment form submitted for product: ${sanitizedProductId}, quantity: ${sanitizedQuantity}`);
-    // ---------------------------------
+  const createPreference = async () => {
+    if (!orderSummary || orderSummary.length === 0) {
+      setDisplayError("No hay productos para procesar");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setStatusMsg('Generando formulario de pago...');
+    
+    try {
+      // Asegurar que las URLs están completas
+      const fullSuccessUrl = successUrl || `${window.location.origin}/success`;
+      const fullPendingUrl = pendingUrl || `${window.location.origin}/pending`;
+      const fullFailureUrl = failureUrl || `${window.location.origin}/failure`;
+      
+      console.log("Enviando solicitud de preferencia con URLs:", {
+        successUrl: fullSuccessUrl,
+        pendingUrl: fullPendingUrl,
+        failureUrl: fullFailureUrl
+      });
+      
+      const response = await fetch(`${apiBaseUrl}/api/create-preference`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderSummary,
+          successUrl: fullSuccessUrl,
+          pendingUrl: fullPendingUrl,
+          failureUrl: fullFailureUrl
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error("Error creando preferencia:", data);
+        throw new Error(data.error || `Error del servidor: ${response.status}`);
+      }
+      
+      console.log("Preferencia creada:", data);
+      
+      setPreferenceId(data.preferenceId);
+      setIsSubmitting(false);
+      setStatusMsg('');
+    } catch (error) {
+      console.error("Error creando preferencia:", error);
+      setDisplayError(`Error: ${error.message || 'Error desconocido'}`);
+      setIsSubmitting(false);
+      setStatusMsg('');
+      if (onError) onError(error);
+    }
+  };
+
+  const handleSubmit = async (formData) => {
+    // Verificar si tenemos datos de producto (ya sea múltiples o individual)
+    if (isSubmitting || (!productData && (!orderSummary || orderSummary.length === 0))) {
+      console.log("No hay datos de producto para procesar");
+      return;
+    }
+
+    // Añadir logs detallados para depuración
+    console.log("FormData original recibido del SDK:", JSON.stringify(formData, null, 2));
+    
+    // Identificar dónde están los datos críticos
+    // Usando un enfoque flexible para adaptarnos a diferentes versiones del SDK
+    const tokenFromForm = formData.token || formData.formData?.token;
+    const paymentMethodFromForm = formData.payment_method_id || formData.formData?.payment_method_id;
+    
+    if (!tokenFromForm || !paymentMethodFromForm) {
+      console.error("ERROR: Campos críticos faltantes en formData:", { 
+        formDataRecibido: formData,
+        hasToken: !!tokenFromForm, 
+        hasPaymentMethodId: !!paymentMethodFromForm 
+      });
+      setDisplayError("Datos de pago incompletos. Por favor intente nuevamente.");
+      return;
+    }
 
     setIsSubmitting(true);
     setStatusMsg('Procesando pago...');
     setDisplayError(null);
 
-    // Setting maximum processing time
-    const paymentTimeout = setTimeout(() => {
-      if (isSubmitting) {
-        setIsSubmitting(false);
-        setDisplayError('El procesamiento del pago ha tomado demasiado tiempo. Por favor intente nuevamente.');
-      }
-    }, 60000); // 60 seconds timeout
-
-    let redirectUrl = failureUrl;
+    // Calcular monto final
+    const finalAmount = orderSummary 
+      ? orderSummary.reduce((total, item) => total + (item.price * item.quantity), 0)
+      : (productData?.price || 0) * sanitizedQuantity;
 
     try {
-      const paymentEndpoint = `${apiBaseUrl.replace(/\/$/, '')}/api/process-payment`;
+      // Construir payload para el backend, asegurando que los campos críticos estén accesibles
       const backendPayload = {
-        ...formData, // Asegúrate que formData realmente tenga payment_method_id aquí
-        productId: sanitizedProductId,
-        quantity: sanitizedQuantity,
+        paymentType: formData.paymentType || "credit_card",
+        selectedPaymentMethod: formData.selectedPaymentMethod || "credit_card",
+        formData: {
+          token: tokenFromForm,
+          payment_method_id: paymentMethodFromForm,
+          issuer_id: formData.issuer_id || formData.formData?.issuer_id || '',
+          installments: parseInt(formData.installments || formData.formData?.installments || 1),
+          payer: {
+            email: formData.payer?.email || formData.formData?.payer?.email || 'cliente@example.com'
+          },
+         // Changed from currency_id to currency
+        },
+        // Omitir productId y quantity completamente si estamos usando orderSummary
+        ...(orderSummary ? {} : { productId: sanitizedProductId, quantity: sanitizedQuantity }),
+        isMultipleOrder: orderSummary ? true : false,
+        orderSummary: orderSummary,
+        totalAmount: finalAmount
       };
 
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Sending payment data to:', paymentEndpoint);
-        console.log('Payload:', JSON.stringify(backendPayload, null, 2));
-      }
-
-      const response = await fetch(paymentEndpoint, {
+      // Log del payload para verificar la estructura
+      console.log("Payload enviado al backend:", JSON.stringify(backendPayload, null, 2));
+      
+      // Implementar un timeout para evitar que se quede esperando infinitamente
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos de timeout
+      
+      console.log("Enviando solicitud al backend...");
+      const response = await fetch(`${apiBaseUrl.replace(/\/$/, '')}/api/process-payment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(backendPayload),
+        signal: controller.signal
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Respuesta completa del servidor:", data); // Debug
-        setStatusMsg('¡Pago procesado!');
-        if (onSuccess) onSuccess(data);
-
-        // Normalizar status para comparación
-        const paymentStatus = (data.status || '').toLowerCase();
-        
-        // Verificar más claramente el estado
-        if (paymentStatus === 'approved' || paymentStatus === 'success') {
-          redirectUrl = successUrl;
-          console.log("Redirigiendo a URL de éxito:", successUrl);
-        } 
-        else if (paymentStatus === 'in_process' || paymentStatus === 'pending') {
-          redirectUrl = pendingUrl;
-          console.log("Redirigiendo a URL pendiente:", pendingUrl);
-        }
-        else {
-          redirectUrl = failureUrl;
-          console.log("Redirigiendo a URL de error:", failureUrl);
-        }
-
-        // Add this new section before the window.location.href redirect
-        // This will send a message to the parent window before redirecting
-        try {
-          if (window.parent && window.parent !== window) {
-            // More robust message with additional data
-            window.parent.postMessage({
-              type: 'MP_REDIRECT',
-              url: redirectUrl,
-              status: paymentStatus,
-              orderId: data.id || '',
-              amount: totalAmount
-            }, '*'); // Consider restricting to your specific Framer domain for security
-            
-            console.log('Sending redirect message to parent:', redirectUrl);
-            
-            // Send a confirmation message after short delay to ensure receipt
-            setTimeout(() => {
-              window.parent.postMessage({
-                type: 'MP_REDIRECT_CONFIRM',
-                url: redirectUrl
-              }, '*');
-            }, 500);
-            
-            return; // Don't redirect the iframe
-          }
-        } catch (commError) {
-          console.error('Error communicating with parent frame:', commError);
-          // Fall back to regular redirect
-        }
-
-        // If we're not in an iframe or communication failed, redirect normally
-        if (redirectUrl) {
-          setTimeout(() => {
-            window.location.href = redirectUrl;
-          }, 1800);
-        }
-      } else {
-        let backendErrorMsg = 'Hubo un problema al procesar tu pago. Inténtalo de nuevo.';
-        try {
-          const errorData = await response.json();
-          backendErrorMsg = errorData.error || backendErrorMsg;
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error en proceso de pago (backend response):', errorData);
-          }
-        } catch (e) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Error en proceso de pago (backend response not JSON):', await response.text());
-          }
-        }
-        setDisplayError(backendErrorMsg);
-        redirectUrl = failureUrl;
+      
+      clearTimeout(timeoutId); // Limpiar el timeout si la solicitud se completa
+      
+      console.log("Respuesta recibida del backend, status:", response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(errorData.error || `Error del servidor: ${response.status}`);
       }
-    } catch (e) {
-      console.error('Error en handleSubmit:', e);
-      setDisplayError('No se pudo completar el pago. Inténtalo nuevamente.');
-      if (onError) onError(e);
-    } finally {
-      clearTimeout(paymentTimeout); // Clear timeout when done
+      
+      const data = await response.json();
+      console.log("Datos recibidos del backend:", data);
+      
+      if (data.error) {
+        throw new Error(`Error en el pago: ${data.error}`);
+      }
+      
+      // El pago fue exitoso
       setIsSubmitting(false);
+      setStatusMsg(`¡Pago procesado correctamente! ID: ${data.id}`);
+      
+      // Llamar al callback de éxito
+      if (onSuccess) onSuccess(data);
+      
+      // Redirigir si es necesario
+      if (successUrl) {
+        window.location.href = successUrl;
+      }
+      
+    } catch (error) {
+      console.error("Error procesando el pago:", error);
+      setDisplayError(`Error: ${error.name === 'AbortError' ? 'Tiempo de espera excedido' : error.message || 'Error desconocido'}`);
+      setIsSubmitting(false);
+      setStatusMsg('');
+      if (onError) onError(error);
     }
   };
 
@@ -270,75 +338,67 @@ export default function MercadoPagoProvider({
   }
 
   const price = productData?.price || 0;
-  const totalAmount = price * sanitizedQuantity;
-
-  const initialization = { amount: totalAmount };
-  const customization = {
-    visual: { 
-      hideFormTitle: false, 
-      hidePaymentButton: false,
-      style: {
-        theme: 'default', // o 'dark', 'bootstrap', 'flat'
-        customVariables: {
-          // Colores de texto
-          textPrimaryColor: '#333333',
-          textSecondaryColor: '#555555',
-          
-          // Colores de fondo
-          formBackgroundColor: '#FFFFFF',
-          baseColor: '#F26F32',       // Color principal (naranja en tu caso)
-          
-          // Inputs
-          inputBackgroundColor: '#FFFFFF',
-          inputTextColor: '#333333',
-          inputBorderColor: '#DDDDDD',
-          
-          // Botones
-          buttonTextColor: '#FFFFFF',
-          buttonBackgroundColor: '#F26F32',
-          buttonBorderColor: '#F26F32',
-          
-          // Estado hover
-          hoverButtonBackgroundColor: '#e05b22',
-          
-          // Estado error
-          errorColor: '#e74c3c',
-          
-          // Bordes
-          borderRadiusLarge: '4px',
-          borderRadiusMedium: '4px',
-          borderRadiusSmall: '4px',
-          
-          // Tipografía
-          fontSizeExtraLarge: '1.25rem',
-          fontSizeLarge: '1rem',
-          fontSizeMedium: '0.9rem',
-          fontSizeSmall: '0.85rem',
-          
-          // Font family - usando variables CSS
-          fontFamilyPrimary: 'var(--font-inter)'
-        }
-      }
-    },
-    paymentMethods: { 
-      creditCard: 'all', 
-      debitCard: 'all' 
-    }
-  };
+  const finalTotalAmount = totalAmount !== null ? 
+    totalAmount : 
+    price * sanitizedQuantity;
 
   return (
     <div className={cn(styles.paymentFormContainer, className)}>
       {statusMsg && <p className={styles.statusMessage}>{statusMsg}</p>}
       {displayError && !isFetchingProduct && <p className={styles.errorMessage}>{displayError}</p>}
-      {productData && (
+      
+      {preferenceId ? (
         <Payment
-          key={sanitizedProductId}
-          initialization={initialization}
-          customization={customization}
+          key={`payment-${preferenceId}`}
+          initialization={{
+            amount: finalTotalAmount,
+            preferenceId: preferenceId,
+            mercadoPago: publicKey  // Cambiar marketplace por mercadoPago
+          }}
+          customization={{
+            visual: { 
+              hideFormTitle: false, 
+              hidePaymentButton: false,
+              style: {
+                theme: 'default',
+                customVariables: {
+                  baseColor: '#F26F32',       // Color principal naranja
+                  errorColor: '#e74c3c',      
+                  
+                  formBackgroundColor: '#FFFFFF', 
+                  inputBackgroundColor: '#FFFFFF',
+                  inputBorderColor: '#CCCCCC',
+                  buttonTextColor: '#FFFFFF',
+                  buttonBackground: '#F26F32', 
+                  
+                  elementsColor: '#F26F32',
+                  
+                  borderRadiusLarge: '4px',
+                  borderRadiusMedium: '4px',
+                  borderRadiusSmall: '4px'
+                }
+              }
+            },
+            paymentMethods: { 
+              creditCard: 'all', 
+              debitCard: 'all' 
+            }
+          }}
           onSubmit={handleSubmit}
           onReady={handleReady}
           onError={handleError}
         />
+      ) : (
+        <div className={styles.loadingPreference}>
+          {isSubmitting ? (
+            <>
+              <div className={styles.spinner}></div>
+              <p>Generando formulario de pago...</p>
+            </>
+          ) : (
+            <p>Preparando formulario...</p>
+          )}
+        </div>
       )}
     </div>
   );
