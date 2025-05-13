@@ -150,3 +150,13 @@
   --mp-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mp-font-title: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
 }
+
+/* Custom styling for MercadoPago circle */
+.mp-circle-logo {
+  background-color: var(--mp-circle-color, #009EE3) !important;
+}
+
+/* Fix for MercadoPago logo inside the circle */
+.mp-mercadopago-logo {
+  background-color: transparent !important;
+}

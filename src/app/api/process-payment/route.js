@@ -82,6 +82,7 @@ export async function POST(req) {
         status: paymentResponse.status,
         idempotencyKey,
       });
+      // Only update stock for approved payments
       await updateStockAfterOrder(itemsForPayment);
       
       return NextResponse.json({
@@ -91,7 +92,7 @@ export async function POST(req) {
         formattedAmount: Number(totalAmount).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }),
         paymentDetails: paymentResponse.status_detail,
         message: 'Pago procesado exitosamente.',
-        idempotencyKey, // Incluir en respuesta
+        idempotencyKey,
       });
     } else {
       logSecurityEvent('payment_non_approved', {

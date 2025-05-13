@@ -114,7 +114,11 @@ export function useMercadoPagoBrickSubmit({
         // Pending case - payment is being processed
         setStatusMsg(`Pago en proceso. ID: ${data.id}`);
         if (onSuccess) onSuccess(data); // Still call success but with pending status
-        if (pendingUrl) window.location.href = pendingUrl;
+        
+        // Add small timeout to ensure the message is seen before redirecting
+        setTimeout(() => {
+          if (pendingUrl) window.location.href = pendingUrl;
+        }, 500);
       } 
       else if (data.status === 'rejected') {
         // Rejected case - payment was rejected

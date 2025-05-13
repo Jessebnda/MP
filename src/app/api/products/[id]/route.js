@@ -1,18 +1,34 @@
 import { NextResponse } from 'next/server';
-import { products, getProductById } from '@/data/products.js';
+import { kv, getProductStock } from '../../../../lib/kv';
+import { products as staticProducts } from '../../../../data/products';
 
 export async function GET(request, { params }) {
   try {
     const { id } = params;
-    const product = getProductById(id);
     
-    if (!product) {
-      return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
+    // Try to get product from KV first
+    const kvProduct = await kv.get(`product:${id}`);
+    
+    if (kvProduct) {
+      // Get latest stock
+      const stock = await getProductStock(id);
+      
+      return NextResponse.json({
+        ...kvProduct,
+        stockAvailable: stock
+      });
+    }
+    
+    // Fall back to static data if not in KV
+    const staticProduct = staticProducts.find(p => p.id === id);
+    
+    if (!staticProduct) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    return NextResponse.json(product);
+    return NextResponse.json(staticProduct);
   } catch (error) {
-    console.error(`Error obteniendo producto ${params.id}:`, error);
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
+    console.error(`Error getting product ${params.id}:`, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

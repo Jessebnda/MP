@@ -621,24 +621,106 @@ export default function PaymentFlow({
         <div className={styles['mp-confirmation-container']}>
           <div className={styles['mp-summary']}>
             {selectedProducts.map((product, index) => (
-              <div key={index} className={styles['mp-summary-item']}>
-                <span>Producto:</span>
-                <span>{product.product.name}</span>
-                <span>Descripción:</span>
-                <span>{product.product.description}</span>
-                <span>Precio Unitario:</span>
-                <span>${formatPrice(product.product.price)}</span>
-                <span>Cantidad:</span>
-                <span>{product.quantity}</span>
-                <span>Total:</span>
-                <span>${formatPrice(product.product.price * product.quantity)}</span>
+              <div key={index} className={styles['mp-product-card']}>
+                <div className={styles['mp-product-card-header']}>
+                  <h4>{product.product.name}</h4>
+                </div>
+                <div className={styles['mp-product-card-body']}>
+                  <p className={styles['mp-product-description']}>{product.product.description}</p>
+                  <div className={styles['mp-product-card-row']}>
+                    <span className={styles['mp-product-card-label']}>Precio Unitario:</span>
+                    <span className={styles['mp-product-card-value']}>${formatPrice(product.product.price)}</span>
+                  </div>
+                  <div className={styles['mp-product-card-row']}>
+                    <span className={styles['mp-product-card-label']}>Cantidad:</span>
+                    <span className={styles['mp-product-card-value']}>{product.quantity}</span>
+                  </div>
+                </div>
+                <div className={styles['mp-product-card-footer']}>
+                  <span>Total producto:</span>
+                  <span className={styles['mp-product-card-total']}>${formatPrice(product.product.price * product.quantity)}</span>
+                </div>
               </div>
             ))}
-            <div className={cn(styles['mp-summary-item'], styles['mp-total'])}>
-              <span>Total a Pagar:</span>
-              <span>${formatPrice(calculateTotalPrice())}</span>
+            
+           
+            
+            {/* Tarjeta de información del comprador */}
+            <div className={styles['mp-buyer-info-card']}>
+              <div className={styles['mp-buyer-info-header']}>
+                <span className={styles['mp-buyer-info-icon']}>👤</span>
+                <h4>Información del Comprador</h4>
+              </div>
+              <div className={styles['mp-buyer-info-body']}>
+                <div className={styles['mp-buyer-info-section']}>
+                  <h5>Datos Personales</h5>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Nombre:</span>
+                    <span className={styles['mp-buyer-info-value']}>{userData.first_name} {userData.last_name}</span>
+                  </div>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Email:</span>
+                    <span className={styles['mp-buyer-info-value']}>{userData.email}</span>
+                  </div>
+                  {userData.phone && (
+                    <div className={styles['mp-buyer-info-row']}>
+                      <span className={styles['mp-buyer-info-label']}>Teléfono:</span>
+                      <span className={styles['mp-buyer-info-value']}>{userData.phone}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {(userData.identification?.type || userData.identification?.number) && (
+                  <div className={styles['mp-buyer-info-section']}>
+                    <h5>Documento de Identidad</h5>
+                    <div className={styles['mp-buyer-info-row']}>
+                      <span className={styles['mp-buyer-info-label']}>Tipo:</span>
+                      <span className={styles['mp-buyer-info-value']}>{userData.identification?.type || '-'}</span>
+                    </div>
+                    <div className={styles['mp-buyer-info-row']}>
+                      <span className={styles['mp-buyer-info-label']}>Número:</span>
+                      <span className={styles['mp-buyer-info-value']}>{userData.identification?.number || '-'}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {(userData.address?.street_name || userData.address?.street_number || userData.address?.zip_code || userData.address?.city) && (
+                  <div className={styles['mp-buyer-info-section']}>
+                    <h5>Dirección</h5>
+                    {userData.address?.street_name && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Calle:</span>
+                        <span className={styles['mp-buyer-info-value']}>{userData.address.street_name}</span>
+                      </div>
+                    )}
+                    {userData.address?.street_number && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Número:</span>
+                        <span className={styles['mp-buyer-info-value']}>{userData.address.street_number}</span>
+                      </div>
+                    )}
+                    {userData.address?.zip_code && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Código Postal:</span>
+                        <span className={styles['mp-buyer-info-value']}>{userData.address.zip_code}</span>
+                      </div>
+                    )}
+                    {userData.address?.city && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Ciudad:</span>
+                        <span className={styles['mp-buyer-info-value']}>{userData.address.city}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+             <div className={styles['mp-grand-total']}>
+              <span className={styles['mp-grand-total-label']}>Total a Pagar:</span>
+              <span className={styles['mp-grand-total-value']}>${formatPrice(calculateTotalPrice())}</span>
             </div>
           </div>
+          
           <div className={styles['mp-confirmation-actions']}>
             <p className={styles['mp-confirmation-note']}>
               Al confirmar esta orden, procederás al proceso de pago.
@@ -666,20 +748,103 @@ export default function PaymentFlow({
           <div className={styles['mp-order-preview']}>
             <h3>Resumen del Pedido (Confirmado)</h3>
             {confirmedOrder && confirmedOrder.products && confirmedOrder.products.map((order, index) => (
-              <div key={index} className={styles['mp-summary-item']}>
-                <span>Producto:</span>
-                <span>{order.product && order.product.name || 'Producto desconocido'}</span>
-                <span>Precio unitario:</span>
-                <span>${order.product && formatPrice(order.product.price)}</span>
-                <span>Cantidad:</span>
-                <span>{order.quantity}</span>
-                <span>Total:</span>
-                <span>${order.product && formatPrice(order.product.price * order.quantity)}</span>
+              <div key={index} className={styles['mp-product-card']}>
+                <div className={styles['mp-product-card-header']}>
+                  <h4>{order.product && order.product.name || 'Producto desconocido'}</h4>
+                </div>
+                <div className={styles['mp-product-card-body']}>
+                  
+                  <div className={styles['mp-product-card-row']}>
+                    <span className={styles['mp-product-card-label']}>Precio unitario:</span>
+                    <span className={styles['mp-product-card-value']}>${order.product && formatPrice(order.product.price)}</span>
+                  </div>
+                  <div className={styles['mp-product-card-row']}>
+                    <span className={styles['mp-product-card-label']}>Cantidad:</span>
+                    <span className={styles['mp-product-card-value']}>{order.quantity}</span>
+                  </div>
+                </div>
+                <div className={styles['mp-product-card-footer']}>
+                  <span>Total producto:</span>
+                  <span className={styles['mp-product-card-total']}>${order.product && formatPrice(order.product.price * order.quantity)}</span>
+                </div>
               </div>
             ))}
-            <div className={styles['mp-summary-item']}>
-              <span>Total a pagar:</span>
-              <span className={styles['mp-locked-value']}>${formatPrice(confirmedOrder.totalPrice)}</span>
+            
+           
+            
+            {/* Tarjeta de información del comprador */}
+            <div className={styles['mp-buyer-info-card']}>
+              <div className={styles['mp-buyer-info-header']}>
+                <span className={styles['mp-buyer-info-icon']}>👤</span>
+                <h4>Información del Comprador</h4>
+              </div>
+              <div className={styles['mp-buyer-info-body']}>
+                <div className={styles['mp-buyer-info-section']}>
+                  <h5>Datos Personales</h5>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Nombre:</span>
+                    <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.first_name} {confirmedOrder.userData.last_name}</span>
+                  </div>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Email:</span>
+                    <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.email}</span>
+                  </div>
+                  {confirmedOrder.userData.phone && (
+                    <div className={styles['mp-buyer-info-row']}>
+                      <span className={styles['mp-buyer-info-label']}>Teléfono:</span>
+                      <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.phone}</span>
+                    </div>
+                  )}
+                </div>
+                
+                {confirmedOrder.userData.identification && (confirmedOrder.userData.identification.type || confirmedOrder.userData.identification.number) && (
+                  <div className={styles['mp-buyer-info-section']}>
+                    <h5>Documento de Identidad</h5>
+                    <div className={styles['mp-buyer-info-row']}>
+                      <span className={styles['mp-buyer-info-label']}>Tipo:</span>
+                      <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.identification.type || '-'}</span>
+                    </div>
+                    <div className={styles['mp-buyer-info-row']}>
+                      <span className={styles['mp-buyer-info-label']}>Número:</span>
+                      <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.identification.number || '-'}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {confirmedOrder.userData.address && (confirmedOrder.userData.address.street_name || confirmedOrder.userData.address.street_number || confirmedOrder.userData.address.zip_code || confirmedOrder.userData.address.city) && (
+                  <div className={styles['mp-buyer-info-section']}>
+                    <h5>Dirección</h5>
+                    {confirmedOrder.userData.address.street_name && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Calle:</span>
+                        <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.address.street_name}</span>
+                      </div>
+                    )}
+                    {confirmedOrder.userData.address.street_number && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Número:</span>
+                        <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.address.street_number}</span>
+                      </div>
+                    )}
+                    {confirmedOrder.userData.address.zip_code && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Código Postal:</span>
+                        <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.address.zip_code}</span>
+                      </div>
+                    )}
+                    {confirmedOrder.userData.address.city && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Ciudad:</span>
+                        <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.address.city}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+             <div className={styles['mp-grand-total']}>
+              <span className={styles['mp-grand-total-label']}>Total a pagar:</span>
+              <span className={styles['mp-grand-total-value']}>${formatPrice(confirmedOrder.totalPrice)}</span>
             </div>
           </div>
           <div className={styles['mp-payment-wrapper']}>

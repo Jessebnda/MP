@@ -189,6 +189,9 @@
   border-radius: 4px;
   border: 1px solid #eee;
   padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 /* Título del resumen con estilo elegante */
@@ -286,13 +289,18 @@
   border-left: 4px solid var(--primary-color);
   padding: 1rem;
   margin: 2rem 0;
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 0.95rem;
+  color: #555;
   border-radius: 0 var(--border-radius) var(--border-radius) 0;
+  margin-bottom: 16px;
 }
 
 .mp-confirmation-actions {
-  margin-top: 1.5rem;
+  margin-top: 10px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 5px solid #F26F32;
 }
 
 /* Ajustes responsivos para la confirmación del pedido */
@@ -705,5 +713,194 @@
   
   .mp-grand-total span:last-child {
     font-size: 1.2rem;
+  }
+}
+
+/* Estilos para tarjetas de producto */
+.mp-product-card {
+  background-color: white;
+  border-radius: 10px;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+}
+
+.mp-product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.mp-product-card-header {
+  background-color: #f7f7f7;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e0e0e0;
+  border-left: 4px solid #F26F32;
+}
+
+.mp-product-card-header h4 {
+  margin: 0;
+  font-weight: 600;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.mp-product-card-body {
+  padding: 16px 18px;
+}
+
+.mp-product-card-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  margin-bottom: 10px;
+  align-items: baseline;
+}
+
+.mp-product-description {
+  margin: 12px 0 16px;
+  padding: 10px 12px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  color: #555;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.mp-product-card-label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.mp-product-card-value {
+  color: #333;
+}
+
+.mp-product-card-footer {
+  background-color: #f9f9f9;
+  padding: 14px 18px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mp-product-card-total {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #F26F32;
+}
+
+/* Estilos para el total general */
+.mp-grand-total {
+  background-color: #f7f7f7;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 5px solid #F26F32;
+  font-size: 1.2rem;
+}
+
+.mp-grand-total-label {
+  font-weight: 600;
+  color: #333;
+}
+
+.mp-grand-total-value {
+  font-weight: 700;
+  color: #F26F32;
+  font-size: 1.3rem;
+}
+
+/* Estilos para la tarjeta de información del comprador */
+.mp-buyer-info-card {
+  background-color: #fafafa;
+  border-radius: 10px;
+  border: 1px solid #e0e0e0;
+  border-left: 4px solid #4285F4;
+  margin-top: 30px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.mp-buyer-info-header {
+  background-color: #f3f7fd;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+}
+
+.mp-buyer-info-header h4 {
+  margin: 0;
+  font-weight: 600;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.mp-buyer-info-icon {
+  margin-right: 10px;
+  color: #4285F4;
+}
+
+.mp-buyer-info-body {
+  padding: 18px;
+}
+
+.mp-buyer-info-section {
+  margin-bottom: 20px;
+}
+
+.mp-buyer-info-section h5 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #444;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.mp-buyer-info-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  margin-bottom: 8px;
+  align-items: baseline;
+}
+
+.mp-buyer-info-label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.mp-buyer-info-value {
+  color: #333;
+}
+
+/* Ajustes responsivos */
+@media (max-width: 480px) {
+  .mp-product-card-row,
+  .mp-buyer-info-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  .mp-buyer-info-label,
+  .mp-product-card-label {
+    font-size: 0.8rem;
+    color: #666;
+  }
+  
+  .mp-product-card-header h4 {
+    font-size: 1.1rem;
+  }
+  
+  .mp-buyer-info-section h5 {
+    font-size: 1rem;
   }
 }

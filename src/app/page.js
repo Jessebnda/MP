@@ -30,13 +30,24 @@ function HomePageContent() {
   const hideTitle = params.get('hideTitle') === 'true'
   const quantity = parseInt(params.get('quantity') || '1', 10)
   const initialProductId = params.get('initialProductId') || params.get('productId') || ''
+  
+  const buttonColor = params.get('buttonColor') || '#F26F32';
+  const circleColor = params.get('circleColor') || '#009EE3';
 
   return (
     <PaymentFlow
       apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
       productsEndpoint="/api/products"
       mercadoPagoPublicKey={publicKey}
-      PaymentProviderComponent={MercadoPagoProvider}
+      PaymentProviderComponent={(props) => (
+        <MercadoPagoProvider
+          {...props}
+          customStyles={{
+            buttonColor: buttonColor,
+            circleColor: circleColor
+          }}
+        />
+      )}
       successUrl={finalSuccessUrl}
       pendingUrl={finalPendingUrl}
       failureUrl={finalFailureUrl}

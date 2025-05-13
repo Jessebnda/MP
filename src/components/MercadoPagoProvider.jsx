@@ -26,6 +26,7 @@ export default function MercadoPagoProvider({
   className = '',
   containerStyles = {},
   hideTitle = false,
+  customStyles = {}, // Added customStyles prop
 }) {
   const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000';
 
@@ -79,6 +80,22 @@ export default function MercadoPagoProvider({
     else setStatusMsg('');
   }, [submitStatusMsg, isLoadingPreference, isProcessing]);
 
+  useEffect(() => {
+    // Set CSS variables for custom colors
+    if (customStyles?.buttonColor) {
+      document.documentElement.style.setProperty('--mp-button-color', customStyles.buttonColor);
+    }
+    if (customStyles?.circleColor) {
+      document.documentElement.style.setProperty('--mp-circle-color', customStyles.circleColor);
+    }
+    
+    // Cleanup when component unmounts
+    return () => {
+      document.documentElement.style.removeProperty('--mp-button-color');
+      document.documentElement.style.removeProperty('--mp-circle-color');
+    };
+  }, [customStyles?.buttonColor, customStyles?.circleColor]);
+
   // Error handler for Payment component
   const handleError = (err) => {
     logError("Error en Payment:", err);
@@ -131,7 +148,7 @@ export default function MercadoPagoProvider({
           initialization={{
             amount: finalTotalAmount,
             preferenceId: preferenceId,
-            mercadoPago: publicKey  // Changed from publicKey to mercadoPago
+            mercadoPago: publicKey
           }}
           customization={{
             visual: { 
@@ -140,7 +157,8 @@ export default function MercadoPagoProvider({
               style: {
                 theme: 'default',
                 colors: {
-                  primary: '#F26F32', 
+                  primary: customStyles?.buttonColor || '#F26F32',  // Use the custom buttonColor
+                  secondary: customStyles?.circleColor || '#009EE3', // Use the custom circleColor
                   error: '#e74c3c',
                   background: '#FFFFFF',
                   text: '#333333'

@@ -1,32 +1,35 @@
 import { logInfo, logError } from '../../../../utils/logger';
-
-// Simulación de base de datos de productos con información de stock
-const products = [
-  {
-    id: "1",
-    name: "Reposado",
-    description: "Envejecido 9 meses en roble blanco, ofrece suavidad y sabores de caramelo.",
-    price: 1500,
-    category: "tequilas",
-    stockAvailable: 10
-  },
-  {
-    id: "2",
-    name: "Blanco",
-    description: "Tequila puro y cristalino.",
-    price: 1200,
-    category: "tequilas",
-    stockAvailable: 15
-  }
-];
+import { kv, getProductStock, updateProductStock } from '../../../../lib/kv';
+import { products as defaultProducts } from '../../../../data/products';
 
 /**
  * Obtiene un producto por su ID
  */
 export async function getProductById(productId) {
-  // En una app real, esto sería una consulta a la base de datos
-  const product = products.find(p => p.id === productId);
-  return product || null;
+  try {
+    // First try to get from KV
+    const product = await kv.get(`product:${productId}`);
+    
+    if (product) {
+      // Get the current stock from KV
+      const stock = await getProductStock(productId);
+      return { ...product, stockAvailable: stock };
+    }
+    
+    // Fallback to static data
+    const staticProduct = defaultProducts.find(p => p.id === productId);
+    if (staticProduct) {
+      return staticProduct;
+    }
+    
+    return null;
+  } catch (error) {
+    logError(`Error fetching product ${productId}:`, error);
+    
+    // Fallback to static data on error
+    const staticProduct = defaultProducts.find(p => p.id === productId);
+    return staticProduct || null;
+  }
 }
 
 /**
@@ -34,13 +37,16 @@ export async function getProductById(productId) {
  */
 export async function verifyStockForOrder(orderItems) {
   for (const item of orderItems) {
+    // Get current stock from KV
+    const currentStock = await getProductStock(item.productId);
     const product = await getProductById(item.productId);
+    
     if (!product) {
       throw new Error(`Producto no encontrado: ${item.productId}`);
     }
     
-    if (product.stockAvailable < item.quantity) {
-      throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stockAvailable}`);
+    if (currentStock < item.quantity) {
+      throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${currentStock}`);
     }
   }
   
@@ -53,10 +59,18 @@ export async function verifyStockForOrder(orderItems) {
  */
 export async function updateStockAfterOrder(orderItems) {
   for (const item of orderItems) {
-    const productIndex = products.findIndex(p => p.id === item.productId);
-    if (productIndex >= 0) {
-      products[productIndex].stockAvailable -= item.quantity;
-      logInfo(`Stock actualizado para ${products[productIndex].name}. Nuevo stock: ${products[productIndex].stockAvailable}`);
+    // Get current stock
+    const currentStock = await getProductStock(item.productId);
+    // Calculate new stock
+    const newStock = Math.max(0, currentStock - item.quantity);
+    
+    // Update in KV
+    const updated = await updateProductStock(item.productId, newStock);
+    
+    if (updated) {
+      logInfo(`Stock actualizado para producto ${item.productId}. Nuevo stock: ${newStock}`);
+    } else {
+      logError(`Error actualizando stock para producto ${item.productId}`);
     }
   }
   
