@@ -9,26 +9,37 @@ import MercadoPagoProvider from '../components/MercadoPagoProvider'
 function HomePageContent() {
   const params = useSearchParams()
   
-  // FIX: Set a proper apiBaseUrl - this should be the base URL of your app
-  const apiBaseUrl = 'http://localhost:3000'  // For local development
-  
   const publicKey = params.get('publicKey') || process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY
-  const successUrl = params.get('successUrl') || '/success'
-  const pendingUrl = params.get('pendingUrl') || '/pending'
-  const failureUrl = params.get('failureUrl') || '/failure'
-  const hideTitle  = params.get('hideTitle') === 'true'
-  const quantity   = parseInt(params.get('quantity') || '1', 10)
+  
+  // Reemplazar las definiciones de URL con URLs absolutas
+  const defaultSuccessUrl = "https://alturadivina.com/confirmacion-de-compra";
+  const defaultPendingUrl = "https://alturadivina.com/proceso-de-compra";
+  const defaultFailureUrl = "https://alturadivina.com/error-de-compra";
+
+  // Siempre dar prioridad a las URLs absolutas, incluso si hay parámetros
+  const finalSuccessUrl = (params.get('successUrl') && params.get('successUrl').startsWith('http')) 
+    ? params.get('successUrl') 
+    : defaultSuccessUrl;
+  const finalPendingUrl = (params.get('pendingUrl') && params.get('pendingUrl').startsWith('http')) 
+    ? params.get('pendingUrl') 
+    : defaultPendingUrl;
+  const finalFailureUrl = (params.get('failureUrl') && params.get('failureUrl').startsWith('http')) 
+    ? params.get('failureUrl') 
+    : defaultFailureUrl;
+
+  const hideTitle = params.get('hideTitle') === 'true'
+  const quantity = parseInt(params.get('quantity') || '1', 10)
   const initialProductId = params.get('initialProductId') || params.get('productId') || ''
 
   return (
     <PaymentFlow
-      apiBaseUrl={apiBaseUrl}
+      apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
       productsEndpoint="/api/products"
       mercadoPagoPublicKey={publicKey}
       PaymentProviderComponent={MercadoPagoProvider}
-      successUrl={successUrl}
-      pendingUrl={pendingUrl}
-      failureUrl={failureUrl}
+      successUrl={finalSuccessUrl}
+      pendingUrl={finalPendingUrl}
+      failureUrl={finalFailureUrl}
       onSuccess={(data) => console.log('Pago exitoso', data)}
       onError={(error) => console.error('Error en el pago', error)}
       hideTitle={hideTitle}

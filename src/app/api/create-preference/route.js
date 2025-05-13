@@ -1,68 +1,96 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { logInfo, logError, logWarn } from '../../../utils/logger';
+import { validateCsrfToken } from '../../../utils/csrf';
 
 export async function POST(req) {
   try {
-    console.log("API route: Starting preference creation");
+    // Validar CSRF si está configurado
+    try {
+      await validateCsrfToken(req);
+    } catch (e) {
+      // Si está en desarrollo, podemos permitir que continúe sin token CSRF
+      if (process.env.NODE_ENV !== 'development') {
+        throw e;
+      }
+      logWarn("CSRF validation skipped in development");
+    }
+    
     const body = await req.json();
     const { orderSummary, successUrl, pendingUrl, failureUrl, payer } = body;
     
-    console.log("API route received payer:", JSON.stringify(payer, null, 2));
-    
-    console.log("API route: Received body:", {
+    logInfo("API create-preference recibió:", {
       hasOrderSummary: !!orderSummary,
       itemCount: orderSummary?.length,
       successUrl,
-      pendingUrl,
+      pendingUrl, 
       failureUrl,
       hasPayer: !!payer
     });
     
-    console.log("Creating preference with URLs:", { successUrl, pendingUrl, failureUrl });
+    if (!orderSummary || !Array.isArray(orderSummary) || orderSummary.length === 0) {
+      return NextResponse.json(
+        { error: 'Información de productos inválida' },
+        { status: 400 }
+      );
+    }
+
+    // Validar las URLs de retorno
+    if (!successUrl) {
+      return NextResponse.json(
+        { error: 'URL de retorno exitoso (successUrl) no definida' },
+        { status: 400 }
+      );
+    }
+
+    // Configurar SDK de MercadoPago
+    const client = new MercadoPagoConfig({ 
+      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN 
+    });
     
-    // Validate payer data before sending to Mercado Pago
+    const preference = new Preference(client);
+
+    // Preparar items para la preferencia
+    const items = orderSummary.map(item => ({
+      id: item.productId.toString(),
+      title: item.name || `Producto ID: ${item.productId}`,
+      description: item.description || 'Sin descripción',
+      quantity: parseInt(item.quantity),
+      currency_id: 'MXN',
+      unit_price: parseFloat(item.price)
+    }));
+
+    // Calcular monto total
+    const totalAmount = items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    
+    // Validar y procesar información del pagador
     let validatedPayer = null;
     if (payer) {
       validatedPayer = {
         email: payer.email || 'cliente@example.com',
-        first_name: payer.first_name || '',
-        last_name: payer.last_name || ''
+        name: payer.first_name || '',
+        surname: payer.last_name || ''
       };
       
-      // Procesar el teléfono con el formato correcto de objeto con area_code y number
+      // Procesar teléfono si existe
       if (payer.phone) {
-        // Si ya viene en formato correcto (objeto con area_code y number)
         if (typeof payer.phone === 'object' && payer.phone.area_code && payer.phone.number) {
           validatedPayer.phone = {
             area_code: String(payer.phone.area_code),
             number: String(payer.phone.number)
           };
-          console.log("Usando formato de teléfono existente:", validatedPayer.phone);
-        } 
-        // Si viene como string, intentar parsear
-        else if (typeof payer.phone === 'string') {
+        } else if (typeof payer.phone === 'string') {
           const phoneStr = payer.phone.replace(/\D/g, '');
-          
           if (phoneStr.length >= 3) {
-            // Asumimos que los primeros 2-3 dígitos son el código de área
-            // y el resto es el número (esto es un ejemplo, ajustar según necesidad)
-            const areaCode = phoneStr.substring(0, 2);
-            const number = phoneStr.substring(2);
-            
             validatedPayer.phone = {
-              area_code: areaCode,
-              number: number
+              area_code: phoneStr.substring(0, Math.min(3, phoneStr.length - 1) || 2),
+              number: phoneStr.substring(Math.min(3, phoneStr.length - 1) || 2)
             };
-            console.log("Teléfono parseado correctamente:", validatedPayer.phone);
-          } else {
-            console.log("Teléfono demasiado corto para parsear, omitiendo");
           }
-        } else {
-          console.log("Formato de teléfono no reconocido, omitiendo");
         }
       }
       
-      // Add identification if present
+      // Procesar identificación si existe
       if (payer.identification && payer.identification.type && payer.identification.number) {
         validatedPayer.identification = {
           type: payer.identification.type,
@@ -70,74 +98,94 @@ export async function POST(req) {
         };
       }
       
-      // Add address if present
+      // Procesar dirección si existe
       if (payer.address && payer.address.street_name) {
         validatedPayer.address = {
-          street_name: payer.address.street_name
+          street_name: payer.address.street_name,
+          street_number: payer.address.street_number ? String(payer.address.street_number) : undefined,
+          zip_code: payer.address.zip_code || undefined
         };
-        
-        // Only add these fields if they are present
-        if (typeof payer.address.street_number === 'number') {
-          validatedPayer.address.street_number = payer.address.street_number;
-        }
-        
-        if (payer.address.zip_code) {
-          validatedPayer.address.zip_code = payer.address.zip_code;
-        }
-        
-        if (payer.address.city) {
-          validatedPayer.address.city = payer.address.city;
-        }
+      }
+    }
+
+    // Asegurar que las URLs son absolutas
+    const baseUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000';
+    const ensureAbsoluteUrl = (url, fallback) => {
+      if (!url) return fallback;
+      
+      // Si ya es una URL absoluta, úsala directamente
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
       }
       
-      console.log("Validated payer data:", validatedPayer);
-    }
-    
-    const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN });
-    const preference = new Preference(client);
+      // Si no, conviértela en absoluta
+      return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+    };
 
-    // Crear items para la preferencia
-    const items = orderSummary.map(item => ({
-      id: item.productId.toString(),
-      title: item.name || "Producto",
-      description: item.name || "Producto",
-      unit_price: Number(item.price),
-      quantity: Number(item.quantity),
-      currency_id: "MXN"
-    }));
-    
-    // Calcular el total
-    const totalAmount = items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
-    
-    // Crear la preferencia con URLs completas y datos del comprador
+    const finalSuccessUrl = ensureAbsoluteUrl(successUrl, `${baseUrl}/confirmacion-de-compra`);
+    const finalFailureUrl = ensureAbsoluteUrl(failureUrl, `${baseUrl}/error-de-compra`);
+    const finalPendingUrl = ensureAbsoluteUrl(pendingUrl, `${baseUrl}/proceso-de-compra`);
+
+    logInfo("URLs configuradas para MP (verificar que sean absolutas):", {
+      success: finalSuccessUrl,
+      failure: finalFailureUrl,
+      pending: finalPendingUrl,
+      sonAbsolutas: {
+        success: finalSuccessUrl.startsWith('http'),
+        failure: finalFailureUrl.startsWith('http'),
+        pending: finalPendingUrl.startsWith('http')
+      }
+    });
+
+    // Crear objeto de preferencia
     const preferenceData = {
-      items,
+      items: items,
       back_urls: {
-        success: successUrl || "http://localhost:3000/success",
-        failure: failureUrl || "http://localhost:3000/failure",
-        pending: pendingUrl || "http://localhost:3000/pending"
+        success: finalSuccessUrl,
+        failure: finalFailureUrl,
+        pending: finalPendingUrl
       },
-      // Add payer data if available
+      auto_return: "approved",
+      statement_descriptor: "TuTienda Online",
+      external_reference: `order-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || undefined,
       ...(validatedPayer ? { payer: validatedPayer } : {})
     };
+
+    logInfo("Datos de preferencia:", JSON.stringify(preferenceData));
+
+    try {
+      // Crear la preferencia en Mercado Pago
+      const response = await preference.create({ body: preferenceData });
+      
+      logInfo("Preferencia creada exitosamente:", { 
+        preferenceId: response.id,
+        items: items.map(i => ({ id: i.id, title: i.title }))
+      });
+      
+      return NextResponse.json({
+        preferenceId: response.id,
+        totalAmount,
+        init_point: response.init_point // Este es el punto importante para redirección
+      });
+    } catch (apiError) {
+      // Log detallado del error de la API
+      logError("Error específico de la API de MercadoPago:", {
+        message: apiError.message,
+        status: apiError.status,
+        cause: apiError.cause,
+        stack: apiError.stack,
+        response: apiError.response ? JSON.stringify(apiError.response) : undefined
+      });
+      
+      throw apiError;
+    }
     
-    console.log("Sending to Mercado Pago:", JSON.stringify(preferenceData, null, 2));
-    
-    const response = await preference.create({ body: preferenceData });
-    
-    console.log("MercadoPago preference created:", response.id);
-    
-    console.log("API route: Returning successful response");
-    return NextResponse.json({
-      preferenceId: response.id,
-      totalAmount
-    });
   } catch (error) {
-    console.error("API route error:", error);
+    logError("Error al crear preferencia:", error);
     return NextResponse.json({ 
-      error: error.message, 
+      error: error.message || 'Error al crear preferencia',
       details: error.cause || [],
-      stack: error.stack
     }, { status: 500 });
   }
 }
