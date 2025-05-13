@@ -50,6 +50,7 @@ export default function MercadoPagoProvider({
   quantity = 1,
   totalAmount = null, // Nuevo parámetro 
   orderSummary = null, // Nuevo parámetro para mostrar el resumen detallado
+  userData = null, // New prop for user data
   publicKey,
   apiBaseUrl, // Required, validated in PaymentFlow
   successUrl,
@@ -72,6 +73,8 @@ export default function MercadoPagoProvider({
 
   const sanitizedProductId = sanitizeInput(productId, 'productId');
   const sanitizedQuantity = sanitizeInput(quantity, 'quantity');
+
+  const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'https://localhost:3000';
 
   useEffect(() => {
     if (publicKey) {
@@ -166,27 +169,96 @@ export default function MercadoPagoProvider({
     setStatusMsg('Generando formulario de pago...');
     
     try {
-      // Asegurar que las URLs están completas
-      const fullSuccessUrl = successUrl || `${window.location.origin}/success`;
-      const fullPendingUrl = pendingUrl || `${window.location.origin}/pending`;
-      const fullFailureUrl = failureUrl || `${window.location.origin}/failure`;
+      // Get the host URL from environment variable, ensuring it uses HTTP for localhost
+      const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000';
       
-      logInfo("Enviando solicitud de preferencia con URLs:", {
-        successUrl: fullSuccessUrl,
-        pendingUrl: fullPendingUrl,
-        failureUrl: fullFailureUrl
+      // Construct the success, pending, and failure URLs
+      const successUrl = `${hostUrl}/success`;
+      const pendingUrl = `${hostUrl}/pending`;
+      const failureUrl = `${hostUrl}/failure`;
+      
+      // Limpia y prepara los datos del pagador
+      let payerData = null;
+      if (userData) {
+        // Crear una copia profunda para evitar modificar el original
+        payerData = JSON.parse(JSON.stringify(userData));
+        
+        // Asegurar que el teléfono sea una cadena de texto (string)
+        if (payerData.phone === '') {
+          // Si es cadena vacía, elimina el campo
+          delete payerData.phone;
+        } else if (payerData.phone) {
+          // Asegurarnos de que sea string
+          payerData.phone = String(payerData.phone).replace(/\D/g, '');
+          
+          // Si después de la limpieza quedó vacío, eliminar el campo
+          if (!payerData.phone) {
+            delete payerData.phone;
+          }
+        }
+        
+        // Si el teléfono viene como string, transformarlo al formato requerido (objeto con area_code y number)
+        if (payerData && payerData.phone) {
+          if (typeof payerData.phone === 'string') {
+            // Eliminar caracteres no numéricos
+            const phoneStr = payerData.phone.replace(/\D/g, '');
+            
+            if (phoneStr.length >= 3) {
+              // Dividir en code y number
+              const areaCode = phoneStr.substring(0, 2);
+              const number = phoneStr.substring(2);
+              
+              // Reemplazar el string por un objeto con el formato correcto
+              payerData.phone = {
+                area_code: areaCode,
+                number: number
+              };
+              console.log("Teléfono formateado para API:", payerData.phone);
+            } else {
+              // Si es demasiado corto, mejor eliminarlo
+              delete payerData.phone;
+              console.log("Teléfono demasiado corto, omitido");
+            }
+          } else if (typeof payerData.phone !== 'object' || !payerData.phone.area_code || !payerData.phone.number) {
+            // Si no es string ni tiene el formato correcto, eliminarlo
+            delete payerData.phone;
+            console.log("Formato de teléfono inválido, omitido");
+          }
+        }
+        
+        // Similar conversions for street_number if needed
+        if (payerData.address && payerData.address.street_number) {
+          payerData.address.street_number = typeof payerData.address.street_number === 'number' ?
+            payerData.address.street_number :
+            parseInt(String(payerData.address.street_number), 10) || '';
+        }
+      }
+      
+      // Log the URLs being used
+      logInfo("Enviando solicitud de preferencia con URLs y datos de usuario:", {
+        successUrl,
+        pendingUrl,
+        failureUrl,
+        hasUserData: !!payerData
       });
       
-      const response = await fetch(`${apiBaseUrl}/api/create-preference`, {
+      // Make sure we're using the API URL with the correct protocol
+      const apiUrl = hostUrl.includes('localhost') 
+        ? hostUrl.replace('https://', 'http://') 
+        : hostUrl;
+        
+      // Use the corrected API URL for the fetch request
+      const response = await fetch(`${apiUrl}/api/create-preference`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           orderSummary,
-          successUrl: fullSuccessUrl,
-          pendingUrl: fullPendingUrl,
-          failureUrl: fullFailureUrl
+          successUrl,
+          pendingUrl,
+          failureUrl,
+          payer: payerData // Send the cleaned payer data
         }),
       });
       
@@ -269,7 +341,7 @@ export default function MercadoPagoProvider({
         ? orderSummary.reduce((total, item) => total + (item.price * item.quantity), 0)
         : (productData?.price || 0) * sanitizedQuantity;
 
-      // Construir payload para el backend, asegurando que los campos críticos estén accesibles
+      // Construir payload para el backend, incluir datos de usuario
       const backendPayload = {
         paymentType: formData.paymentType || "credit_card",
         selectedPaymentMethod: formData.selectedPaymentMethod || "credit_card",
@@ -278,10 +350,9 @@ export default function MercadoPagoProvider({
           payment_method_id: paymentMethodFromForm,
           issuer_id: formData.issuer_id || formData.formData?.issuer_id || '',
           installments: parseInt(formData.installments || formData.formData?.installments || 1),
-          payer: {
+          payer: userData || { 
             email: formData.payer?.email || formData.formData?.payer?.email || 'cliente@example.com'
-          },
-         // Changed from currency_id to currency
+          }
         },
         // Omitir productId y quantity completamente si estamos usando orderSummary
         ...(orderSummary ? {} : { productId: sanitizedProductId, quantity: sanitizedQuantity }),

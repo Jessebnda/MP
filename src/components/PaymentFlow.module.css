@@ -1,0 +1,73 @@
+.mp-form-container {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.mp-form-group {
+  margin-bottom: 15px;
+  width: 100%;
+}
+
+.mp-form-row {
+  display: flex;
+  gap: 15px;
+}
+
+.mp-form-row .mp-form-group {
+  flex: 1;
+}
+
+.mp-text-input,
+.mp-select-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.mp-text-input:focus,
+.mp-select-input:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.mp-section-title {
+  margin-top: 25px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+}
+
+.mp-button-container {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 25px;
+}
+
+small {
+  display: block;
+  color: #666;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.mp-phone-container {
+  width: 100%;
+}
+
+.mp-phone-input {
+  width: 100% !important;
+  height: 38px !important;
+  border: 1px solid #ced4da !important;
+  border-radius: 4px !important;
+  padding-left: 48px !important;
+  font-size: 16px !important;
+}
+
+.mp-phone-input:focus {
+  border-color: #007bff !important;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
