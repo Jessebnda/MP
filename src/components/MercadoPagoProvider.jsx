@@ -131,7 +131,7 @@ export default function MercadoPagoProvider({
           initialization={{
             amount: finalTotalAmount,
             preferenceId: preferenceId,
-            publicKey: publicKey  // Changed from mercadoPago to publicKey
+            mercadoPago: publicKey  // Changed from publicKey to mercadoPago
           }}
           customization={{
             visual: { 
@@ -139,7 +139,6 @@ export default function MercadoPagoProvider({
               hidePaymentButton: false,
               style: {
                 theme: 'default',
-                // Removing invalid properties and using only supported ones
                 colors: {
                   primary: '#F26F32', 
                   error: '#e74c3c',

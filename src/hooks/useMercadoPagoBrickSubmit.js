@@ -102,23 +102,29 @@ export function useMercadoPagoBrickSubmit({
       const data = await response.json();
       logInfo("Respuesta de /api/process-payment:", data);
 
-      if (!response.ok || data.error) {
-        throw new Error(data.error || `Error en el pago: ${response.statusText}`);
-      }
-
-      setStatusMsg(`¡Pago procesado correctamente! ID: ${data.id}`);
-      if (onSuccess) onSuccess(data);
-
-      const finalSuccessUrl = successUrl || `${hostUrl}/confirmacion-de-compra`;
-      const finalPendingUrl = pendingUrl || `${hostUrl}/proceso-de-compra`;
-      const finalFailureUrl = failureUrl || `${hostUrl}/error-de-compra`;
-
-      if (data.status === "approved") {
-        window.location.href = finalSuccessUrl;
-      } else if (data.status === "in_process" || data.status === "pending") {
-        window.location.href = finalPendingUrl;
-      } else {
-        window.location.href = finalFailureUrl;
+      // Handle different payment statuses
+      if (data.status === 'approved') {
+        // Success case - payment approved
+        setProcessingError(null);
+        setStatusMsg(`¡Pago procesado correctamente! ID: ${data.id}`);
+        if (onSuccess) onSuccess(data);
+        if (successUrl) window.location.href = successUrl;
+      } 
+      else if (data.status === 'in_process' || data.status === 'pending') {
+        // Pending case - payment is being processed
+        setStatusMsg(`Pago en proceso. ID: ${data.id}`);
+        if (onSuccess) onSuccess(data); // Still call success but with pending status
+        if (pendingUrl) window.location.href = pendingUrl;
+      } 
+      else if (data.status === 'rejected') {
+        // Rejected case - payment was rejected
+        setProcessingError(data.message || 'El pago fue rechazado');
+        if (onError) onError(new Error(data.message || 'El pago fue rechazado'));
+        if (failureUrl) window.location.href = failureUrl;
+      } 
+      else if (data.error) {
+        // Error case
+        throw new Error(data.error);
       }
 
     } catch (error) {
