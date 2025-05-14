@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { logInfo, logError } from '../utils/logger'; // Assuming logger utility
+import { logInfo, logError, logWarning } from '../utils/logger'; // Assuming logger utility
 import { sanitizeInput } from '../utils/sanitize'; // Assuming sanitize utility
 
 // Helper to get CSRF token (can be moved to a shared utility)
@@ -104,21 +104,56 @@ export function useMercadoPagoBrickSubmit({
 
       // Handle different payment statuses
       if (data.status === 'approved') {
-        // Success case - payment approved
         setProcessingError(null);
         setStatusMsg(`¡Pago procesado correctamente! ID: ${data.id}`);
         if (onSuccess) onSuccess(data);
-        if (successUrl) window.location.href = successUrl;
+        
+        // Notifica al contenedor del iframe antes de redirigir
+        try {
+          if (window.parent !== window) {
+            logInfo("Notificando al contenedor sobre redirección exitosa");
+            window.parent.postMessage({
+              type: 'MP_PAYMENT_SUCCESS',
+              redirectUrl: successUrl,
+              paymentData: data
+            }, '*');
+            
+            // Delay para asegurar que el mensaje llegue al contenedor
+            setTimeout(() => {
+              if (successUrl) window.top.location.href = successUrl;
+            }, 500);
+          } else if (successUrl) {
+            window.location.href = successUrl;
+          }
+        } catch (e) {
+          logError("Error al comunicarse con el contenedor:", e);
+          // Fallback a la redirección directa
+          if (successUrl) window.location.href = successUrl;
+        }
       } 
       else if (data.status === 'in_process' || data.status === 'pending') {
-        // Pending case - payment is being processed
         setStatusMsg(`Pago en proceso. ID: ${data.id}`);
-        if (onSuccess) onSuccess(data); // Still call success but with pending status
+        if (onSuccess) onSuccess(data);
         
-        // Add small timeout to ensure the message is seen before redirecting
-        setTimeout(() => {
+        try {
+          if (window.parent !== window) {
+            logInfo("Notificando al contenedor de Framer sobre redirección a pendiente");
+            window.parent.postMessage({
+              type: 'MP_PAYMENT_PENDING',
+              redirectUrl: pendingUrl,
+              paymentData: data
+            }, '*');
+            
+            setTimeout(() => {
+              if (pendingUrl) window.top.location.href = pendingUrl;
+            }, 500);
+          } else if (pendingUrl) {
+            window.location.href = pendingUrl;
+          }
+        } catch (e) {
+          logWarning("Error al comunicarse con el contenedor:", e);
           if (pendingUrl) window.location.href = pendingUrl;
-        }, 500);
+        }
       } 
       else if (data.status === 'rejected') {
         // Rejected case - payment was rejected

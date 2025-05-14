@@ -1,4 +1,7 @@
-// Basic logger implementation
+/**
+ * Sistema de logs mejorado con mensajes amigables y detección de problemas comunes
+ */
+
 const LOG_LEVELS = {
   error: 0,
   warn: 1,
@@ -6,29 +9,124 @@ const LOG_LEVELS = {
   debug: 3,
 };
 
+const LOG_STYLES = {
+  info: 'background: #2196f3; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold;',
+  success: 'background: #4caf50; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold;',
+  warning: 'background: #ff9800; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold;',
+  error: 'background: #f44336; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold;',
+  important: 'background: #9c27b0; color: white; padding: 2px 5px; border-radius: 3px; font-weight: bold;',
+};
+
+// Listado de mensajes de error comunes con sus soluciones
+const ERROR_SOLUTIONS = {
+  'parameters preferenceId and mercadoPago must be provided together': 
+    'Asegúrate de que estás pasando tanto el preferenceId como el objeto mercadoPago al componente Payment. Revisa MercadoPagoProvider.jsx.',
+  
+  'CSRF token not found in cookies': 
+    'Error de seguridad CSRF. Esto suele ocurrir en iframes - verifica que se están bypassing los tokens CSRF para el caso de iframe.',
+  
+  'Cannot read properties of null (reading \'getAttribute\')': 
+    'Error en el componente de teléfono. Asegúrate de que el campo existe en el DOM antes de inicializarlo.',
+  
+  'Error con el proveedor de pagos: local_rate_limited': 
+    'MercadoPago ha limitado las solicitudes. Espera unos minutos antes de intentar de nuevo o verifica tus credenciales.',
+
+  'Refused to connect': 
+    'Error de política de seguridad CSP. Añade el dominio a la lista permitida en next.config.mjs.',
+  
+  'Refused to frame': 
+    'Error de política de seguridad CSP para iframes. Añade el dominio en la directiva frame-src en next.config.mjs.',
+
+  'Refused to load the image': 
+    'Error de política de seguridad CSP para imágenes. Añade el dominio en la directiva img-src en next.config.mjs.',
+};
+
 // Set a default log level (e.g., from an environment variable)
 const CURRENT_LOG_LEVEL = process.env.NEXT_PUBLIC_LOG_LEVEL || 'info';
 
 const canLog = (level) => LOG_LEVELS[level] <= LOG_LEVELS[CURRENT_LOG_LEVEL];
 
-export const logInfo = (...args) => {
-  if (canLog('info')) {
-    console.log('[INFO]', ...args);
+/**
+ * Detecta errores conocidos y ofrece soluciones amigables
+ */
+function detectKnownError(message) {
+  for (const [errorPattern, solution] of Object.entries(ERROR_SOLUTIONS)) {
+    if (message && message.includes(errorPattern)) {
+      return solution;
+    }
   }
-};
+  return null;
+}
 
-export const logError = (...args) => {
-  if (canLog('error')) {
-    console.error('[ERROR]', ...args);
+/**
+ * Mensaje de información estándar
+ */
+export function logInfo(message, data = null) {
+  if (typeof window !== 'undefined') {
+    if (data) {
+      console.log(`%c INFO `, LOG_STYLES.info, message, data);
+    } else {
+      console.log(`%c INFO `, LOG_STYLES.info, message);
+    }
   }
-};
+}
 
-export const logWarn = (...args) => {
-  if (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_LOG_LEVEL === 'debug') {
-    console.warn('[WARN]', ...args);
+/**
+ * Mensaje de éxito con estilo especial
+ */
+export function logSuccess(message, data = null) {
+  if (typeof window !== 'undefined') {
+    if (data) {
+      console.log(`%c ÉXITO `, LOG_STYLES.success, message, data);
+    } else {
+      console.log(`%c ÉXITO `, LOG_STYLES.success, message);
+    }
   }
-};
+}
 
+/**
+ * Mensaje de error mejorado con detección de problemas conocidos
+ */
+export function logError(message, error = null) {
+  if (typeof window !== 'undefined') {
+    const errorMessage = error?.message || message;
+    const solution = detectKnownError(errorMessage);
+    
+    console.error(`%c ERROR `, LOG_STYLES.error, message);
+    
+    if (error) {
+      console.error(error);
+    }
+    
+    // Si encontramos una solución, mostramos un mensaje amigable
+    if (solution) {
+      console.log(`%c SOLUCIÓN `, LOG_STYLES.important, solution);
+    }
+  }
+}
+
+/**
+ * Advertencia con posible solución
+ */
+export function logWarning(message, data = null) {
+  if (typeof window !== 'undefined') {
+    const solution = detectKnownError(message);
+    
+    if (data) {
+      console.warn(`%c ADVERTENCIA `, LOG_STYLES.warning, message, data);
+    } else {
+      console.warn(`%c ADVERTENCIA `, LOG_STYLES.warning, message);
+    }
+    
+    if (solution) {
+      console.log(`%c SOLUCIÓN `, LOG_STYLES.important, solution);
+    }
+  }
+}
+
+/**
+ * Mensaje de depuración
+ */
 export const logDebug = (...args) => {
   if (canLog('debug')) {
     console.debug('[DEBUG]', ...args);

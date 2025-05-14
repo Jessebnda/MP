@@ -9,8 +9,10 @@ interface MercadoPagoEmbedProps {
     pendingUrl: string
     failureUrl: string
     hideTitle: boolean
-    buttonColor: string  // New property for button color
-    circleColor: string  // New property for MercadoPago circle color
+    buttonColor: string         // Color del botón de pago de MercadoPago
+    circleColor: string         // Color del círculo de MercadoPago
+    primaryButtonColor: string  // NUEVO: Color de los botones primarios (continuar, confirmar)
+    secondaryButtonColor: string // NUEVO: Color de los botones secundarios (volver, cancelar)
     width: number | string
     height: number | string
     onRedirect?: (event: any) => void
@@ -28,10 +30,73 @@ export function MercadoPagoEmbed(
         hideTitle,
         buttonColor,
         circleColor,
+        primaryButtonColor,    // Nuevo prop
+        secondaryButtonColor,  // Nuevo prop
         width,
         height,
         onRedirect
     } = props;
+    
+    React.useEffect(() => {
+        // Escuchar mensajes del iframe
+        const handleMessage = (event: MessageEvent) => {
+            // Verificar origen para seguridad
+            if (!event.origin.includes('mercadopagoiframe.vercel.app')) {
+                return;
+            }
+            
+            if (event.data.type === 'MP_PAYMENT_SUCCESS') {
+                console.log('Pago exitoso, redirigiendo a:', event.data.redirectUrl);
+                // Llamar al callback de redirección si existe
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'success',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                // Redireccionar la página completa
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
+                }
+            } 
+            else if (event.data.type === 'MP_PAYMENT_PENDING') {
+                console.log('Pago pendiente, redirigiendo a:', event.data.redirectUrl);
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'pending',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
+                }
+            }
+            else if (event.data.type === 'MP_PAYMENT_FAILED') {
+                console.log('Pago fallido, redirigiendo a:', event.data.redirectUrl);
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'failed',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
+                }
+            }
+        };
+        
+        window.addEventListener('message', handleMessage);
+        
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, [onRedirect, successUrl, pendingUrl, failureUrl]);
     
     const baseUrl = "https://mercadopagoiframe.vercel.app/";
     const queryParams = new URLSearchParams({
@@ -42,7 +107,10 @@ export function MercadoPagoEmbed(
         failureUrl: failureUrl || '',
         hideTitle: hideTitle ? 'true' : 'false',
         buttonColor: buttonColor || '#F26F32', 
-        circleColor: circleColor || '#009EE3'
+        circleColor: circleColor || '#009EE3',
+        primaryButtonColor: primaryButtonColor || '#F26F32',  // NUEVO
+        secondaryButtonColor: secondaryButtonColor || '#E5E5E5',  // NUEVO
+        isInIframe: 'true'
     }).toString();
     
     const iframeSrc = `${baseUrl}?${queryParams}`;
@@ -95,14 +163,24 @@ addPropertyControls(MercadoPagoEmbed, {
         defaultValue: false,
     },
     buttonColor: {
-        title: "Button Color",
+        title: "MP Button Color",
         type: ControlType.Color,
-        defaultValue: "#F26F32",  // Default orange color
+        defaultValue: "#F26F32",
     },
     circleColor: {
-        title: "Circle Color",
+        title: "MP Circle Color",
         type: ControlType.Color,
-        defaultValue: "#009EE3",  // Default MercadoPago blue
+        defaultValue: "#009EE3",
+    },
+    primaryButtonColor: {
+        title: "Primary Button Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",
+    },
+    secondaryButtonColor: {
+        title: "Secondary Button Color",
+        type: ControlType.Color,
+        defaultValue: "#E5E5E5",
     },
     width: {
         title: "Width",
@@ -136,6 +214,8 @@ MercadoPagoEmbed.defaultProps = {
     hideTitle: false,
     buttonColor: "#F26F32",
     circleColor: "#009EE3",
+    primaryButtonColor: "#F26F32",
+    secondaryButtonColor: "#E5E5E5",
     width: 300,
     height: 500,
 }

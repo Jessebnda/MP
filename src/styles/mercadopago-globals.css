@@ -73,7 +73,7 @@
 
 /* Submit button styling */
 .mp-checkout-container button[type="submit"] {
-  background-color: #F26F32 !important;
+  background-color: var(--mp-button-color) !important;
   color: white !important;
   border: none !important;
   font-size: 0.9rem !important;
@@ -149,14 +149,36 @@
 :root {
   --mp-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mp-font-title: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
+  --mp-button-color: #F26F32;
+  --mp-circle-color: #009EE3;
+  --mp-primary-button-color: #F26F32;
+  --mp-secondary-button-color: #E5E5E5;
 }
 
 /* Custom styling for MercadoPago circle */
 .mp-circle-logo {
-  background-color: var(--mp-circle-color, #009EE3) !important;
+  background-color: var(--mp-circle-color) !important;
 }
 
 /* Fix for MercadoPago logo inside the circle */
 .mp-mercadopago-logo {
   background-color: transparent !important;
+}
+
+/* Aplicar color a los botones primarios en todo el sistema */
+.mp-button.mp-primary {
+  background-color: var(--mp-primary-button-color) !important;
+}
+
+.mp-button.mp-primary:hover {
+  background-color: color-mix(in srgb, var(--mp-primary-button-color) 90%, black) !important;
+}
+
+/* Aplicar color a los botones secundarios */
+.mp-button.mp-secondary {
+  background-color: var(--mp-secondary-button-color) !important;
+}
+
+.mp-button.mp-secondary:hover {
+  background-color: color-mix(in srgb, var(--mp-secondary-button-color) 90%, black) !important;
 }

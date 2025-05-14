@@ -29,6 +29,7 @@ export default function PaymentFlow({
   hideTitle = false,
   className = '',
   initialProductId = null,
+  customStyles = {}, // Nuevo prop para estilos personalizados
 }) {
   if (!apiBaseUrl) {
     logError("PaymentFlow Error: 'apiBaseUrl' prop is required.");
@@ -313,6 +314,7 @@ export default function PaymentFlow({
           price: product.product.price,
           total: product.product.price * product.quantity
         }))}
+        customStyles={customStyles} // Pass custom styles
       />
     );
   };
@@ -481,19 +483,25 @@ export default function PaymentFlow({
           
           <div className={styles['mp-form-group']}>
             <label htmlFor="mp-phone">Teléfono:</label>
-            <PhoneInput
-              country={'mx'} // Default para México
-              value={userData.phone || ''}
-              onChange={(value) => {
-                // Almacenar como string, no como número
-                setUserData({...userData, phone: value});
-              }}
-              inputClass={styles['mp-phone-input']}
-              containerClass={styles['mp-phone-container']}
-              enableSearch={true}
-              preferredCountries={['mx', 'us', 'co', 'ar', 'pe', 'cl']}
-              placeholder="Número de teléfono"
-            />
+            {typeof window !== 'undefined' && (
+              <PhoneInput
+                country={'mx'} // Default para México
+                value={userData.phone || ''}
+                onChange={(value) => {
+                  if (value) {
+                    setUserData({
+                      ...userData, 
+                      phone: value.toString()
+                    });
+                  }
+                }}
+                inputClass={styles['mp-phone-input']}
+                containerClass={styles['mp-phone-container']}
+                enableSearch={true}
+                preferredCountries={['mx', 'us', 'co', 'ar', 'pe', 'cl']}
+                placeholder="Número de teléfono"
+              />
+            )}
             <small>Incluya código de país y solo números</small>
           </div>
           

@@ -30,7 +30,7 @@ export default function MercadoPagoProvider({
 }) {
   const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000';
 
-  const { sdkReady, sdkError } = useMercadoPagoSdk(publicKey);
+  const { sdkReady, sdkError, mercadoPagoSdkInstance } = useMercadoPagoSdk(publicKey);
   
   const { preferenceId, isLoadingPreference, preferenceError } = useMercadoPagoPreference({
     orderSummary,
@@ -88,13 +88,26 @@ export default function MercadoPagoProvider({
     if (customStyles?.circleColor) {
       document.documentElement.style.setProperty('--mp-circle-color', customStyles.circleColor);
     }
+    if (customStyles?.primaryButtonColor) {
+      document.documentElement.style.setProperty('--mp-primary-button-color', customStyles.primaryButtonColor);
+    }
+    if (customStyles?.secondaryButtonColor) {
+      document.documentElement.style.setProperty('--mp-secondary-button-color', customStyles.secondaryButtonColor);
+    }
     
     // Cleanup when component unmounts
     return () => {
       document.documentElement.style.removeProperty('--mp-button-color');
       document.documentElement.style.removeProperty('--mp-circle-color');
+      document.documentElement.style.removeProperty('--mp-primary-button-color');
+      document.documentElement.style.removeProperty('--mp-secondary-button-color');
     };
-  }, [customStyles?.buttonColor, customStyles?.circleColor]);
+  }, [
+    customStyles?.buttonColor, 
+    customStyles?.circleColor, 
+    customStyles?.primaryButtonColor, 
+    customStyles?.secondaryButtonColor
+  ]);
 
   useEffect(() => {
     // Send ready message to parent when loaded
@@ -173,7 +186,7 @@ export default function MercadoPagoProvider({
           initialization={{
             amount: finalTotalAmount,
             preferenceId: preferenceId,
-            mercadoPago: publicKey
+            mercadoPago: mercadoPagoSdkInstance // Asegúrate de usar la instancia, no la clave
           }}
           customization={{
             visual: { 
@@ -182,8 +195,8 @@ export default function MercadoPagoProvider({
               style: {
                 theme: 'default',
                 colors: {
-                  primary: customStyles?.buttonColor || '#F26F32',  // Use the custom buttonColor
-                  secondary: customStyles?.circleColor || '#009EE3', // Use the custom circleColor
+                  primary: customStyles?.buttonColor || '#F26F32',
+                  secondary: customStyles?.circleColor || '#009EE3',
                   error: '#e74c3c',
                   background: '#FFFFFF',
                   text: '#333333'
