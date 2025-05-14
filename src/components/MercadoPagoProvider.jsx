@@ -96,6 +96,31 @@ export default function MercadoPagoProvider({
     };
   }, [customStyles?.buttonColor, customStyles?.circleColor]);
 
+  useEffect(() => {
+    // Send ready message to parent when loaded
+    if (window.parent !== window) {
+      window.parent.postMessage({ 
+        type: 'MP_COMPONENT_READY',
+        status: 'ready'
+      }, '*');
+    }
+    
+    // Listen for messages from parent
+    const handleMessage = (event) => {
+      // Only process messages from trusted domains
+      if (!event.origin.includes('framer.com') && !event.origin.includes('framer.app')) {
+        return;
+      }
+      
+      if (event.data.type === 'MP_CREATE_PREFERENCE') {
+        // Trigger preference creation
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // Error handler for Payment component
   const handleError = (err) => {
     logError("Error en Payment:", err);
