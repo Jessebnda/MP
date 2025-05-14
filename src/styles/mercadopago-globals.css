@@ -92,6 +92,11 @@
   margin-right: auto; /* Centrar si es más angosto que el contenedor */
 }
 
+.mp-checkout-container .mercadopago-button {
+  background-color: var(--mp-button-color) !important;
+  border-color: var(--mp-button-color) !important;
+}
+
 @media (min-width: 768px) {
   .mp-checkout-container button[type="submit"] {
     width: auto; /* Vuelve a auto en pantallas más grandes si está junto a otros elementos o no necesita ser full-width */
@@ -156,7 +161,8 @@
 }
 
 /* Custom styling for MercadoPago circle */
-.mp-circle-logo {
+.mp-circle-logo,
+.mercadopago-circle {
   background-color: var(--mp-circle-color) !important;
 }
 
@@ -166,19 +172,42 @@
 }
 
 /* Aplicar color a los botones primarios en todo el sistema */
-.mp-button.mp-primary {
+.mp-button.mp-primary,
+button.mp-primary,
+.mp-container .mp-primary {
   background-color: var(--mp-primary-button-color) !important;
+  border-color: var(--mp-primary-button-color) !important;
+  color: white !important;
 }
 
 .mp-button.mp-primary:hover {
   background-color: color-mix(in srgb, var(--mp-primary-button-color) 90%, black) !important;
 }
 
+/* Botón 'Continuar' */
+button[class*="continuar"],
+.mp-container [class*="continuar"],
+button:contains("Continuar"),
+button:contains("Proceder") {
+  background-color: var(--mp-primary-button-color) !important;
+}
+
 /* Aplicar color a los botones secundarios */
-.mp-button.mp-secondary {
+.mp-button.mp-secondary,
+button.mp-secondary,
+.mp-container .mp-secondary {
   background-color: var(--mp-secondary-button-color) !important;
+  border-color: var(--mp-secondary-button-color) !important;
+  color: #333 !important;
 }
 
 .mp-button.mp-secondary:hover {
   background-color: color-mix(in srgb, var(--mp-secondary-button-color) 90%, black) !important;
+}
+
+/* Para botones 'Volver' y 'Cancelar' */
+button[class*="volver"],
+button[class*="cancelar"],
+.mp-container [class*="volver"] {
+  background-color: var(--mp-secondary-button-color) !important;
 }

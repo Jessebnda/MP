@@ -149,31 +149,25 @@
   }
 }
 
-/* Botón principal naranja */
+/* Botón principal */
 .mp-button.mp-primary {
-  background-color: #F26F32;
+  background-color: var(--mp-primary-button-color, #F26F32) !important;
   color: white;
   font-weight: 600;
-  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .mp-button.mp-primary:hover {
-  background-color: #e05b22;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+  background-color: color-mix(in srgb, var(--mp-primary-button-color, #F26F32) 90%, black) !important;
 }
 
 /* Botón secundario */
 .mp-button.mp-secondary {
-  background-color: #E5E5E5;
+  background-color: var(--mp-secondary-button-color, #E5E5E5) !important;
   color: #333;
-  margin-right: 1rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease;
 }
 
 .mp-button.mp-secondary:hover {
-  background-color: #d5d5d5;
+  background-color: color-mix(in srgb, var(--mp-secondary-button-color, #E5E5E5) 90%, black) !important;
 }
 
 /* Botón grande de confirmación */

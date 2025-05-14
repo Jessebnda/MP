@@ -65,6 +65,7 @@ export default function MercadoPagoProvider({
 
   const [displayError, setDisplayError] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
+  const [paymentCustomization, setPaymentCustomization] = useState(null);
 
   useEffect(() => {
     if (sdkError) setDisplayError(sdkError);
@@ -81,19 +82,58 @@ export default function MercadoPagoProvider({
   }, [submitStatusMsg, isLoadingPreference, isProcessing]);
 
   useEffect(() => {
+    console.log("Aplicando estilos personalizados:", customStyles);
+    
     // Set CSS variables for custom colors
     if (customStyles?.buttonColor) {
-      document.documentElement.style.setProperty('--mp-button-color', customStyles.buttonColor);
+      const buttonColor = customStyles.buttonColor.startsWith('#') 
+        ? customStyles.buttonColor 
+        : `#${customStyles.buttonColor}`;
+      document.documentElement.style.setProperty('--mp-button-color', buttonColor);
+      console.log("Aplicando color de botón MercadoPago:", buttonColor);
     }
+    
     if (customStyles?.circleColor) {
-      document.documentElement.style.setProperty('--mp-circle-color', customStyles.circleColor);
+      const circleColor = customStyles.circleColor.startsWith('#') 
+        ? customStyles.circleColor 
+        : `#${customStyles.circleColor}`;
+      document.documentElement.style.setProperty('--mp-circle-color', circleColor);
+      console.log("Aplicando color de círculo MercadoPago:", circleColor);
     }
+    
     if (customStyles?.primaryButtonColor) {
-      document.documentElement.style.setProperty('--mp-primary-button-color', customStyles.primaryButtonColor);
+      const primaryColor = customStyles.primaryButtonColor.startsWith('#') 
+        ? customStyles.primaryButtonColor 
+        : `#${customStyles.primaryButtonColor}`;
+      document.documentElement.style.setProperty('--mp-primary-button-color', primaryColor);
+      console.log("Aplicando color de botón primario:", primaryColor);
     }
+    
     if (customStyles?.secondaryButtonColor) {
-      document.documentElement.style.setProperty('--mp-secondary-button-color', customStyles.secondaryButtonColor);
+      const secondaryColor = customStyles.secondaryButtonColor.startsWith('#') 
+        ? customStyles.secondaryButtonColor 
+        : `#${customStyles.secondaryButtonColor}`;
+      document.documentElement.style.setProperty('--mp-secondary-button-color', secondaryColor);
+      console.log("Aplicando color de botón secundario:", secondaryColor);
     }
+    
+    // También pasar colores directamente al componente Payment
+    setPaymentCustomization({
+      visual: { 
+        hideFormTitle: hideTitle, 
+        hidePaymentButton: false,
+        style: {
+          theme: 'default',
+          colors: {
+            primary: customStyles?.buttonColor || '#F26F32',
+            secondary: customStyles?.circleColor || '#009EE3',
+            error: '#e74c3c',
+            background: '#FFFFFF',
+            text: '#333333'
+          }
+        }
+      }
+    });
     
     // Cleanup when component unmounts
     return () => {
@@ -106,7 +146,8 @@ export default function MercadoPagoProvider({
     customStyles?.buttonColor, 
     customStyles?.circleColor, 
     customStyles?.primaryButtonColor, 
-    customStyles?.secondaryButtonColor
+    customStyles?.secondaryButtonColor,
+    hideTitle
   ]);
 
   useEffect(() => {
@@ -188,27 +229,7 @@ export default function MercadoPagoProvider({
             preferenceId: preferenceId,
             mercadoPago: mercadoPagoSdkInstance // Asegúrate de usar la instancia, no la clave
           }}
-          customization={{
-            visual: { 
-              hideFormTitle: hideTitle, 
-              hidePaymentButton: false,
-              style: {
-                theme: 'default',
-                colors: {
-                  primary: customStyles?.buttonColor || '#F26F32',
-                  secondary: customStyles?.circleColor || '#009EE3',
-                  error: '#e74c3c',
-                  background: '#FFFFFF',
-                  text: '#333333'
-                },
-                borderRadius: '4px'
-              }
-            },
-            paymentMethods: { 
-              creditCard: 'all', 
-              debitCard: 'all' 
-            }
-          }}
+          customization={paymentCustomization}
           onSubmit={processPayment}
           onReady={handleReady}
           onError={handleError}

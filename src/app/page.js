@@ -10,11 +10,17 @@ export default function Home() {
   useEffect(() => {
     // Obtener parámetros de URL
     const urlParams = new URLSearchParams(window.location.search);
-    const buttonColor = urlParams.get('buttonColor') || '#F26F32';
-    const circleColor = urlParams.get('circleColor') || '#009EE3';
-    // Nuevos parámetros de color para botones
-    const primaryButtonColor = urlParams.get('primaryButtonColor') || '#F26F32';
-    const secondaryButtonColor = urlParams.get('secondaryButtonColor') || '#E5E5E5';
+    
+    // Asegurar que los colores tengan formato hexadecimal con #
+    const formatColor = (color) => {
+      if (!color) return null;
+      return color.startsWith('#') ? color : `#${color}`;
+    };
+    
+    const buttonColor = formatColor(urlParams.get('buttonColor')) || '#F26F32';
+    const circleColor = formatColor(urlParams.get('circleColor')) || '#009EE3';
+    const primaryButtonColor = formatColor(urlParams.get('primaryButtonColor')) || '#F26F32';
+    const secondaryButtonColor = formatColor(urlParams.get('secondaryButtonColor')) || '#E5E5E5';
     
     const hideTitle = urlParams.get('hideTitle') === 'true';
     const quantity = parseInt(urlParams.get('quantity') || '1', 10);
@@ -49,11 +55,18 @@ export default function Home() {
       finalFailureUrl
     });
 
-    // Establecer variables CSS globales para todos los tipos de botones
+    // Establecer variables CSS globales con alta prioridad (directo al :root)
     document.documentElement.style.setProperty('--mp-button-color', buttonColor);
     document.documentElement.style.setProperty('--mp-circle-color', circleColor);
     document.documentElement.style.setProperty('--mp-primary-button-color', primaryButtonColor);
     document.documentElement.style.setProperty('--mp-secondary-button-color', secondaryButtonColor);
+    
+    console.log('Colores aplicados:', {
+      buttonColor,
+      circleColor,
+      primaryButtonColor, 
+      secondaryButtonColor
+    });
 
   }, []);
 
