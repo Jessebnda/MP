@@ -25,19 +25,33 @@
   background-color: white;
 }
 
+/* Form field consistent width and styling */
+.mp-checkout-container input,
+.mp-checkout-container select,
+.mp-form-group input,
+.mp-form-group select,
+.mp-text-input,
+.mp-select-input,
+.mp-phone-container {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: block !important;
+}
+
 /* Form input styling */
 .mp-checkout-container input,
-.mp-checkout-container select {
+.mp-checkout-container select,
+.mp-form-group input,
+.mp-form-group select,
+.mp-text-input,
+.mp-select-input {
+  height: 42px !important;
   font-family: 'Inter', sans-serif !important;
-  font-size: 0.95rem !important;
+  padding: 0.75rem 1rem !important;
   border: 1px solid #ddd !important;
   border-radius: 4px !important;
-  padding: 0.75rem 1rem !important;
-  height: 42px !important;
-  box-shadow: none !important;
-  transition: border-color 0.2s ease-in-out !important;
-  width: 100%; /* Asegura que ocupe el ancho disponible */
-  box-sizing: border-box; /* Incluye padding y borde en el ancho total */
+  font-size: 0.95rem !important;
 }
 
 .mp-checkout-container input:focus,
@@ -155,7 +169,7 @@
   --mp-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mp-font-title: 'Playfair Display SC', 'Bodoni Moda', Georgia, serif;
   --mp-button-color: #F26F32;
-  --mp-circle-color: #009EE3;
+  --mp-circle-color: #F26F32;
   --mp-primary-button-color: #F26F32;
   --mp-secondary-button-color: #E5E5E5;
 }
@@ -245,4 +259,108 @@ html body button[class*="volver"],
 html body button[class*="cancelar"] {
   background-color: var(--mp-secondary-button-color, #E5E5E5) !important;
   border-color: var(--mp-secondary-button-color, #E5E5E5) !important;
+}
+
+/* Consistent form layout */
+.mp-form-container,
+.mp-checkout-form {
+  width: 100%;
+  max-width: 650px;
+  margin: 0 auto;
+}
+
+/* Make all form groups consistent */
+.mp-form-group {
+  margin-bottom: 1.5rem;
+  width: 100%;
+}
+
+/* Ensure phone container matches exactly */
+.mp-phone-container {
+  display: block !important;
+  box-sizing: border-box !important;
+  /* Eliminar cualquier padding o margen adicional */
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Specific styling for the phone input component */
+.mp-phone-input {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  height: 42px !important;
+  padding: 0.75rem 1rem !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  font-size: 0.95rem !important;
+}
+
+/* Fix for the flag dropdown - asegura que no desplace el campo */
+.react-tel-input .flag-dropdown {
+  border-right: none !important;
+}
+
+/* Improve phone input specific styling */
+.mp-phone-container {
+  width: 100% !important;
+}
+
+.mp-phone-input {
+  width: 100% !important;
+  height: 42px !important;
+  padding: 0.75rem 1rem !important;
+}
+
+/* Fix dropdown selectors to match other fields */
+.mp-select-input,
+select[id^="mp-"] {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 16px;
+  padding-right: 2.5rem !important;
+}
+
+/* --- Ajuste para react-tel-input --- */
+.react-tel-input {
+  width: 100% !important;
+  box-sizing: border-box;
+  display: flex !important;
+}
+
+.react-tel-input .flag-dropdown {
+  width: 52px !important;      /* ancho fijo de la bandera */
+  border-right: none !important;
+}
+
+.react-tel-input .form-control {
+  flex: 1 1 auto !important;   /* ocupa el resto del espacio */
+  height: 42px !important;
+  padding: 0.75rem 1rem !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  font-size: 0.95rem !important;
+  box-sizing: border-box !important;
+}
+
+/* Override color for MercadoPago “bricks” radio dot */
+[class*="mp-checkout-bricks__radio"][class*="checked"]::before {
+  background-color: var(--mp-button-color) !important;
+}
+
+/* --- Override Bricks “Pagar” button --- */
+.mp-checkout-container button[class*="svelte-"] {
+  background-image: none !important;
+  background-color: var(--mp-button-color) !important;
+  color: white !important;
+}
+
+/* --- Force MercadoPago Bricks “PAGAR” button to orange --- */
+#paymentBrick_container {
+  /* base-color es el que pinta el fondo principal */
+  --base-color: var(--mp-button-color) !important;
+  /* variantes si el brick aplica degradados */
+  --base-color-first-variant: var(--mp-button-color) !important;
+  --base-color-second-variant: var(--mp-button-color) !important;
 }

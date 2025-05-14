@@ -518,7 +518,7 @@ export default function PaymentFlow({
                 })}
                 className={styles['mp-select-input']}
               >
-                <option value="DNI">DNI</option>
+                <option value="DNI">INE</option>
                 <option value="RFC">RFC</option>
                 <option value="CUIT">CUIT</option>
                 <option value="OTRO">Otro</option>
