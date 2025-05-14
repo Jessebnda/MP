@@ -645,28 +645,57 @@
   color: #222;
 }
 
-.mp-add-product-button {
+/* Nuevo estilo para el contenedor del botón Agregar Producto */
+.mp-add-product-container {
   display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+/* Y modificar el estilo del botón */
+.mp-add-product-button {
+  display: inline-flex;
   align-items: center;
   background: transparent;
   border: 1px dashed #ccc;
   border-radius: 4px;
-  padding: 0.75rem;
-  width: 100%;
-  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  width: auto;
   cursor: pointer;
   color: #666;
   font-weight: 500;
   transition: all 0.2s ease;
 }
 
-.mp-add-product-button:hover {
-  border-color: #F26F32;
-  color: #F26F32;
-}
-
 .mp-add-product-button span {
   margin-left: 0.5rem;
+}
+
+/* Estilo para el botón X */
+.mp-product-remove-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+
+.mp-product-remove-x:hover {
+  background-color: #ff4d4f;
+  color: white;
+  border-color: #ff4d4f;
 }
 
 /* Estilos para el resumen con múltiples productos */

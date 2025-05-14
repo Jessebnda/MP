@@ -366,6 +366,15 @@ export default function PaymentFlow({
         <div className={styles['mp-product-selection-container']}>
           {selectedProducts.map((selectedProduct, index) => (
             <div key={index} className={styles['mp-product-item']}>
+              {/* Botón X para eliminar el producto */}
+              <button 
+                className={styles['mp-product-remove-x']} 
+                onClick={() => handleRemoveProduct(index)}
+                aria-label="Eliminar producto"
+              >
+                ✕
+              </button>
+              
               <div className={styles['mp-form-group']}>
                 <label htmlFor={`mp-product-select-${index}`}>Producto:</label>
                 <select 
@@ -409,24 +418,29 @@ export default function PaymentFlow({
                   </div>
                 </div>
               )}
-              <button
-                className={cn(styles['mp-button'], styles['mp-secondary'])}
-                onClick={() => handleRemoveProduct(index)}
-              >
-                Eliminar Producto
-              </button>
+              
             </div>
           ))}
-          <button
-            className={cn(styles['mp-button'], styles['mp-primary'])}
-            onClick={handleAddProduct}
-          >
-            Agregar Producto
-          </button>
-          <div className={styles['mp-total-price']}>
-            <span>Total:</span>
-            <span>${formatPrice(calculateTotalPrice())}</span>
+          {/* Contenedor flexible para Total y Agregar Producto */}
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
+            {/* Total a la izquierda */}
+            <div className={styles['mp-total-price']}>
+              <span>Total:</span>
+              <span>${formatPrice(calculateTotalPrice())}</span>
+            </div>
+            
+            {/* Botón Agregar Producto a la derecha (solo cuando hay menos de 3 productos) */}
+            {selectedProducts.length < 3 && (
+              <button
+                className={cn(styles['mp-button'], styles['mp-primary'])}
+                onClick={handleAddProduct}
+              >
+                Agregar Producto
+              </button>
+            )}
           </div>
+
+          {/* Botón Continuar al Pago en su propia línea */}
           <div className={styles['mp-button-container']}>
             <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleContinueToConfirmation}>
               Continuar al Pago
