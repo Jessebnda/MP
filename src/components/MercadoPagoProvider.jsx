@@ -91,6 +91,9 @@ export default function MercadoPagoProvider({
         : `#${customStyles.buttonColor}`;
       document.documentElement.style.setProperty('--mp-button-color', buttonColor);
       console.log("Aplicando color de botón MercadoPago:", buttonColor);
+    } else {
+      // Valor predeterminado naranja si no se proporciona
+      document.documentElement.style.setProperty('--mp-button-color', '#F26F32');
     }
     
     if (customStyles?.circleColor) {
@@ -99,6 +102,9 @@ export default function MercadoPagoProvider({
         : `#${customStyles.circleColor}`;
       document.documentElement.style.setProperty('--mp-circle-color', circleColor);
       console.log("Aplicando color de círculo MercadoPago:", circleColor);
+    } else {
+      // Valor predeterminado naranja si no se proporciona
+      document.documentElement.style.setProperty('--mp-circle-color', '#F26F32'); 
     }
     
     if (customStyles?.primaryButtonColor) {
@@ -107,6 +113,8 @@ export default function MercadoPagoProvider({
         : `#${customStyles.primaryButtonColor}`;
       document.documentElement.style.setProperty('--mp-primary-button-color', primaryColor);
       console.log("Aplicando color de botón primario:", primaryColor);
+    } else {
+      document.documentElement.style.setProperty('--mp-primary-button-color', '#F26F32');
     }
     
     if (customStyles?.secondaryButtonColor) {
@@ -115,9 +123,11 @@ export default function MercadoPagoProvider({
         : `#${customStyles.secondaryButtonColor}`;
       document.documentElement.style.setProperty('--mp-secondary-button-color', secondaryColor);
       console.log("Aplicando color de botón secundario:", secondaryColor);
+    } else {
+      document.documentElement.style.setProperty('--mp-secondary-button-color', '#E5E5E5');
     }
     
-    // También pasar colores directamente al componente Payment
+    // También actualizar la configuración para el componente Payment
     setPaymentCustomization({
       visual: { 
         hideFormTitle: hideTitle, 
@@ -126,12 +136,16 @@ export default function MercadoPagoProvider({
           theme: 'default',
           colors: {
             primary: customStyles?.buttonColor || '#F26F32',
-            secondary: customStyles?.circleColor || '#009EE3',
+            secondary: customStyles?.circleColor || '#F26F32', // Cambiado de azul a naranja
             error: '#e74c3c',
             background: '#FFFFFF',
             text: '#333333'
           }
         }
+      },
+      paymentMethods: { 
+        creditCard: 'all', 
+        debitCard: 'all' 
       }
     });
     
@@ -149,6 +163,45 @@ export default function MercadoPagoProvider({
     customStyles?.secondaryButtonColor,
     hideTitle
   ]);
+
+  // Forzar la aplicación de colores después del renderizado del componente Payment
+  useEffect(() => {
+    if (!preferenceId || !sdkReady) return;
+    
+    // Aplicar colores con un pequeño retraso para asegurar que el componente Payment esté listo
+    const colorTimer = setTimeout(() => {
+      console.log("Reforzando aplicación de colores...");
+      
+      if (customStyles?.buttonColor) {
+        const buttonColor = customStyles.buttonColor.startsWith('#') 
+          ? customStyles.buttonColor 
+          : `#${customStyles.buttonColor}`;
+        document.documentElement.style.setProperty('--mp-button-color', buttonColor);
+        
+        // Aplicar directamente a elementos que podrían estar en el DOM
+        document.querySelectorAll('.mercadopago-button, button[type="submit"]').forEach(btn => {
+          if (btn.closest('.mp-checkout-container')) {
+            btn.style.backgroundColor = buttonColor;
+            btn.style.borderColor = buttonColor;
+          }
+        });
+      }
+      
+      if (customStyles?.circleColor) {
+        const circleColor = customStyles.circleColor.startsWith('#') 
+          ? customStyles.circleColor 
+          : `#${customStyles.circleColor}`;
+        document.documentElement.style.setProperty('--mp-circle-color', circleColor);
+        
+        // Aplicar directamente a elementos que podrían estar en el DOM
+        document.querySelectorAll('.mp-circle-logo, .mercadopago-circle').forEach(circle => {
+          circle.style.backgroundColor = circleColor;
+        });
+      }
+    }, 500);
+    
+    return () => clearTimeout(colorTimer);
+  }, [preferenceId, sdkReady, customStyles]);
 
   useEffect(() => {
     // Send ready message to parent when loaded
@@ -229,7 +282,27 @@ export default function MercadoPagoProvider({
             preferenceId: preferenceId,
             mercadoPago: mercadoPagoSdkInstance // Asegúrate de usar la instancia, no la clave
           }}
-          customization={paymentCustomization}
+          customization={{
+            visual: { 
+              hideFormTitle: hideTitle, 
+              hidePaymentButton: false,
+              style: {
+                theme: 'default',
+                colors: {
+                  primary: customStyles?.buttonColor || '#F26F32',
+                  secondary: customStyles?.circleColor || '#F26F32', // Cambio de #009EE3 a #F26F32
+                  error: '#e74c3c',
+                  background: '#FFFFFF',
+                  text: '#333333'
+                },
+                borderRadius: '4px'
+              }
+            },
+            paymentMethods: { 
+              creditCard: 'all', 
+              debitCard: 'all' 
+            }
+          }}
           onSubmit={processPayment}
           onReady={handleReady}
           onError={handleError}

@@ -7,6 +7,7 @@ import { cn } from '../lib/utils';
 import { logInfo, logError, logWarn } from '../lib/logger';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import '../styles/mercadopago-globals.css';
 
 const formatPrice = (price) => {
   return Number(price).toLocaleString('es-MX', {
