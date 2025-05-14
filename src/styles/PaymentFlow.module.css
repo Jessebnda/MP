@@ -28,7 +28,7 @@
   transform: translateX(-50%);
   width: 3rem;
   height: 1px;
-  background-color: #F26F32;
+  background-color: var(--mp-primary-button-color) !important;
 }
 
 /* Formulario y selección de productos */
@@ -49,6 +49,25 @@
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.05rem;
+}
+
+/* Hacer responsive las filas de formulario */
+.mp-form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.mp-form-row .mp-form-group {
+  flex: 1 1 45%;
+  min-width: 200px;
+}
+
+/* En móvil, apilar vertical */
+@media (max-width: 767px) {
+  .mp-form-row {
+    flex-direction: column;
+  }
 }
 
 /* Selector base */
@@ -107,7 +126,7 @@
   padding: 1.25rem;
   margin-top: 1.25rem;
   font-weight: 500;
-  border-left: 3px solid #F26F32;  /* Más sutil */
+  border-left: 3px solid var(--mp-primary-button-color) !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -173,6 +192,8 @@
 /* Botón grande de confirmación */
 .mp-confirmation-actions .mp-button.mp-primary {
   padding: 0.85rem 2rem;
+  background-color: var(--mp-primary-button-color) !important;
+  border-color: var(--mp-primary-button-color) !important;
 }
 
 /* Confirmation page */
@@ -294,7 +315,7 @@
   background-color: #f9f9f9;
   border-radius: 8px;
   padding: 16px;
-  border-left: 5px solid #F26F32;
+  border-left: 5px solid var(--mp-primary-button-color) !important;
 }
 
 /* Ajustes responsivos para la confirmación del pedido */
@@ -532,6 +553,7 @@
   background-color: #f8f8f8;
   padding: 1rem;
   border-radius: 4px;
+  border-left: 3px solid var(--mp-primary-button-color) !important;
 }
 
 .mp-order-preview h3 {
@@ -682,7 +704,7 @@
   padding: 1rem;
   border-radius: 4px;
   margin-top: 1.5rem;
-  border-left: 4px solid #F26F32;
+  border-left: 5px solid var(--mp-primary-button-color) !important;
 }
 
 .mp-grand-total span:last-child {
@@ -795,7 +817,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-left: 5px solid #F26F32;
+  border-left: 5px solid var(--mp-primary-button-color) !important;
   font-size: 1.2rem;
 }
 

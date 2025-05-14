@@ -322,28 +322,6 @@ select[id^="mp-"] {
   padding-right: 2.5rem !important;
 }
 
-/* --- Ajuste para react-tel-input --- */
-.react-tel-input {
-  width: 100% !important;
-  box-sizing: border-box;
-  display: flex !important;
-}
-
-.react-tel-input .flag-dropdown {
-  width: 52px !important;      /* ancho fijo de la bandera */
-  border-right: none !important;
-}
-
-.react-tel-input .form-control {
-  flex: 1 1 auto !important;   /* ocupa el resto del espacio */
-  height: 42px !important;
-  padding: 0.75rem 1rem !important;
-  border: 1px solid #ddd !important;
-  border-radius: 4px !important;
-  font-size: 0.95rem !important;
-  box-sizing: border-box !important;
-}
-
 /* Override color for MercadoPago “bricks” radio dot */
 [class*="mp-checkout-bricks__radio"][class*="checked"]::before {
   background-color: var(--mp-button-color) !important;
