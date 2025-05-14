@@ -7,14 +7,13 @@ const nextConfig = {
 
   async headers() {
     const ContentSecurityPolicy = `
-      default-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app https://fonts.googleapis.com;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app;
+      default-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://fonts.googleapis.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app;
       style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mlstatic.com https://fonts.googleapis.com;
-      frame-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app;
-      connect-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app;
+      frame-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com;
+      connect-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com;
       img-src 'self' data: https://*.mercadopago.com https://*.mlstatic.com;
       font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;
-      https://alturadivina.com/reposado-productpage
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [
