@@ -14,6 +14,7 @@ const nextConfig = {
       connect-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app;
       img-src 'self' data: https://*.mercadopago.com https://*.mlstatic.com;
       font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;
+      https://alturadivina.com/reposado-productpage
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [
