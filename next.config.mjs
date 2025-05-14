@@ -7,17 +7,13 @@ const nextConfig = {
 
   async headers() {
     const ContentSecurityPolicy = `
-      default-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com https://fonts.gstatic.com;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.mercadolibre.com https://*.mercadolivre.com;
-      style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com;
-      img-src 'self' data: blob: https: https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.mercadolibre.com https://*.mercadolivre.com;
-      connect-src 'self' https://*.mercadopago.com https://api.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.mercadolibre.com https://*.mercadolivre.com https://api.mercadolibre.com https://api.mercadolivre.com;
-      font-src 'self' data: https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.gstatic.com;
-      object-src 'self' data:;
-      frame-src 'self' * https://*.mercadolibre.com https://*.mercadolivre.com;
-      frame-ancestors *; 
-      base-uri 'self';
-      upgrade-insecure-requests;
+      default-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app https://fonts.googleapis.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app;
+      style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mlstatic.com https://fonts.googleapis.com;
+      frame-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app;
+      connect-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app;
+      img-src 'self' data: https://*.mercadopago.com https://*.mlstatic.com;
+      font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [

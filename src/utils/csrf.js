@@ -8,21 +8,29 @@ import { logError, logInfo } from './logger';
  * @throws {Error} Si el token CSRF no es válido
  */
 export async function validateCsrfToken(req) {
-  // En desarrollo, puedes hacer que sea opcional
+  // Skip CSRF validation in development mode
   if (process.env.NODE_ENV === 'development') {
     return true;
   }
 
+  // IMPORTANT: Add this section to detect iframe embedded contexts
+  const referer = req.headers.get('Referer');
+  const secFetchDest = req.headers.get('Sec-Fetch-Dest');
+  const isIframeEmbed = referer?.includes('framer.com') || 
+                        referer?.includes('framer.app') ||
+                        secFetchDest === 'iframe';
+                        
+  // Skip validation for iframe embeds
+  if (isIframeEmbed) {
+    logInfo('CSRF validation bypassed for iframe embed context');
+    return true;
+  }
+
   try {
-    // Intenta obtener el token CSRF del encabezado
+    // Rest of your existing validation code...
     const csrfToken = req.headers.get('X-CSRF-Token');
     
-    // Si no hay token CSRF en el encabezado, verifica si estamos en desarrollo
     if (!csrfToken) {
-      if (process.env.NODE_ENV === 'development') {
-        logInfo('CSRF validation skipped (development mode, no token)');
-        return;
-      }
       throw new Error('CSRF token missing');
     }
 
