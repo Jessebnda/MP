@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Frame } from 'framer';
+import { Frame } from 'framer-motion';
 import { logInfo, logError, logWarn } from '../lib/logger';
 
 export function StandaloneCartFrame({
