@@ -76,7 +76,6 @@ export default function PaymentFlow({
     }
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [effectiveProductId, setEffectiveProductId] = useState(initialProductId);
   
   // Obtener datos del carrito
   const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart();
@@ -360,73 +359,6 @@ export default function PaymentFlow({
       />
     );
   };
-
-  // FALTA: Leer parámetros de URL para iframe
-  useEffect(() => {
-    // Detectar si estamos en iframe
-    const isInIframe = typeof window !== 'undefined' && window !== window.parent;
-    
-    if (isInIframe) {
-      const params = new URLSearchParams(window.location.search);
-      
-      // Leer productId de URL
-      const urlProductId = params.get('initialProductId');
-      if (urlProductId) {
-        // Usar productId de la URL
-      }
-      
-      // Leer colores de la URL
-      const buttonColorParam = params.get('buttonColor');
-      if (buttonColorParam) {
-        // Aplicar colores desde URL
-      }
-    }
-  }, []);
-
-  // FALTA: Aplicar colores desde parámetros URL
-  const getColorFromUrl = (param, defaultColor) => {
-    const params = new URLSearchParams(window.location.search);
-    const color = params.get(param);
-    return color ? `#${color}` : defaultColor;
-  };
-
-  // FALTA: Manejo de sessionId para persistencia
-  const sessionId = new URLSearchParams(window.location.search).get('sessionId');
-
-  // Usar sessionId de URL para persistencia del carrito
-  const getSessionId = () => {
-    if (typeof window !== 'undefined') {
-      return new URLSearchParams(window.location.search).get('sessionId');
-    }
-    return null;
-  };
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      
-      // Producto inicial
-      const urlProductId = params.get('initialProductId');
-      if (urlProductId) setEffectiveProductId(urlProductId);
-      
-      // Colores
-      const styleUpdates = {};
-      ['buttonColor', 'circleColor', 'primaryButtonColor', 'secondaryButtonColor'].forEach(key => {
-        const value = params.get(key);
-        if (value) styleUpdates[key] = `#${value}`;
-      });
-      
-      // Aplicar colores directamente al DOM
-      if (Object.keys(styleUpdates).length > 0) {
-        if (styleUpdates.buttonColor) document.documentElement.style.setProperty('--mp-button-color', styleUpdates.buttonColor);
-        if (styleUpdates.circleColor) document.documentElement.style.setProperty('--mp-circle-color', styleUpdates.circleColor);
-        if (styleUpdates.primaryButtonColor) document.documentElement.style.setProperty('--mp-primary-button-color', styleUpdates.primaryButtonColor);
-        if (styleUpdates.secondaryButtonColor) document.documentElement.style.setProperty('--mp-secondary-button-color', styleUpdates.secondaryButtonColor);
-        
-        setCustomStyles(prev => ({...prev, ...styleUpdates}));
-      }
-    }
-  }, []);
 
   if (loading) {
     return (

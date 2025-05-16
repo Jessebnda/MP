@@ -16,32 +16,7 @@ const CartSidebar = ({ isOpen, onClose, checkoutUrl = '/checkout' }) => {
 
   const handleCheckout = () => {
     onClose();
-    
-    // Obtener los parámetros actuales de la URL
-    const currentParams = new URLSearchParams(window.location.search);
-    const sessionId = currentParams.get('sessionId') || `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    
-    // Construir la URL de checkout con los parámetros necesarios
-    let checkoutUrl = `${apiBaseUrl}/checkout`;
-    let params = new URLSearchParams();
-    
-    // Mantener los parámetros de color y sesión
-    const colorParams = ['buttonColor', 'circleColor', 'primaryButtonColor', 'secondaryButtonColor'];
-    colorParams.forEach(param => {
-      if (currentParams.get(param)) {
-        params.append(param, currentParams.get(param));
-      }
-    });
-    
-    // Añadir el sessionId para persistencia del carrito
-    params.append('sessionId', sessionId);
-    
-    // Añadir los parámetros a la URL
-    if (params.toString()) {
-      checkoutUrl += `?${params.toString()}`;
-    }
-    
-    // Redireccionar
+    // Use the checkoutUrl prop or default to /checkout
     window.location.href = checkoutUrl;
   };
 

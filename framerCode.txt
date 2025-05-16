@@ -9,10 +9,10 @@ interface MercadoPagoEmbedProps {
     pendingUrl: string
     failureUrl: string
     hideTitle: boolean
-    buttonColor: string
-    circleColor: string
-    primaryButtonColor: string
-    secondaryButtonColor: string
+    buttonColor: string         // Color del botón de pago de MercadoPago
+    circleColor: string         // Color del círculo de MercadoPago
+    primaryButtonColor: string  // NUEVO: Color de los botones primarios (continuar, confirmar)
+    secondaryButtonColor: string // NUEVO: Color de los botones secundarios (volver, cancelar)
     width: number | string
     height: number | string
     onRedirect?: (event: any) => void
@@ -30,8 +30,8 @@ export function MercadoPagoEmbed(
         hideTitle,
         buttonColor,
         circleColor,
-        primaryButtonColor,
-        secondaryButtonColor,
+        primaryButtonColor,    // Nuevo prop
+        secondaryButtonColor,  // Nuevo prop
         width,
         height,
         onRedirect
@@ -98,26 +98,22 @@ export function MercadoPagoEmbed(
         };
     }, [onRedirect, successUrl, pendingUrl, failureUrl]);
     
-    // Generar un session ID único para persistencia del carrito
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Eliminar el # de los colores para evitar problemas de codificación en la URL
-    const sanitizeColor = (color: string) => color.replace('#', '');
-    
     const baseUrl = "https://mercadopagoiframe.vercel.app/";
     const queryParams = new URLSearchParams({
-        initialProductId: productId || '2',  // Asegurar que siempre haya un valor
+        initialProductId: productId || '',
         publicKey: publicKey || '',
         successUrl: successUrl || '',
         pendingUrl: pendingUrl || '',
         failureUrl: failureUrl || '',
         hideTitle: hideTitle ? 'true' : 'false',
-        buttonColor: sanitizeColor(buttonColor || 'F26F32'),  // Quitar el # para evitar problemas de URL
-        circleColor: sanitizeColor(circleColor || 'F26F32'),
-        primaryButtonColor: sanitizeColor(primaryButtonColor || 'F26F32'),
-        secondaryButtonColor: sanitizeColor(secondaryButtonColor || 'E5E5E5'),
+        buttonColor: buttonColor || '#F26F32', 
+        circleColor: circleColor || '#F26F32',  // Cambiado de #009EE3 a #F26F32
+        primaryButtonColor: primaryButtonColor || '#F26F32',  // NUEVO
+        secondaryButtonColor: secondaryButtonColor || '#E5E5E5',  // NUEVO
         isInIframe: 'true',
-        sessionId: sessionId
+        sessionId: sessionId  // Añadir el sessionId
     }).toString();
     
     const iframeSrc = `${baseUrl}?${queryParams}`;
@@ -177,7 +173,7 @@ addPropertyControls(MercadoPagoEmbed, {
     circleColor: {
         title: "MP Circle Color",
         type: ControlType.Color,
-        defaultValue: "#F26F32",
+        defaultValue: "#F26F32",  // Cambiado de #009EE3 a #F26F32
     },
     primaryButtonColor: {
         title: "Primary Button Color",
@@ -220,7 +216,7 @@ MercadoPagoEmbed.defaultProps = {
     failureUrl: "https://alturadivina.com/error-de-compra",
     hideTitle: false,
     buttonColor: "#F26F32",
-    circleColor: "#F26F32",
+    circleColor: "#F26F32",  // Cambiado de #009EE3 a #F26F32
     primaryButtonColor: "#F26F32",
     secondaryButtonColor: "#E5E5E5",
     width: 300,
