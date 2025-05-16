@@ -342,3 +342,10 @@ select[id^="mp-"] {
   --base-color-first-variant: var(--mp-button-color) !important;
   --base-color-second-variant: var(--mp-button-color) !important;
 }
+
+/* Asegurar que todos los elementos de MercadoPago usen las variables correctas */
+[class*="mercadopago"] svg path[fill="#F26F32"],
+[class*="mercadopago"] [style*="background-color: rgb(242, 111, 50)"] {
+  fill: var(--mp-circle-color, #F26F32) !important;
+  background-color: var(--mp-circle-color, #F26F32) !important;
+}

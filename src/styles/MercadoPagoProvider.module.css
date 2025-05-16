@@ -22,7 +22,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border-left-color: #F26F32;
+  border-left-color: var(--mp-circle-color, #F26F32); /* Usar variable CSS */
   animation: spin 1s ease infinite;
   margin-bottom: 1rem;
 }
