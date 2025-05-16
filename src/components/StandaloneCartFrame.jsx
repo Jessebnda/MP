@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
-// Remove this import
-// import { Frame } from 'framer-motion';
+import { Frame } from 'framer-motion';
 import { logInfo, logError, logWarn } from '../lib/logger';
 
 export function StandaloneCartFrame({
@@ -39,12 +38,11 @@ export function StandaloneCartFrame({
   urlWithParams.searchParams.append('buttonSize', buttonSize);
 
   return (
-    <iframe
+    <Frame
       src={urlWithParams.toString()}
       width={width}
       height={height}
       style={{ border: "none", overflow: "visible" }}
-      title="Cart Button"
     />
   );
 }

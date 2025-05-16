@@ -1,15 +1,18 @@
 import * as React from "react";
-// Remove this line
-// import { Frame } from "framer";
-import { logInfo, logError, logWarn } from '../utils/logger';
+import { Frame } from "framer";
+import { logInfo, logError, logWarn } from '../utils/logger'; // Changed from ../lib/logger
 
 export function MercadoPagoFrame({
+  // Tu deploy en Vercel
   src = "https://mercadopagoiframe.vercel.app/",
   width = "100%",
   height = "100%",
+  // Callback que se dispara cuando recibimos MP_REDIRECT
   onRedirect = (url, meta) => {
+    // Por defecto, navegamos a la URL completa
     window.location.href = url;
   },
+  // Para mayor seguridad, valida que venga de este origen
   allowedOrigin = "https://mercadopagoiframe.vercel.app",
 }) {
   React.useEffect(() => {
@@ -36,13 +39,12 @@ export function MercadoPagoFrame({
   }, [onRedirect, allowedOrigin]);
 
   return (
-    <iframe
+    <Frame
       src={src}
       width={width}
       height={height}
       style={{ border: "none" }}
       allow="payment"
-      title="MercadoPago Payment"
     />
   );
 }
