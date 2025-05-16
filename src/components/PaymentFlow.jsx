@@ -8,6 +8,9 @@ import { logInfo, logError, logWarn } from '../lib/logger';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import '../styles/mercadopago-globals.css';
+import { useCart } from '../hooks/useCart';
+import CartIcon from './CartIcon';
+import CartSidebar from './CartSidebar';
 
 const formatPrice = (price) => {
   return Number(price).toLocaleString('es-MX', {
@@ -30,7 +33,8 @@ export default function PaymentFlow({
   hideTitle = false,
   className = '',
   initialProductId = null,
-  customStyles = {}, // Nuevo prop para estilos personalizados
+  customStyles = {},
+  initialStep = 1, // New prop to set the initial step
 }) {
   if (!apiBaseUrl) {
     logError("PaymentFlow Error: 'apiBaseUrl' prop is required.");
@@ -53,7 +57,7 @@ export default function PaymentFlow({
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(initialStep);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const [userData, setUserData] = useState({
     email: '',
@@ -71,6 +75,10 @@ export default function PaymentFlow({
       city: ''
     }
   });
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  
+  // Obtener datos del carrito
+  const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart();
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -83,7 +91,20 @@ export default function PaymentFlow({
         }
         const data = await response.json();
         setProducts(data);
-        if (data.length > 0) {
+        
+        // Verificar si hay productos en el carrito al cargar
+        if (items.length > 0) {
+          // Tomar solo el primer producto del carrito y establecer cantidad a 1
+          const firstCartItem = items[0];
+          const productData = data.find(p => p.id === firstCartItem.productId) || firstCartItem.product;
+          
+          setSelectedProducts([{
+            productId: productData.id,
+            product: productData,
+            quantity: 1 // Siempre inicializar a 1
+          }]);
+        } else if (data.length > 0) {
+          // Si no hay productos en el carrito, inicializar con uno
           let initialProduct = data[0];
           if (initialProductId) {
             const foundProduct = data.find(p => p.id === initialProductId);
@@ -106,9 +127,10 @@ export default function PaymentFlow({
         setLoading(false);
       }
     };
+    
     fetchProducts();
-  }, [apiBaseUrl, productsEndpoint, onError, initialProductId]);
-
+  }, [apiBaseUrl, productsEndpoint, onError, initialProductId, items]);
+  
   useEffect(() => {
     return () => {
       logInfo("Limpiando el flujo de pago");
@@ -148,21 +170,32 @@ export default function PaymentFlow({
         alert('Ya has agregado todos los productos disponibles');
         return;
       }
+      
+      const newProduct = availableProducts[0];
+      
+      // Añadir al estado local de productos seleccionados
       setSelectedProducts([
         ...selectedProducts,
         {
-          productId: availableProducts[0].id,
-          product: availableProducts[0],
+          productId: newProduct.id,
+          product: newProduct,
           quantity: 1
         }
       ]);
+      
+      // Añadir también al carrito global
+      addItem(newProduct, 1);
     }
   };
 
   const handleRemoveProduct = (index) => {
+    const productToRemove = selectedProducts[index];
     const newProducts = [...selectedProducts];
     newProducts.splice(index, 1);
     setSelectedProducts(newProducts);
+    
+    // Eliminar también del carrito global
+    removeItem(productToRemove.productId);
   };
 
   const handleProductChange = (e, index) => {
@@ -186,6 +219,10 @@ export default function PaymentFlow({
         quantity: value
       };
       setSelectedProducts(updatedProducts);
+      
+      // Actualizar también en el carrito global
+      const product = updatedProducts[index];
+      updateQuantity(product.productId, value);
     }
   };
 
@@ -276,6 +313,9 @@ export default function PaymentFlow({
       subtotal: p.product.price * p.quantity
     })));
     logInfo('========================');
+    // Limpiar carrito después de pago exitoso
+    clearCart();
+    
     if (onSuccess) onSuccess(data);
   };
 
@@ -362,87 +402,170 @@ export default function PaymentFlow({
   if (currentStep === 1) {
     return (
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
-        {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona tus Productos</h2>}
+        <div className={styles['mp-header']}>
+          {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona un Producto</h2>}
+          <CartIcon onClick={() => setIsCartOpen(true)} />
+        </div>
+        
+        <CartSidebar 
+          isOpen={isCartOpen} 
+          onClose={() => setIsCartOpen(false)} 
+          checkoutUrl={`${apiBaseUrl}/checkout`}
+        />
+        
         <div className={styles['mp-product-selection-container']}>
-          {selectedProducts.map((selectedProduct, index) => (
-            <div key={index} className={styles['mp-product-item']}>
-              {/* Botón X para eliminar el producto */}
-              <button 
-                className={styles['mp-product-remove-x']} 
-                onClick={() => handleRemoveProduct(index)}
-                aria-label="Eliminar producto"
+          {/* Show only one product selector */}
+          <div className={styles['mp-product-item']}>
+            <div className={styles['mp-form-group']}>
+              <label htmlFor="mp-product-select">Producto:</label>
+              <select 
+                id="mp-product-select"
+                value={selectedProducts[0]?.productId || ''}
+                onChange={(e) => {
+                  const productId = e.target.value;
+                  const product = products.find(p => p.id === productId);
+                  
+                  if (product) {
+                    const updatedProducts = [...selectedProducts];
+                    updatedProducts[0] = {
+                      productId: product.id,
+                      product: product,
+                      quantity: 1
+                    };
+                    setSelectedProducts(updatedProducts);
+                  }
+                }}
+                className={styles['mp-select-input']}
               >
-                ✕
-              </button>
-              
-              <div className={styles['mp-form-group']}>
-                <label htmlFor={`mp-product-select-${index}`}>Producto:</label>
-                <select 
-                  id={`mp-product-select-${index}`}
-                  value={selectedProduct.productId || ''}
-                  onChange={(e) => handleProductChange(e, index)}
-                  className={styles['mp-select-input']}
-                >
-                  {getAvailableProducts(index).map(product => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} - ${formatPrice(product.price)}
-                    </option>
-                  ))}
-                  {selectedProduct.productId && !getAvailableProducts(index).find(p => p.id === selectedProduct.productId) && (
-                    <option key={selectedProduct.productId} value={selectedProduct.productId}>
-                      {selectedProduct.product.name} - ${formatPrice(selectedProduct.product.price)}
-                    </option>
-                  )}
-                </select>
-              </div>
-              <div className={styles['mp-form-group']}>
-                <label htmlFor={`mp-quantity-input-${index}`}>Cantidad:</label>
-                <input
-                  id={`mp-quantity-input-${index}`}
-                  type="number"
-                  min="1"
-                  value={selectedProduct.quantity || 1}
-                  onChange={(e) => handleQuantityChange(e, index)}
-                  className={styles['mp-number-input']}
-                />
-              </div>
-              {selectedProduct.product && (
-                <div className={styles['mp-product-details']}>
-                  <h3>{selectedProduct.product.name}</h3>
-                  <p className={styles['mp-product-description']}>{selectedProduct.product.description}</p>
-                  <div className={styles['mp-product-price']}>
-                    <span>Precio Total:</span>
-                    <span className={styles['mp-price-value']}>
-                      ${formatPrice(selectedProduct.product.price * selectedProduct.quantity)}
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-            </div>
-          ))}
-          {/* Contenedor flexible para Total y Agregar Producto */}
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem'}}>
-            {/* Total a la izquierda */}
-            <div className={styles['mp-total-price']}>
-              <span>Total:</span>
-              <span>${formatPrice(calculateTotalPrice())}</span>
+                {products.map(product => (
+                  <option key={product.id} value={product.id}>
+                    {product.name} - ${formatPrice(product.price)}
+                  </option>
+                ))}
+              </select>
             </div>
             
-            {/* Botón Agregar Producto a la derecha (solo cuando hay menos de 3 productos) */}
-            {selectedProducts.length < 3 && (
-              <button
-                className={cn(styles['mp-button'], styles['mp-primary'])}
-                onClick={handleAddProduct}
-              >
-                Agregar Producto
-              </button>
+            <div className={styles['mp-form-group']}>
+              <label htmlFor="mp-quantity-input">Cantidad:</label>
+              <div className={styles['mp-quantity-control']}>
+                <button 
+                  type="button"
+                  className={styles['mp-quantity-button']}
+                  onClick={() => {
+                    if (selectedProducts[0] && selectedProducts[0].quantity > 1) {
+                      const newQuantity = selectedProducts[0].quantity - 1;
+                      const updatedProducts = [...selectedProducts];
+                      updatedProducts[0] = {
+                        ...updatedProducts[0],
+                        quantity: newQuantity
+                      };
+                      setSelectedProducts(updatedProducts);
+                      
+                      // Añadir esta línea:
+                      updateQuantity(selectedProducts[0].productId, newQuantity);
+                    }
+                  }}
+                >
+                  -
+                </button>
+                <input
+                  id="mp-quantity-input"
+                  type="number"
+                  min="1"
+                  value={selectedProducts[0]?.quantity || 1}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (!isNaN(value) && value > 0 && selectedProducts[0]) {
+                      const updatedProducts = [...selectedProducts];
+                      updatedProducts[0] = {
+                        ...updatedProducts[0],
+                        quantity: value
+                      };
+                      setSelectedProducts(updatedProducts);
+                    }
+                  }}
+                  className={styles['mp-number-input']}
+                />
+                <button 
+                  type="button"
+                  className={styles['mp-quantity-button']}
+                  onClick={() => {
+                    if (selectedProducts[0]) {
+                      const newQuantity = selectedProducts[0].quantity + 1;
+                      const updatedProducts = [...selectedProducts];
+                      updatedProducts[0] = {
+                        ...updatedProducts[0],
+                        quantity: newQuantity
+                      };
+                      setSelectedProducts(updatedProducts);
+                    }
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            
+            {selectedProducts[0]?.product && (
+              <div className={styles['mp-product-details']}>
+                <h3>{selectedProducts[0].product.name}</h3>
+                <p className={styles['mp-product-description']}>{selectedProducts[0].product.description}</p>
+                <div className={styles['mp-product-price']}>
+                  <span>Precio Total:</span>
+                  <span className={styles['mp-price-value']}>
+                    ${formatPrice(selectedProducts[0].product.price * selectedProducts[0].quantity)}
+                  </span>
+                </div>
+              </div>
             )}
+            
+            <div className={styles['mp-add-to-cart-container']}>
+              <button 
+                className={styles.addToCartButton}
+                onClick={() => {
+                  if (selectedProducts[0]?.product) {
+                    // Primero agregar al carrito con la cantidad actual
+                    addItem(selectedProducts[0].product, selectedProducts[0].quantity);
+                    
+                    // Visual feedback
+                    const button = document.activeElement;
+                    if (button) {
+                      const originalText = button.textContent;
+                      button.textContent = "¡Agregado!";
+                      button.style.backgroundColor = "#4CAF50"; // Green success color
+                      setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.backgroundColor = "";
+                      }, 800);
+                    }
+                    
+                    // Resetear la cantidad a 1 después de agregar al carrito
+                    const updatedProducts = [...selectedProducts];
+                    updatedProducts[0] = {
+                      ...updatedProducts[0],
+                      quantity: 1
+                    };
+                    setSelectedProducts(updatedProducts);
+                  }
+                }}
+              >
+                Agregar al Carrito
+              </button>
+            </div>
           </div>
-
-          {/* Botón Continuar al Pago en su propia línea */}
+          
+          <div className={styles['mp-total-price']}>
+            <span>Total en Carrito:</span>
+            <span>${formatPrice(totalAmount)}</span>
+          </div>
+          
+          {/* Button to continue to payment flow */}
           <div className={styles['mp-button-container']}>
-            <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleContinueToConfirmation}>
+            <button 
+              className={cn(styles['mp-button'], styles['mp-primary'])} 
+              onClick={handleContinueToConfirmation}
+              disabled={items.length === 0}
+            >
               Continuar al Pago
             </button>
           </div>
@@ -454,171 +577,178 @@ export default function PaymentFlow({
   if (currentStep === 2) {
     return (
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
-        {!hideTitle && <h2 className={styles['mp-page-title']}>Datos del Comprador</h2>
-        }
+        <h2 className={styles['mp-page-title']}>DATOS DEL COMPRADOR</h2>
+        
         <div className={styles['mp-form-container']}>
-          <div className={styles['mp-form-group']}>
-            <label htmlFor="mp-email">Email: *</label>
-            <input
-              id="mp-email"
-              type="email"
-              value={userData.email}
-              onChange={(e) => setUserData({...userData, email: e.target.value})}
-              className={styles['mp-text-input']}
-              placeholder="correo@ejemplo.com"
-              required
-            />
-          </div>
-          
-          <div className={styles['mp-form-row']}>
+          <div className={styles['mp-form-section']}>
+            <h3 className={styles['mp-form-section-title']}>Información Personal</h3>
+            <p className={styles['mp-form-section-subtitle']}>Ingresa tus datos para completar la compra</p>
+            
             <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-first-name">Nombre: *</label>
+              <label htmlFor="mp-email">EMAIL: <span className={styles['required']}>*</span></label>
               <input
-                id="mp-first-name"
-                type="text"
-                value={userData.first_name}
-                onChange={(e) => setUserData({...userData, first_name: e.target.value})}
+                id="mp-email"
+                type="email"
+                value={userData.email}
+                onChange={(e) => setUserData({...userData, email: e.target.value})}
                 className={styles['mp-text-input']}
+                placeholder="correo@ejemplo.com"
                 required
               />
             </div>
             
+            <div className={styles['mp-form-row']}>
+              <div className={styles['mp-form-group']}>
+                <label htmlFor="mp-first-name">NOMBRE: <span className={styles['required']}>*</span></label>
+                <input
+                  id="mp-first-name"
+                  type="text"
+                  value={userData.first_name}
+                  onChange={(e) => setUserData({...userData, first_name: e.target.value})}
+                  className={styles['mp-text-input']}
+                  required
+                />
+              </div>
+              
+              <div className={styles['mp-form-group']}>
+                <label htmlFor="mp-last-name">APELLIDO: <span className={styles['required']}>*</span></label>
+                <input
+                  id="mp-last-name"
+                  type="text"
+                  value={userData.last_name}
+                  onChange={(e) => setUserData({...userData, last_name: e.target.value})}
+                  className={styles['mp-text-input']}
+                  required
+                />
+              </div>
+            </div>
+            
             <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-last-name">Apellido: *</label>
-              <input
-                id="mp-last-name"
-                type="text"
-                value={userData.last_name}
-                onChange={(e) => setUserData({...userData, last_name: e.target.value})}
-                className={styles['mp-text-input']}
-                required
-              />
+              <label htmlFor="mp-phone">TELÉFONO:</label>
+              {typeof window !== 'undefined' && (
+                <PhoneInput
+                  country={'mx'} // Default para México
+                  value={userData.phone || ''}
+                  onChange={(value) => {
+                    if (value) {
+                      setUserData({
+                        ...userData, 
+                        phone: value.toString()
+                      });
+                    }
+                  }}
+                  inputClass={styles['mp-phone-input']}
+                  containerClass={styles['mp-phone-container']}
+                  enableSearch={false}
+                  disableSearchIcon={true}
+                  preferredCountries={['mx', 'us', 'co', 'ar', 'pe', 'cl']}
+                  placeholder="Número de teléfono"
+                />
+              )}
+              <small className={styles['mp-form-help']}>Incluya código de país y solo números</small>
+            </div>
+            
+            <div className={styles['mp-form-row']}>
+              <div className={styles['mp-form-group']}>
+                <label htmlFor="mp-id-type">TIPO DE DOCUMENTO:</label>
+                <select
+                  id="mp-id-type"
+                  value={userData.identification?.type || 'INE'}
+                  onChange={(e) => setUserData({
+                    ...userData, 
+                    identification: {...(userData.identification || {}), type: e.target.value}
+                  })}
+                  className={styles['mp-select-input']}
+                >
+                  <option value="INE">INE</option>
+                  <option value="RFC">RFC</option>
+                  <option value="PASAPORTE">PASAPORTE</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
+              
+              <div className={styles['mp-form-group']}>
+                <label htmlFor="mp-id-number">NÚMERO DE DOCUMENTO:</label>
+                <input
+                  id="mp-id-number"
+                  type="text"
+                  value={userData.identification?.number || ''}
+                  onChange={(e) => setUserData({
+                    ...userData, 
+                    identification: {...(userData.identification || {}), number: e.target.value}
+                  })}
+                  className={styles['mp-text-input']}
+                />
+              </div>
             </div>
           </div>
           
-          <div className={styles['mp-form-group']}>
-            <label htmlFor="mp-phone">Teléfono:</label>
-            {typeof window !== 'undefined' && (
-              <PhoneInput
-                country={'mx'} // Default para México
-                value={userData.phone || ''}
-                onChange={(value) => {
-                  if (value) {
+          <div className={styles['mp-form-section']}>
+            <h3 className={styles['mp-form-section-title']}>Dirección</h3>
+            
+            <div className={styles['mp-form-group']}>
+              <label htmlFor="mp-street">CALLE:</label>
+              <input
+                id="mp-street"
+                type="text"
+                value={userData.address?.street_name || ''}
+                onChange={(e) => setUserData({
+                  ...userData, 
+                  address: {...(userData.address || {}), street_name: e.target.value}
+                })}
+                className={styles['mp-text-input']}
+              />
+            </div>
+            
+            <div className={styles['mp-form-row']}>
+              <div className={styles['mp-form-group']}>
+                <label htmlFor="mp-street-number">NÚMERO:</label>
+                <input
+                  id="mp-street-number"
+                  type="text"
+                  value={userData.address?.street_number || ''}
+                  onChange={(e) => {
+                    const streetNumber = e.target.value;
                     setUserData({
                       ...userData, 
-                      phone: value.toString()
+                      address: {...(userData.address || {}), street_number: streetNumber}
                     });
-                  }
-                }}
-                inputClass={styles['mp-phone-input']}
-                containerClass={styles['mp-phone-container']}
-                enableSearch={true}
-                preferredCountries={['mx', 'us', 'co', 'ar', 'pe', 'cl']}
-                placeholder="Número de teléfono"
-              />
-            )}
-            <small>Incluya código de país y solo números</small>
-          </div>
-          
-          <div className={styles['mp-form-row']}>
-            <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-id-type">Tipo de Documento:</label>
-              <select
-                id="mp-id-type"
-                value={userData.identification?.type || 'DNI'}
-                onChange={(e) => setUserData({
-                  ...userData, 
-                  identification: {...(userData.identification || {}), type: e.target.value}
-                })}
-                className={styles['mp-select-input']}
-              >
-                <option value="DNI">INE</option>
-                <option value="RFC">RFC</option>
-                <option value="CUIT">CUIT</option>
-                <option value="OTRO">Otro</option>
-              </select>
-            </div>
-            
-            <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-id-number">Número de Documento:</label>
-              <input
-                id="mp-id-number"
-                type="text"
-                value={userData.identification?.number || ''}
-                onChange={(e) => setUserData({
-                  ...userData, 
-                  identification: {...(userData.identification || {}), number: e.target.value}
-                })}
-                className={styles['mp-text-input']}
-              />
-            </div>
-          </div>
-          
-          <h3 className={styles['mp-section-title']}>Dirección</h3>
-          
-          <div className={styles['mp-form-group']}>
-            <label htmlFor="mp-street">Calle:</label>
-            <input
-              id="mp-street"
-              type="text"
-              value={userData.address?.street_name || ''}
-              onChange={(e) => setUserData({
-                ...userData, 
-                address: {...(userData.address || {}), street_name: e.target.value}
-              })}
-              className={styles['mp-text-input']}
-            />
-          </div>
-          
-          <div className={styles['mp-form-row']}>
-            <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-street-number">Número:</label>
-              <input
-                id="mp-street-number"
-                type="text"
-                value={userData.address?.street_number || ''}
-                onChange={(e) => {
-                  const streetNumber = e.target.value ? parseInt(e.target.value, 10) || '' : '';
-                  setUserData({
+                  }}
+                  className={styles['mp-text-input']}
+                />
+              </div>
+              
+              <div className={styles['mp-form-group']}>
+                <label htmlFor="mp-zip">CÓDIGO POSTAL:</label>
+                <input
+                  id="mp-zip"
+                  type="text"
+                  value={userData.address?.zip_code || ''}
+                  onChange={(e) => setUserData({
                     ...userData, 
-                    address: {...(userData.address || {}), street_number: streetNumber}
-                  });
-                }}
-                className={styles['mp-text-input']}
-                placeholder="123"
-              />
+                    address: {...(userData.address || {}), zip_code: e.target.value}
+                  })}
+                  className={styles['mp-text-input']}
+                />
+              </div>
             </div>
             
             <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-zip">Código Postal:</label>
+              <label htmlFor="mp-city">CIUDAD:</label>
               <input
-                id="mp-zip"
+                id="mp-city"
                 type="text"
-                value={userData.address?.zip_code || ''}
+                value={userData.address?.city || ''}
                 onChange={(e) => setUserData({
                   ...userData, 
-                  address: {...(userData.address || {}), zip_code: e.target.value}
+                  address: {...(userData.address || {}), city: e.target.value}
                 })}
                 className={styles['mp-text-input']}
               />
             </div>
           </div>
           
-          <div className={styles['mp-form-group']}>
-            <label htmlFor="mp-city">Ciudad:</label>
-            <input
-              id="mp-city"
-              type="text"
-              value={userData.address?.city || ''}
-              onChange={(e) => setUserData({
-                ...userData, 
-                address: {...(userData.address || {}), city: e.target.value}
-              })}
-              className={styles['mp-text-input']}
-            />
-          </div>
-          
-          <div className={styles['mp-button-container']}>
+          <div className={styles['mp-form-actions']}>
             <button 
               className={cn(styles['mp-button'], styles['mp-secondary'])} 
               onClick={() => setCurrentStep(1)}

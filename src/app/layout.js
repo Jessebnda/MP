@@ -1,5 +1,6 @@
 import { Inter, Bodoni_Moda, Playfair_Display_SC } from 'next/font/google'
 import '../styles/globals.css'
+import { CartProvider } from '../contexts/CartContext';
 
 // Fuente para texto general y campos
 const inter = Inter({
@@ -40,7 +41,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        {children}
+        <CartProvider>
+          {children}
+        </CartProvider>
       </body>
     </html>
   )

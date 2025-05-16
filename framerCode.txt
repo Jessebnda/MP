@@ -98,6 +98,8 @@ export function MercadoPagoEmbed(
         };
     }, [onRedirect, successUrl, pendingUrl, failureUrl]);
     
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     const baseUrl = "https://mercadopagoiframe.vercel.app/";
     const queryParams = new URLSearchParams({
         initialProductId: productId || '',
@@ -110,7 +112,8 @@ export function MercadoPagoEmbed(
         circleColor: circleColor || '#F26F32',  // Cambiado de #009EE3 a #F26F32
         primaryButtonColor: primaryButtonColor || '#F26F32',  // NUEVO
         secondaryButtonColor: secondaryButtonColor || '#E5E5E5',  // NUEVO
-        isInIframe: 'true'
+        isInIframe: 'true',
+        sessionId: sessionId  // Añadir el sessionId
     }).toString();
     
     const iframeSrc = `${baseUrl}?${queryParams}`;

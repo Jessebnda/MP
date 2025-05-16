@@ -47,15 +47,22 @@
   font-weight: 500;
   margin-bottom: 0.5rem;
   font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05rem;
+  color: #444;
+  letter-spacing: 0.02rem;
+}
+
+.mp-form-group small {
+  display: block;
+  font-size: 0.75rem;
+  color: #777;
+  margin-top: 0.25rem;
 }
 
 /* Hacer responsive las filas de formulario */
 .mp-form-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
-  flex-wrap: wrap;
 }
 
 .mp-form-row .mp-form-group {
@@ -75,16 +82,27 @@
 .mp-number-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid #ccc;
+  border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 0.95rem;
-  font-family: inherit;
+  color: #333;
+  background-color: #fff;
+  transition: border-color 0.2s ease;
   height: 60px;  /* Altura base en todas las pantallas */
   box-sizing: border-box;
 }
 
+/* Enfoque en el selector y campo numérico */
+.mp-text-input:focus,
+.mp-select-input:focus,
+.mp-phone-input:focus {
+  border-color: #F26F32;
+  outline: none;
+}
+
 /* Mejoras específicas para el select */
 .mp-select-input {
+  height: 48px;
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 1rem center;
@@ -316,6 +334,160 @@
   border-radius: 8px;
   padding: 16px;
   border-left: 5px solid var(--mp-primary-button-color) !important;
+}
+
+/* Add or update these styles */
+
+/* Form section styles */
+.mp-form-container {
+  max-width: 650px;
+  margin: 0 auto;
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.mp-form-section {
+  margin-bottom: 2.5rem;
+}
+
+.mp-form-section-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.mp-form-section-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.mp-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.mp-form-group label {
+  display: block;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #444;
+  letter-spacing: 0.02rem;
+}
+
+.mp-form-group small {
+  display: block;
+  font-size: 0.75rem;
+  color: #777;
+  margin-top: 0.25rem;
+}
+
+.mp-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.mp-text-input,
+.mp-select-input,
+.mp-phone-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  color: #333;
+  background-color: #fff;
+  transition: border-color 0.2s ease;
+  height: 60px;  /* Altura base en todas las pantallas */
+  box-sizing: border-box;
+}
+
+/* Enfoque en el selector y campo numérico */
+.mp-text-input:focus,
+.mp-select-input:focus,
+.mp-phone-input:focus {
+  border-color: #F26F32;
+  outline: none;
+}
+
+/* Mejoras específicas para el select */
+.mp-select-input {
+  height: 48px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 16px;
+  padding-right: 2.5rem; /* Espacio para el ícono de flecha */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  line-height: 1.5;
+}
+
+.mp-phone-container {
+  width: 100%;
+}
+
+.mp-phone-input {
+  width: 100% !important;
+  padding-left: 52px !important;
+}
+
+.required {
+  color: #F26F32;
+  margin-left: 2px;
+}
+
+/* Form actions (buttons) */
+.mp-form-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.mp-form-actions .mp-button {
+  min-width: 120px;
+  padding: 0.85rem 1.5rem;
+}
+
+.mp-button.mp-primary {
+  background-color: #F26F32;
+  color: white;
+  border: none;
+  font-weight: 500;
+}
+
+.mp-button.mp-secondary {
+  background-color: #E5E5E5;
+  color: #333;
+  border: none;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 640px) {
+  .mp-form-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .mp-form-container {
+    padding: 1.5rem;
+  }
+  
+  .mp-form-actions {
+    flex-direction: column-reverse;
+    gap: 1rem;
+  }
+  
+  .mp-form-actions .mp-button {
+    width: 100%;
+  }
 }
 
 /* Ajustes responsivos para la confirmación del pedido */
@@ -948,4 +1120,81 @@
   .mp-buyer-info-section h5 {
     font-size: 1rem;
   }
+}
+
+/* Agregar a PaymentFlow.module.css */
+.mp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+/* Add this to your PaymentFlow.module.css */
+
+.mp-add-to-cart-container {
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.addToCartButton {
+  padding: 10px 20px;
+  background-color: var(--mp-primary-button-color, #F26F32);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-weight: 600;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.9rem;
+  height: 48px;
+}
+
+.addToCartButton:hover {
+  background-color: color-mix(in srgb, var(--mp-primary-button-color, #F26F32) 90%, black);
+}
+
+/* Add these styles to your css file */
+.mp-quantity-control {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mp-quantity-button {
+  background: #f5f5f5;
+  border: none;
+  width: 40px;
+  height: 48px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mp-quantity-button:hover {
+  background: #e0e0e0;
+}
+
+.mp-quantity-control .mp-number-input {
+  width: 60px;
+  border: none;
+  height: 48px;
+  text-align: center;
+  border-left: 1px solid #ddd;
+  border-right: 1px solid #ddd;
+  border-radius: 0;
+}
+
+.mp-number-input::-webkit-inner-spin-button,
+.mp-number-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }

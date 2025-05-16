@@ -196,3 +196,30 @@ input, select, textarea {
 .mp-spinner {
   border-top-color: var(--primary-color) !important;
 }
+
+/* Add these styles to your global CSS file */
+
+.react-tel-input .form-control {
+  width: 100% !important;
+  height: 48px !important;
+  font-size: 16px !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  background-color: #fff !important;
+}
+
+.react-tel-input .flag-dropdown {
+  border: 1px solid #ddd !important;
+  border-right: none !important;
+  border-radius: 4px 0 0 4px !important;
+  background-color: #f9f9f9 !important;
+}
+
+.react-tel-input .selected-flag:hover,
+.react-tel-input .selected-flag:focus {
+  background-color: #f1f1f1 !important;
+}
+
+.react-tel-input .selected-flag .arrow {
+  border-top: 4px solid #555 !important;
+}
