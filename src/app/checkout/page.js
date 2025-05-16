@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import PaymentFlow from '../../components/PaymentFlow';
 import { useCart } from '../../hooks/useCart';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from '../../styles/Checkout.module.css';
 
-export default function Checkout() {
+// Componente interno que usa useSearchParams
+function CheckoutContent() {
   const { items, totalItems } = useCart();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,9 +63,16 @@ export default function Checkout() {
         failureUrl="https://alturadivina.com/error-de-compra"
         initialStep={2} // Start at step 2 (customer information)
         customStyles={customStyles} // Pasar los colores personalizados
-        // El sessionId ya se maneja automáticamente en useCart, 
-        // pero asegúrate de que PaymentFlow lo usa
       />
     </div>
+  );
+}
+
+// Componente principal con Suspense
+export default function Checkout() {
+  return (
+    <Suspense fallback={<div className={styles.loading}>Cargando opciones de pago...</div>}>
+      <CheckoutContent />
+    </Suspense>
   );
 }
