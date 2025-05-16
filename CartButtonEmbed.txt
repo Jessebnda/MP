@@ -1,0 +1,634 @@
+// src/components/CartButtonEmbed.tsx
+import * as React from "react"
+import { addPropertyControls, ControlType } from "framer"
+
+interface CartButtonEmbedProps {
+    checkoutUrl: string
+    iconColor: string
+    badgeColor: string
+    cartBgColor: string
+    buttonColor: string
+    textColor: string
+    size: number
+    showBadge: boolean
+    width: number
+    height: number
+    onCartOpen?: (event: any) => void
+    onCheckout?: (event: any) => void
+}
+
+export function CartButtonEmbed(
+    props: CartButtonEmbedProps
+): React.ReactElement {
+    const {
+        checkoutUrl,
+        iconColor,
+        badgeColor,
+        cartBgColor,
+        buttonColor,
+        textColor,
+        size,
+        showBadge,
+        width,
+        height,
+        onCartOpen,
+        onCheckout
+    } = props;
+    
+    const [isCartOpen, setIsCartOpen] = React.useState(false);
+    const [cartItems, setCartItems] = React.useState([]);
+    const [cartCount, setCartCount] = React.useState(0);
+    const [cartTotal, setCartTotal] = React.useState(0);
+    
+    // Generar sessionId único o recuperar existente
+    const sessionId = React.useMemo(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionFromUrl = urlParams.get('sessionId');
+        return sessionFromUrl || `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }, []);
+    
+    // Cargar carrito del localStorage
+    React.useEffect(() => {
+        try {
+            const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
+            if (savedCart) {
+                const cartData = JSON.parse(savedCart);
+                setCartItems(cartData.items || []);
+                setCartTotal(cartData.totalAmount || 0);
+                
+                // Calcular total de items
+                const count = (cartData.items || []).reduce(
+                    (total, item) => total + (item.quantity || 0), 0
+                );
+                setCartCount(count);
+            }
+        } catch (e) {
+            console.error("Error al cargar el carrito:", e);
+        }
+    }, [sessionId]);
+    
+    // Escuchar cambios en el carrito de otros componentes
+    React.useEffect(() => {
+        const handleStorageChange = (e) => {
+            if (e.key === `mp_cart_${sessionId}`) {
+                try {
+                    const cartData = JSON.parse(e.newValue);
+                    if (cartData) {
+                        setCartItems(cartData.items || []);
+                        setCartTotal(cartData.totalAmount || 0);
+                        
+                        // Recalcular contador
+                        const count = (cartData.items || []).reduce(
+                            (total, item) => total + (item.quantity || 0), 0
+                        );
+                        setCartCount(count);
+                    }
+                } catch (error) {
+                    console.error("Error al procesar cambios en el carrito:", error);
+                }
+            }
+        };
+        
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, [sessionId]);
+    
+    // Escuchar mensajes del contenedor
+    React.useEffect(() => {
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data.type === 'CART_UPDATE') {
+                const { items, totalAmount } = event.data.cart;
+                setCartItems(items || []);
+                setCartTotal(totalAmount || 0);
+                
+                // Recalcular contador
+                const count = (items || []).reduce(
+                    (total, item) => total + (item.quantity || 0), 0
+                );
+                setCartCount(count);
+            }
+        };
+        
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, []);
+    
+    // Formatear precio
+    const formatPrice = (price) => {
+        return price.toLocaleString('es-MX', {
+            style: 'currency',
+            currency: 'MXN',
+        });
+    };
+    
+    const toggleCart = () => {
+        const newState = !isCartOpen;
+        setIsCartOpen(newState);
+        
+        if (newState && onCartOpen) {
+            onCartOpen({
+                cartItems,
+                cartTotal,
+                sessionId
+            });
+        }
+    };
+    
+    const removeItem = (productId) => {
+        const updatedItems = cartItems.filter(item => item.productId !== productId);
+        
+        // Actualizar estado
+        setCartItems(updatedItems);
+        
+        // Recalcular total
+        const newTotal = updatedItems.reduce(
+            (total, item) => total + (item.price * item.quantity), 0
+        );
+        setCartTotal(newTotal);
+        
+        // Recalcular contador
+        const count = updatedItems.reduce(
+            (total, item) => total + item.quantity, 0
+        );
+        setCartCount(count);
+        
+        // Guardar en localStorage
+        localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
+            items: updatedItems,
+            totalAmount: newTotal,
+            timestamp: new Date().toISOString()
+        }));
+    };
+    
+    const updateQuantity = (productId, quantity) => {
+        if (quantity <= 0) {
+            removeItem(productId);
+            return;
+        }
+        
+        const updatedItems = cartItems.map(item => {
+            if (item.productId === productId) {
+                return { ...item, quantity };
+            }
+            return item;
+        });
+        
+        // Actualizar estado
+        setCartItems(updatedItems);
+        
+        // Recalcular total
+        const newTotal = updatedItems.reduce(
+            (total, item) => total + (item.price * item.quantity), 0
+        );
+        setCartTotal(newTotal);
+        
+        // Recalcular contador
+        const count = updatedItems.reduce(
+            (total, item) => total + item.quantity, 0
+        );
+        setCartCount(count);
+        
+        // Guardar en localStorage
+        localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
+            items: updatedItems,
+            totalAmount: newTotal,
+            timestamp: new Date().toISOString()
+        }));
+    };
+    
+    const clearCart = () => {
+        setCartItems([]);
+        setCartTotal(0);
+        setCartCount(0);
+        
+        // Guardar en localStorage
+        localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
+            items: [],
+            totalAmount: 0,
+            timestamp: new Date().toISOString()
+        }));
+    };
+    
+    const handleCheckout = () => {
+        if (onCheckout) {
+            onCheckout({
+                cartItems,
+                cartTotal,
+                sessionId
+            });
+        }
+        
+        // Redirigir a checkout
+        const finalCheckoutUrl = `${checkoutUrl}${checkoutUrl.includes('?') ? '&' : '?'}sessionId=${sessionId}`;
+        window.location.href = finalCheckoutUrl;
+    };
+    
+    return (
+        <div style={{ width, height, position: 'relative' }}>
+            {/* Botón del carrito */}
+            <button 
+                onClick={toggleCart}
+                style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+                aria-label="Ver carrito"
+            >
+                <svg 
+                    width={size} 
+                    height={size} 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke={iconColor} 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                >
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+                
+                {/* Badge con contador */}
+                {showBadge && cartCount > 0 && (
+                    <span style={{
+                        position: 'absolute',
+                        top: '-8px',
+                        right: '-8px',
+                        backgroundColor: badgeColor,
+                        color: '#FFFFFF',
+                        borderRadius: '50%',
+                        width: `${size * 0.45}px`,
+                        height: `${size * 0.45}px`,
+                        fontSize: `${size * 0.25}px`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 'bold'
+                    }}>
+                        {cartCount > 99 ? '99+' : cartCount}
+                    </span>
+                )}
+            </button>
+            
+            {/* Sidebar del carrito */}
+            {isCartOpen && (
+                <>
+                    {/* Overlay */}
+                    <div 
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                            zIndex: 9998
+                        }}
+                        onClick={toggleCart}
+                    ></div>
+                    
+                    {/* Panel del carrito */}
+                    <div style={{
+                        position: 'fixed',
+                        top: 0,
+                        right: 0,
+                        width: '320px',
+                        height: '100vh',
+                        backgroundColor: cartBgColor,
+                        boxShadow: '-2px 0 10px rgba(0, 0, 0, 0.15)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        fontFamily: 'Inter, sans-serif'
+                    }}>
+                        {/* Header */}
+                        <div style={{
+                            padding: '16px',
+                            borderBottom: '1px solid #eee',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <h3 style={{ 
+                                margin: 0, 
+                                color: textColor,
+                                fontSize: '18px',
+                                fontWeight: 600
+                            }}>
+                                Tu Carrito
+                            </h3>
+                            <button 
+                                onClick={toggleCart}
+                                style={{
+                                    backgroundColor: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: textColor,
+                                    fontSize: '24px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '4px'
+                                }}
+                                aria-label="Cerrar carrito"
+                            >
+                                &times;
+                            </button>
+                        </div>
+                        
+                        {/* Contenido del carrito */}
+                        <div style={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            padding: '16px'
+                        }}>
+                            {cartItems.length === 0 ? (
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    height: '100%',
+                                    textAlign: 'center',
+                                    color: textColor
+                                }}>
+                                    <p>Tu carrito está vacío</p>
+                                    <button 
+                                        onClick={toggleCart}
+                                        style={{
+                                            backgroundColor: buttonColor,
+                                            color: '#FFFFFF',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            padding: '10px 20px',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: 500
+                                        }}
+                                    >
+                                        Seguir Comprando
+                                    </button>
+                                </div>
+                            ) : (
+                                <div>
+                                    {/* Lista de productos */}
+                                    {cartItems.map((item, index) => (
+                                        <div key={`${item.productId}-${index}`} style={{
+                                            marginBottom: '16px',
+                                            padding: '12px',
+                                            borderBottom: '1px solid #eee',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            color: textColor
+                                        }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                marginBottom: '8px'
+                                            }}>
+                                                <h4 style={{ 
+                                                    margin: 0, 
+                                                    fontSize: '16px',
+                                                    fontWeight: 500
+                                                }}>
+                                                    {item.name}
+                                                </h4>
+                                                <button 
+                                                    onClick={() => removeItem(item.productId)}
+                                                    style={{
+                                                        backgroundColor: 'transparent',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        color: '#999',
+                                                        fontSize: '18px',
+                                                        padding: '0 4px'
+                                                    }}
+                                                    aria-label={`Eliminar ${item.name}`}
+                                                >
+                                                    &times;
+                                                </button>
+                                            </div>
+                                            
+                                            <div style={{ 
+                                                fontSize: '14px',
+                                                marginBottom: '8px',
+                                                color: textColor
+                                            }}>
+                                                {formatPrice(item.price)} / unidad
+                                            </div>
+                                            
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center'
+                                            }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    border: '1px solid #ddd',
+                                                    borderRadius: '4px',
+                                                    overflow: 'hidden'
+                                                }}>
+                                                    <button 
+                                                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                                                        style={{
+                                                            backgroundColor: '#f5f5f5',
+                                                            border: 'none',
+                                                            borderRight: '1px solid #ddd',
+                                                            padding: '4px 8px',
+                                                            cursor: 'pointer',
+                                                            color: '#333'
+                                                        }}
+                                                    >
+                                                        -
+                                                    </button>
+                                                    <span style={{
+                                                        padding: '4px 12px',
+                                                        fontSize: '14px'
+                                                    }}>
+                                                        {item.quantity}
+                                                    </span>
+                                                    <button 
+                                                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                                                        style={{
+                                                            backgroundColor: '#f5f5f5',
+                                                            border: 'none',
+                                                            borderLeft: '1px solid #ddd',
+                                                            padding: '4px 8px',
+                                                            cursor: 'pointer',
+                                                            color: '#333'
+                                                        }}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+                                                
+                                                <div style={{
+                                                    fontWeight: 'bold',
+                                                    fontSize: '15px'
+                                                }}>
+                                                    {formatPrice(item.price * item.quantity)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Footer con total y botones */}
+                        {cartItems.length > 0 && (
+                            <div style={{
+                                padding: '16px',
+                                borderTop: '1px solid #eee',
+                                backgroundColor: cartBgColor
+                            }}>
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    marginBottom: '16px',
+                                    fontWeight: 'bold',
+                                    fontSize: '18px',
+                                    color: textColor
+                                }}>
+                                    <span>Total:</span>
+                                    <span>{formatPrice(cartTotal)}</span>
+                                </div>
+                                
+                                <div style={{ 
+                                    display: 'flex',
+                                    gap: '10px' 
+                                }}>
+                                    <button 
+                                        onClick={clearCart}
+                                        style={{
+                                            flex: '1',
+                                            padding: '10px',
+                                            backgroundColor: '#E5E5E5',
+                                            color: '#333',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: 500
+                                        }}
+                                    >
+                                        Vaciar
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={handleCheckout}
+                                        style={{
+                                            flex: '2',
+                                            padding: '10px',
+                                            backgroundColor: buttonColor,
+                                            color: '#FFFFFF',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: 500
+                                        }}
+                                    >
+                                        Proceder al Pago
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+// Controles para el panel de Framer
+addPropertyControls(CartButtonEmbed, {
+    checkoutUrl: {
+        title: "URL de Checkout",
+        type: ControlType.String,
+        defaultValue: "/checkout",
+    },
+    iconColor: {
+        title: "Color del Icono",
+        type: ControlType.Color,
+        defaultValue: "#333333",
+    },
+    badgeColor: {
+        title: "Color de Badge",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",
+    },
+    cartBgColor: {
+        title: "Color Fondo Carrito",
+        type: ControlType.Color,
+        defaultValue: "#FFFFFF",
+    },
+    buttonColor: {
+        title: "Color de Botones",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",
+    },
+    textColor: {
+        title: "Color de Texto",
+        type: ControlType.Color,
+        defaultValue: "#333333",
+    },
+    size: {
+        title: "Tamaño Icono",
+        type: ControlType.Number,
+        defaultValue: 24,
+        min: 16,
+        max: 48,
+        step: 1,
+    },
+    showBadge: {
+        title: "Mostrar Badge",
+        type: ControlType.Boolean,
+        defaultValue: true,
+    },
+    width: {
+        title: "Ancho",
+        type: ControlType.Number,
+        defaultValue: 40,
+        min: 30,
+        max: 200,
+        step: 1,
+    },
+    height: {
+        title: "Alto",
+        type: ControlType.Number,
+        defaultValue: 40,
+        min: 30,
+        max: 200,
+        step: 1,
+    },
+    onCartOpen: {
+        title: "Al Abrir Carrito",
+        type: ControlType.EventHandler,
+    },
+    onCheckout: {
+        title: "Al Procesar Pago",
+        type: ControlType.EventHandler,
+    },
+})
+
+// Props por defecto en canvas
+CartButtonEmbed.defaultProps = {
+    checkoutUrl: "/checkout",
+    iconColor: "#333333",
+    badgeColor: "#F26F32",
+    cartBgColor: "#FFFFFF",
+    buttonColor: "#F26F32",
+    textColor: "#333333",
+    size: 24,
+    showBadge: true,
+    width: 40,
+    height: 40,
+}
