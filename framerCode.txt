@@ -1,3 +1,4 @@
+// src/components/MercadoPagoEmbed.tsx
 import * as React from "react"
 import { addPropertyControls, ControlType } from "framer"
 
@@ -17,219 +18,123 @@ interface MercadoPagoEmbedProps {
     onRedirect?: (event: any) => void
 }
 
-export function MercadoPagoEmbed(props: MercadoPagoEmbedProps): React.ReactElement {
+export function MercadoPagoEmbed(
+    props: MercadoPagoEmbedProps
+): React.ReactElement {
     const {
-        productId = "2",
-        publicKey = "TEST-b2378f58-6c89-472c-ada5-2bcfd164c1eb",
-        successUrl = "https://alturadivina.com/confirmacion-de-compra",
-        pendingUrl = "https://alturadivina.com/proceso-de-compra",
-        failureUrl = "https://alturadivina.com/error-de-compra",
-        hideTitle = false,
-        buttonColor = "#F26F32",
-        circleColor = "#F26F32",
-        primaryButtonColor = "#F26F32",
-        secondaryButtonColor = "#E5E5E5",
-        width = 400,
-        height = 600,
-        onRedirect,
-    } = props
-
-    // Estado local para controlar errores y carga
-    const [error, setError] = React.useState(null)
-    const [isLoading, setIsLoading] = React.useState(true)
-    const iframeRef = React.useRef(null)
-
-    // Generar una URL estable para el iframe que no cambie en cada renderizado
-    const iframeSrc = React.useMemo(() => {
-        // Generar un session ID único para persistencia del carrito
-        const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-        
-        // Eliminar el # de los colores para evitar problemas de codificación en la URL
-        const sanitizeColor = (color: string) => color.replace("#", "")
-
-        const baseUrl = "https://mercadopagoiframe.vercel.app/"
-        const queryParams = new URLSearchParams({
-            initialProductId: productId || "2",
-            publicKey: publicKey || "TEST-b2378f58-6c89-472c-ada5-2bcfd164c1eb",
-            successUrl: successUrl || "https://alturadivina.com/confirmacion-de-compra",
-            pendingUrl: pendingUrl || "https://alturadivina.com/proceso-de-compra",
-            failureUrl: failureUrl || "https://alturadivina.com/error-de-compra",
-            hideTitle: hideTitle ? "true" : "false",
-            buttonColor: sanitizeColor(buttonColor || "F26F32"),
-            circleColor: sanitizeColor(circleColor || "F26F32"),
-            primaryButtonColor: sanitizeColor(primaryButtonColor || "F26F32"),
-            secondaryButtonColor: sanitizeColor(secondaryButtonColor || "E5E5E5"),
-            isInIframe: "true",
-            sessionId: sessionId,
-            // Timestamp único que NO cambia en cada renderizado
-            _t: Date.now().toString()
-        }).toString()
-
-        return `${baseUrl}?${queryParams}`
-    }, [productId, publicKey, successUrl, pendingUrl, failureUrl, hideTitle, 
-        buttonColor, circleColor, primaryButtonColor, secondaryButtonColor]); // Dependencias estables
-
+        productId,
+        publicKey,
+        successUrl,
+        pendingUrl,
+        failureUrl,
+        hideTitle,
+        buttonColor,
+        circleColor,
+        primaryButtonColor,
+        secondaryButtonColor,
+        width,
+        height,
+        onRedirect
+    } = props;
+    
     React.useEffect(() => {
-        // Verificar que window está disponible (soluciona problemas con suspense)
-        if (typeof window === 'undefined') return
-
         // Escuchar mensajes del iframe
         const handleMessage = (event: MessageEvent) => {
             // Verificar origen para seguridad
-            if (!event.origin.includes("mercadopagoiframe.vercel.app")) {
-                return
+            if (!event.origin.includes('mercadopagoiframe.vercel.app')) {
+                return;
             }
-
-            // Manejar error en el iframe
-            if (event.data.type === "MP_ERROR") {
-                setError(event.data.message || "Error en el procesamiento de pago")
-                return
-            }
-
-            if (event.data.type === "MP_PAYMENT_SUCCESS") {
-                console.log("Pago exitoso, redirigiendo a:", successUrl)
+            
+            if (event.data.type === 'MP_PAYMENT_SUCCESS') {
+                console.log('Pago exitoso, redirigiendo a:', event.data.redirectUrl);
+                // Llamar al callback de redirección si existe
                 if (onRedirect) {
                     onRedirect({
-                        status: "success",
-                        redirectUrl: successUrl,
-                        data: event.data.paymentData,
-                    })
+                        status: 'success',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
                 }
-
+                
                 // Redireccionar la página completa
-                if (successUrl) {
-                    window.top.location.href = successUrl
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
                 }
-            } else if (event.data.type === "MP_PAYMENT_PENDING") {
-                console.log("Pago pendiente, redirigiendo a:", pendingUrl)
+            } 
+            else if (event.data.type === 'MP_PAYMENT_PENDING') {
+                console.log('Pago pendiente, redirigiendo a:', event.data.redirectUrl);
                 if (onRedirect) {
                     onRedirect({
-                        status: "pending",
-                        redirectUrl: pendingUrl,
-                        data: event.data.paymentData,
-                    })
+                        status: 'pending',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
                 }
-
-                if (pendingUrl) {
-                    window.top.location.href = pendingUrl
-                }
-            } else if (event.data.type === "MP_PAYMENT_FAILED") {
-                console.log("Pago fallido, redirigiendo a:", failureUrl)
-                if (onRedirect) {
-                    onRedirect({
-                        status: "failed",
-                        redirectUrl: failureUrl,
-                        data: event.data.paymentData,
-                    })
-                }
-
-                if (failureUrl) {
-                    window.top.location.href = failureUrl
+                
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
                 }
             }
-        }
-
-        // Añadir el event listener para mensajes
-        window.addEventListener("message", handleMessage)
-
+            else if (event.data.type === 'MP_PAYMENT_FAILED') {
+                console.log('Pago fallido, redirigiendo a:', event.data.redirectUrl);
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'failed',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
+                }
+            }
+        };
+        
+        window.addEventListener('message', handleMessage);
+        
         return () => {
-            window.removeEventListener("message", handleMessage)
-        }
-    }, [onRedirect, successUrl, pendingUrl, failureUrl])
+            window.removeEventListener('message', handleMessage);
+        };
+    }, [onRedirect, successUrl, pendingUrl, failureUrl]);
+    
+    // Generar un session ID único para persistencia del carrito
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    // Si hay un error, mostrar mensaje de error
-    if (error) {
-        return (
-            <div style={{
-                width: typeof width === 'number' ? `${width}px` : width,
-                height: typeof height === 'number' ? `${height}px` : height,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: '#fff',
-                borderRadius: '8px',
-                padding: '20px',
-                boxSizing: 'border-box',
-                border: '1px solid #e0e0e0',
-            }}>
-                <div style={{ color: '#d32f2f', marginBottom: '15px', textAlign: 'center' }}>
-                    {error}
-                </div>
-                <button 
-                    onClick={() => window.location.reload()}
-                    style={{
-                        backgroundColor: '#F26F32',
-                        color: 'white',
-                        border: 'none',
-                        padding: '10px 20px',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 600,
-                    }}
-                >
-                    Reintentar
-                </button>
-            </div>
-        )
-    }
-
-    // Mostrar indicador de carga si está cargando
-    if (isLoading) {
-        return (
-            <div style={{
-                width: typeof width === 'number' ? `${width}px` : width,
-                height: typeof height === 'number' ? `${height}px` : height,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: '#fff',
-                borderRadius: '8px',
-                padding: '20px',
-                boxSizing: 'border-box',
-                border: '1px solid #e0e0e0',
-            }}>
-                <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    border: '4px solid rgba(0,0,0,0.1)',
-                    borderTopColor: '#F26F32',
-                    animation: 'spin 1s linear infinite',
-                    marginBottom: '15px',
-                }}>
-                </div>
-                <div>Cargando checkout...</div>
-                <style>{`
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                `}</style>
-            </div>
-        )
-    }
-
+    // Eliminar el # de los colores para evitar problemas de codificación en la URL
+    const sanitizeColor = (color: string) => color.replace('#', '');
+    
+    const baseUrl = "https://mercadopagoiframe.vercel.app/";
+    const queryParams = new URLSearchParams({
+        initialProductId: productId || '2',  // Asegurar que siempre haya un valor
+        publicKey: publicKey || '',
+        successUrl: successUrl || '',
+        pendingUrl: pendingUrl || '',
+        failureUrl: failureUrl || '',
+        hideTitle: hideTitle ? 'true' : 'false',
+        buttonColor: sanitizeColor(buttonColor || 'F26F32'),  // Quitar el # para evitar problemas de URL
+        circleColor: sanitizeColor(circleColor || 'F26F32'),
+        primaryButtonColor: sanitizeColor(primaryButtonColor || 'F26F32'),
+        secondaryButtonColor: sanitizeColor(secondaryButtonColor || 'E5E5E5'),
+        isInIframe: 'true',
+        sessionId: sessionId
+    }).toString();
+    
+    const iframeSrc = `${baseUrl}?${queryParams}`;
+    
     return (
         <iframe
-            ref={iframeRef}
             src={iframeSrc}
             width={width}
             height={height}
             style={{
                 border: "none",
                 borderRadius: "8px",
-                overflow: "hidden",
+                overflow: "hidden"
             }}
             allow="payment"
-            onLoad={() => setIsLoading(false)}
-            onError={() => {
-                setError("No se pudo cargar el checkout. Por favor, intenta de nuevo.")
-                setIsLoading(false)
-            }}
         />
-    )
+    );
 }
 
 // Controles en el panel de Framer
@@ -242,7 +147,7 @@ addPropertyControls(MercadoPagoEmbed, {
     publicKey: {
         title: "MP Public Key",
         type: ControlType.String,
-        defaultValue: "TEST-b2378f58-6c89-472c-ada5-2bcfd164c1eb", // Actualizada
+        defaultValue: "",
     },
     successUrl: {
         title: "Success URL",
@@ -309,7 +214,7 @@ addPropertyControls(MercadoPagoEmbed, {
 // Props por defecto en canvas
 MercadoPagoEmbed.defaultProps = {
     productId: "2",
-    publicKey: "TEST-b2378f58-6c89-472c-ada5-2bcfd164c1eb", // Actualizada
+    publicKey: "",
     successUrl: "https://alturadivina.com/confirmacion-de-compra",
     pendingUrl: "https://alturadivina.com/proceso-de-compra",
     failureUrl: "https://alturadivina.com/error-de-compra",
@@ -318,6 +223,91 @@ MercadoPagoEmbed.defaultProps = {
     circleColor: "#F26F32",
     primaryButtonColor: "#F26F32",
     secondaryButtonColor: "#E5E5E5",
-    width: 400,
-    height: 600,
+    width: 300,
+    height: 500,
 }
+
+// Cart Button Component
+export function MercadoPagoCartButton(props) {
+    const {
+        buttonColor = "#F26F32",
+        buttonSize = 24,
+        onCartUpdate = () => {},
+    } = props;
+    
+    const [hasError, setHasError] = React.useState(false);
+    
+    // Clean color format (remove # if present)
+    const cleanColor = buttonColor.startsWith('#') ? buttonColor.substring(1) : buttonColor;
+    
+    // Construct base URL
+    const baseUrl = window.location.hostname.includes('framer.app') || 
+                window.location.hostname.includes('framer.website') 
+                ? "https://mercadopagoiframe.vercel.app/cart-button"
+                : "https://mercadopagoiframe.vercel.app/cart-button";
+    
+    // Create params object
+    const params = {
+        buttonColor: cleanColor,
+        buttonSize: buttonSize.toString(),
+    };
+    
+    // Convert to query string
+    const queryParams = new URLSearchParams(params).toString();
+    
+    // Construct complete URL
+    const iframeSrc = `${baseUrl}?${queryParams}`;
+    
+    const handleIframeError = (event) => {
+        console.error("Error cargando el iframe del carrito:", event);
+        setHasError(true);
+    };
+    
+    // Handle messages from iframe
+    React.useEffect(() => {
+        const handleMessage = (event) => {
+            if (event.data && event.data.type === "MP_CART_UPDATE") {
+                if (onCartUpdate) {
+                    onCartUpdate(event.data.cart);
+                }
+            }
+        };
+        
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, [onCartUpdate]);
+    
+    return (
+        <Frame
+            src={iframeSrc}
+            width="50px"
+            height="50px"
+            style={{
+                border: "none",
+                overflow: "visible"
+            }}
+            onError={handleIframeError}
+        />
+    );
+}
+
+// Add property controls for the cart button
+addPropertyControls(MercadoPagoCartButton, {
+    buttonColor: {
+        title: "Button Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32"
+    },
+    buttonSize: {
+        title: "Button Size",
+        type: ControlType.Number,
+        defaultValue: 24,
+        min: 16,
+        max: 48,
+        step: 1
+    },
+    onCartUpdate: {
+        title: "On Cart Update",
+        type: ControlType.EventHandler
+    }
+});
