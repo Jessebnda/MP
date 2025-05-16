@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import PaymentFlow from '../../components/PaymentFlow';
 import { useCart } from '../../hooks/useCart';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from '../../styles/Checkout.module.css';
 
-export default function Checkout() {
+function CheckoutContent() {
   const { items, totalItems } = useCart();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,5 +66,13 @@ export default function Checkout() {
         // pero asegúrate de que PaymentFlow lo usa
       />
     </div>
+  );
+}
+
+export default function Checkout() {
+  return (
+    <Suspense fallback={<div className="loading">Cargando checkout...</div>}>
+      <CheckoutContent />
+    </Suspense>
   );
 }

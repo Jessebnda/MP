@@ -1,11 +1,11 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import StandaloneCartButton from '../../components/StandaloneCartButton';
 import { CartProvider } from '../../contexts/CartContext';
 
-export default function CartButtonPage() {
+function CartButtonContent() {
   const searchParams = useSearchParams();
   const [config, setConfig] = useState({
     buttonColor: '#333333',
@@ -31,14 +31,22 @@ export default function CartButtonPage() {
   }, [searchParams]);
   
   return (
+    <div style={{ padding: 0, margin: 0 }}>
+      <StandaloneCartButton
+        apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
+        buttonColor={config.buttonColor}
+        buttonSize={config.buttonSize}
+      />
+    </div>
+  );
+}
+
+export default function CartButtonPage() {
+  return (
     <CartProvider>
-      <div style={{ padding: 0, margin: 0 }}>
-        <StandaloneCartButton
-          apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
-          buttonColor={config.buttonColor}
-          buttonSize={config.buttonSize}
-        />
-      </div>
+      <Suspense fallback={<div>Cargando botón de carrito...</div>}>
+        <CartButtonContent />
+      </Suspense>
     </CartProvider>
   );
 }
