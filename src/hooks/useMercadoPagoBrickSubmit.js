@@ -110,13 +110,6 @@ export function useMercadoPagoBrickSubmit({
         
         // Notifica al contenedor del iframe antes de redirigir
         try {
-          // Add debug info
-          logInfo("Window parent check:", { 
-            isIframe: window.parent !== window,
-            windowLocation: window.location.href,
-            parentLocation: window.parent === window ? 'same' : 'different'
-          });
-          
           if (window.parent !== window) {
             logInfo("Notificando al contenedor sobre redirección exitosa");
             window.parent.postMessage({

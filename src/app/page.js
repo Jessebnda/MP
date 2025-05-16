@@ -3,7 +3,6 @@
 import { Suspense, useState, useEffect } from 'react'
 import PaymentFlow from '../components/PaymentFlow'
 import MercadoPagoProvider from '../components/MercadoPagoProvider'
-import { logInfo, logError } from '../utils/logger'
 
 export default function Home() {
   const [params, setParams] = useState({});
@@ -11,9 +10,8 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    // Debug URL parameters
+    // Obtener parámetros de URL
     const urlParams = new URLSearchParams(window.location.search);
-    logInfo('URL Parameters:', Object.fromEntries([...urlParams.entries()]));
     
     // Asegurar que los colores tengan formato hexadecimal con #
     const formatColor = (color) => {
@@ -78,11 +76,7 @@ export default function Home() {
   return (
     <div>
       {Object.keys(params).length > 0 ? (
-        <div>
-          <div style={{marginBottom: '20px'}}>
-            <strong>Debug:</strong> Parameters loaded successfully
-          </div>
-          
+        <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración de pago...</div>}>
           <PaymentFlow
             apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
             productsEndpoint="/api/products"
@@ -101,26 +95,8 @@ export default function Home() {
             successUrl={params.finalSuccessUrl}
             pendingUrl={params.finalPendingUrl}
             failureUrl={params.finalFailureUrl}
-            onSuccess={(data) => {
-              console.log('Pago exitoso', data);
-              // Try to communicate with parent if in iframe
-              if (window.parent !== window) {
-                window.parent.postMessage({
-                  type: 'MP_PAYMENT_SUCCESS',
-                  data: data
-                }, '*');
-              }
-            }}
-            onError={(error) => {
-              console.error('Error en el pago', error);
-              // Try to communicate with parent if in iframe
-              if (window.parent !== window) {
-                window.parent.postMessage({
-                  type: 'MP_ERROR',
-                  message: error.message
-                }, '*');
-              }
-            }}
+            onSuccess={(data) => console.log('Pago exitoso', data)}
+            onError={(error) => console.error('Error en el pago', error)}
             hideTitle={params.hideTitle}
             initialProductId={params.initialProductId}
             customStyles={{
@@ -128,11 +104,9 @@ export default function Home() {
               secondaryButtonColor: params.secondaryButtonColor
             }}
           />
-        </div>
+        </Suspense>
       ) : (
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          Cargando parámetros...
-        </div>
+        <div style={{ textAlign: 'center', padding: '20px' }}>Cargando parámetros...</div>
       )}
     </div>
   );

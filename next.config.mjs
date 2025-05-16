@@ -10,9 +10,7 @@ const nextConfig = {
       default-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com;
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://*.mercadolibre.com https://*.mercadolivre.com;
       style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com;
-      frame-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com 
-https://framer.com https://*.framer.app https://alturadivina.com 
-https://mercadopagoiframe.vercel.app https://*.mercadolibre.com https://*.mercadolivre.com;
+      frame-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com;
       connect-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com;
       img-src 'self' data: https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com;
       font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;

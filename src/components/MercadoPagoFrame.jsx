@@ -14,14 +14,10 @@ export function MercadoPagoFrame({
 }) {
   React.useEffect(() => {
     const handleMessage = (event) => {
-      const allowedOrigins = [
-        allowedOrigin,
-        "https://framer.com",
-        "https://app.framer.com"
-      ];
-
-      if (!allowedOrigins.some(origin => event.origin.includes(origin.replace('https://', '')))) {
-        logWarn(`Mensaje ignorado de origen no permitido: ${event.origin}`);
+      if (event.origin !== allowedOrigin) {
+        logWarn(
+          `Mensaje ignorado de origen no permitido: ${event.origin}. Esperado: ${allowedOrigin}`
+        );
         return;
       }
 

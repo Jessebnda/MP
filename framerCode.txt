@@ -73,15 +73,8 @@ export function MercadoPagoEmbed(props: MercadoPagoEmbedProps): React.ReactEleme
         // Verificar que window está disponible (soluciona problemas con suspense)
         if (typeof window === 'undefined') return
 
-        // Debug info
-        console.log("FramerCode mounted, listening for messages from:", 
-                    "mercadopagoiframe.vercel.app");
-        console.log("URLs configured:", { successUrl, pendingUrl, failureUrl });
-        
         // Escuchar mensajes del iframe
         const handleMessage = (event: MessageEvent) => {
-            console.log("Message received in FramerCode:", event.origin, event.data);
-            
             // Verificar origen para seguridad
             if (!event.origin.includes("mercadopagoiframe.vercel.app")) {
                 return
