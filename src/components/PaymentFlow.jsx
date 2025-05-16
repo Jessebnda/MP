@@ -9,6 +9,8 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import '../styles/mercadopago-globals.css';
 import { useCart } from '../hooks/useCart';
+import CartIcon from './CartIcon';
+import CartSidebar from './CartSidebar';
 
 const formatPrice = (price) => {
   return Number(price).toLocaleString('es-MX', {
@@ -33,7 +35,6 @@ export default function PaymentFlow({
   initialProductId = null,
   customStyles = {},
   initialStep = 1, // New prop to set the initial step
-  externalCartItems = null // Add a prop for external cart items
 }) {
   if (!apiBaseUrl) {
     logError("PaymentFlow Error: 'apiBaseUrl' prop is required.");
@@ -74,23 +75,12 @@ export default function PaymentFlow({
       city: ''
     }
   });
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [effectiveProductId, setEffectiveProductId] = useState(initialProductId);
   
   // Obtener datos del carrito
   const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart();
-  
-  // Use externalCartItems if provided
-  useEffect(() => {
-    if (externalCartItems && externalCartItems.length > 0) {
-      // Clear current cart
-      clearCart();
-      // Add items from external cart
-      externalCartItems.forEach(item => {
-        addItem(item.product, item.quantity);
-      });
-    }
-  }, [externalCartItems]);
-  
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -482,7 +472,14 @@ export default function PaymentFlow({
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
         <div className={styles['mp-header']}>
           {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona un Producto</h2>}
+          <CartIcon onClick={() => setIsCartOpen(true)} />
         </div>
+        
+        <CartSidebar 
+          isOpen={isCartOpen} 
+          onClose={() => setIsCartOpen(false)} 
+          checkoutUrl={`${apiBaseUrl}/checkout`}
+        />
         
         <div className={styles['mp-product-selection-container']}>
           {/* Show only one product selector */}
