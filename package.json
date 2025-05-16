@@ -22,7 +22,6 @@
     "@vercel/kv": "^3.0.0",
     "clsx": "^2.1.1",
     "dotenv": "^16.5.0",
-    "framer": "^2.4.1",
     "framer-motion": "^12.12.1",
     "google-auth-library": "^9.15.1",
     "google-spreadsheet": "^4.1.4",
