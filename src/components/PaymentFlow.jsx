@@ -77,6 +77,7 @@ export default function PaymentFlow({
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [effectiveProductId, setEffectiveProductId] = useState(initialProductId);
+  const [addedFeedback, setAddedFeedback] = useState(false);
   
   // Obtener datos del carrito
   const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart();
@@ -512,7 +513,18 @@ export default function PaymentFlow({
                 ))}
               </select>
             </div>
-            
+             {selectedProducts[0]?.product && (
+              <div className={styles['mp-product-details']}>
+                <h3>{selectedProducts[0].product.name}</h3>
+                <p className={styles['mp-product-description']}>{selectedProducts[0].product.description}</p>
+                <div className={styles['mp-product-price']}>
+                  <span>Precio Total:</span>
+                  <span className={styles['mp-price-value']}>
+                    ${formatPrice(selectedProducts[0].product.price * selectedProducts[0].quantity)}
+                  </span>
+                </div>
+              </div>
+            )}
             <div className={styles['mp-form-group']}>
               <label htmlFor="mp-quantity-input">Cantidad:</label>
               <div className={styles['mp-quantity-control']}>
@@ -574,38 +586,21 @@ export default function PaymentFlow({
               </div>
             </div>
             
-            {selectedProducts[0]?.product && (
-              <div className={styles['mp-product-details']}>
-                <h3>{selectedProducts[0].product.name}</h3>
-                <p className={styles['mp-product-description']}>{selectedProducts[0].product.description}</p>
-                <div className={styles['mp-product-price']}>
-                  <span>Precio Total:</span>
-                  <span className={styles['mp-price-value']}>
-                    ${formatPrice(selectedProducts[0].product.price * selectedProducts[0].quantity)}
-                  </span>
-                </div>
-              </div>
-            )}
+           
             
             <div className={styles['mp-add-to-cart-container']}>
               <button 
-                className={styles.addToCartButton}
+                className={`${styles.addToCartButton} ${addedFeedback ? styles.addedFeedback : ''}`}
                 onClick={() => {
                   if (selectedProducts[0]?.product) {
                     // Primero agregar al carrito con la cantidad actual
                     addItem(selectedProducts[0].product, selectedProducts[0].quantity);
                     
-                    // Visual feedback
-                    const button = document.activeElement;
-                    if (button) {
-                      const originalText = button.textContent;
-                      button.textContent = "¡Agregado!";
-                      button.style.backgroundColor = "#4CAF50"; // Green success color
-                      setTimeout(() => {
-                        button.textContent = originalText;
-                        button.style.backgroundColor = "";
-                      }, 800);
-                    }
+                    // Visual feedback a través de estado de React
+                    setAddedFeedback(true);
+                    setTimeout(() => {
+                      setAddedFeedback(false);
+                    }, 800);
                     
                     // Resetear la cantidad a 1 después de agregar al carrito
                     const updatedProducts = [...selectedProducts];
@@ -617,7 +612,7 @@ export default function PaymentFlow({
                   }
                 }}
               >
-                Agregar al Carrito
+                {addedFeedback ? "¡Agregado!" : "Agregar al Carrito"}
               </button>
             </div>
           </div>

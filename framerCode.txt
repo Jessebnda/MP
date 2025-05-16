@@ -37,17 +37,21 @@ export function MercadoPagoEmbed(
         onRedirect
     } = props;
     
+    // Referencia al iframe para gestionar errores
+    const iframeRef = React.useRef<HTMLIFrameElement>(null);
+    const [hasError, setHasError] = React.useState(false);
+    
     React.useEffect(() => {
-        // Escuchar mensajes del iframe
         const handleMessage = (event: MessageEvent) => {
-            // Verificar origen para seguridad
-            if (!event.origin.includes('mercadopagoiframe.vercel.app')) {
+            // Aceptar mensajes tanto de vercel.app como del dominio personalizado
+            if (!event.origin.includes('mercadopagoiframe.vercel.app') && 
+                !event.origin.includes('alturadivina.com')) {
                 return;
             }
             
+            // Procesar mensajes de MP_PAYMENT_SUCCESS, MP_PAYMENT_PENDING, MP_PAYMENT_FAILED...
             if (event.data.type === 'MP_PAYMENT_SUCCESS') {
                 console.log('Pago exitoso, redirigiendo a:', event.data.redirectUrl);
-                // Llamar al callback de redirección si existe
                 if (onRedirect) {
                     onRedirect({
                         status: 'success',
@@ -56,7 +60,6 @@ export function MercadoPagoEmbed(
                     });
                 }
                 
-                // Redireccionar la página completa
                 if (event.data.redirectUrl) {
                     window.top.location.href = event.data.redirectUrl;
                 }
@@ -98,32 +101,112 @@ export function MercadoPagoEmbed(
         };
     }, [onRedirect, successUrl, pendingUrl, failureUrl]);
     
+    // Manejar error de carga del iframe
+    const handleIframeError = (event) => {
+        console.error("Error cargando el iframe:", event);
+        setHasError(true);
+    };
+    
     // Generar un session ID único para persistencia del carrito
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    // Eliminar el # de los colores para evitar problemas de codificación en la URL
-    const sanitizeColor = (color: string) => color.replace('#', '');
+    // Función mejorada para sanitizar colores - NO eliminar el #
+    const sanitizeColor = (color: string) => {
+        if (!color) return '#F26F32';
+        // Asegurar que el color tenga el prefijo #
+        return color.startsWith('#') ? color : `#${color}`;
+    };
     
-    const baseUrl = "https://mercadopagoiframe.vercel.app/";
-    const queryParams = new URLSearchParams({
-        initialProductId: productId || '2',  // Asegurar que siempre haya un valor
-        publicKey: publicKey || '',
+    // Corregir la construcción de la URL base
+    const baseUrl = window.location.hostname.includes('framer.app') || 
+                window.location.hostname.includes('framer.website') 
+                ? "https://mercadopagoiframe.vercel.app"  // Quitar ?direct=true
+                : "https://mercadopagoiframe.vercel.app";
+    
+    // Crear objeto de parámetros
+    const params = {
+        initialProductId: productId || '2',
+        publicKey: publicKey || 'TEST-b2378f58-6c89-472c-ada5-2bcfd164c1eb',
         successUrl: successUrl || '',
         pendingUrl: pendingUrl || '',
         failureUrl: failureUrl || '',
         hideTitle: hideTitle ? 'true' : 'false',
-        buttonColor: sanitizeColor(buttonColor || 'F26F32'),  // Quitar el # para evitar problemas de URL
-        circleColor: sanitizeColor(circleColor || 'F26F32'),
-        primaryButtonColor: sanitizeColor(primaryButtonColor || 'F26F32'),
-        secondaryButtonColor: sanitizeColor(secondaryButtonColor || 'E5E5E5'),
+        // Mantener los colores con su formato completo incluyendo #
+        buttonColor: sanitizeColor(buttonColor),
+        circleColor: sanitizeColor(circleColor),
+        primaryButtonColor: sanitizeColor(primaryButtonColor),
+        secondaryButtonColor: sanitizeColor(secondaryButtonColor),
         isInIframe: 'true',
-        sessionId: sessionId
-    }).toString();
+        sessionId: sessionId,
+        quantity: '1',
+        _t: Date.now().toString(),
+    };
+
+    // Añadir parámetro direct=true solo en entornos Framer
+    if (window.location.hostname.includes('framer.app') || 
+        window.location.hostname.includes('framer.website')) {
+        params['direct'] = 'true';
+    }
     
-    const iframeSrc = `${baseUrl}?${queryParams}`;
+    const queryParams = new URLSearchParams(params).toString();
+    
+    // Construir URL correctamente
+    const iframeSrc = `${baseUrl}/?${queryParams}`;
+    
+    // Si hay error, mostrar mensaje y botón para reintentar
+    if (hasError) {
+        return (
+            <div style={{
+                width: width,
+                height: height,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid #f0f0f0",
+                borderRadius: "8px",
+                padding: "20px",
+                backgroundColor: "#fff5f5",
+                fontFamily: "sans-serif"
+            }}>
+                <h2 style={{ color: "#e53e3e", marginBottom: "20px" }}>Error de conexión</h2>
+                <p style={{ textAlign: "center", marginBottom: "20px" }}>
+                    No se pudo cargar el sistema de pago. Por favor verifica tu conexión a internet.
+                </p>
+                <button 
+                    onClick={() => {
+                        setHasError(false);
+                        // Forzar recarga con nuevo timestamp y sessionId
+                        const freshSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        const freshParams = new URLSearchParams(queryParams);
+                        freshParams.set('_t', Date.now().toString());
+                        freshParams.set('sessionId', freshSessionId);
+                        
+                        if (iframeRef.current) {
+                            iframeRef.current.src = `${baseUrl}?${freshParams.toString()}`;
+                        }
+                    }}
+                    style={{
+                        padding: "10px 20px",
+                        backgroundColor: "#F26F32",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer"
+                    }}
+                >
+                    Reintentar
+                </button>
+            </div>
+        );
+    }
+    
+    // Añadir justo antes de return (iframe...)
+    console.log('Cargando iframe con URL:', iframeSrc);
     
     return (
         <iframe
+            ref={iframeRef}
             src={iframeSrc}
             width={width}
             height={height}
@@ -133,6 +216,8 @@ export function MercadoPagoEmbed(
                 overflow: "hidden"
             }}
             allow="payment"
+            onError={handleIframeError}
+            onLoad={() => console.log("Iframe cargado correctamente")}
         />
     );
 }
