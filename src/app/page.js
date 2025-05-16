@@ -8,13 +8,16 @@ export default function Home() {
   const [params, setParams] = useState({});
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     // Obtener parámetros de URL
     const urlParams = new URLSearchParams(window.location.search);
     
     // Asegurar que los colores tengan formato hexadecimal con #
     const formatColor = (color) => {
       if (!color) return null;
-      return color.startsWith('#') ? color : `#${color}`;
+      // Remove any existing # before adding to avoid ##color
+      return '#' + color.replace(/^#/, '');
     };
     
     const buttonColor = formatColor(urlParams.get('buttonColor')) || '#F26F32';
@@ -72,35 +75,39 @@ export default function Home() {
 
   return (
     <div>
-      <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración de pago...</div>}>
-        <PaymentFlow
-          apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
-          productsEndpoint="/api/products"
-          mercadoPagoPublicKey={params.publicKey}
-          PaymentProviderComponent={(props) => (
-            <MercadoPagoProvider
-              {...props}
-              customStyles={{
-                buttonColor: params.buttonColor,
-                circleColor: params.circleColor,
-                primaryButtonColor: params.primaryButtonColor,
-                secondaryButtonColor: params.secondaryButtonColor
-              }}
-            />
-          )}
-          successUrl={params.finalSuccessUrl}
-          pendingUrl={params.finalPendingUrl}
-          failureUrl={params.finalFailureUrl}
-          onSuccess={(data) => console.log('Pago exitoso', data)}
-          onError={(error) => console.error('Error en el pago', error)}
-          hideTitle={params.hideTitle}
-          initialProductId={params.initialProductId}
-          customStyles={{
-            primaryButtonColor: params.primaryButtonColor,
-            secondaryButtonColor: params.secondaryButtonColor
-          }}
-        />
-      </Suspense>
+      {Object.keys(params).length > 0 ? (
+        <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración de pago...</div>}>
+          <PaymentFlow
+            apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
+            productsEndpoint="/api/products"
+            mercadoPagoPublicKey={params.publicKey}
+            PaymentProviderComponent={(props) => (
+              <MercadoPagoProvider
+                {...props}
+                customStyles={{
+                  buttonColor: params.buttonColor,
+                  circleColor: params.circleColor,
+                  primaryButtonColor: params.primaryButtonColor,
+                  secondaryButtonColor: params.secondaryButtonColor
+                }}
+              />
+            )}
+            successUrl={params.finalSuccessUrl}
+            pendingUrl={params.finalPendingUrl}
+            failureUrl={params.finalFailureUrl}
+            onSuccess={(data) => console.log('Pago exitoso', data)}
+            onError={(error) => console.error('Error en el pago', error)}
+            hideTitle={params.hideTitle}
+            initialProductId={params.initialProductId}
+            customStyles={{
+              primaryButtonColor: params.primaryButtonColor,
+              secondaryButtonColor: params.secondaryButtonColor
+            }}
+          />
+        </Suspense>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '20px' }}>Cargando parámetros...</div>
+      )}
     </div>
   );
 }
