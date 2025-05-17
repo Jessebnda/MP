@@ -9,9 +9,6 @@ import { useCart } from '../hooks/useCart';
 // Inicializar el objeto global para la API del carrito
 if (typeof window !== 'undefined') {
   window.AlturaDivinaCart = window.AlturaDivinaCart || {};
-  
-  // Para debugging
-  window.AlturaDivinaCart.__DEBUG_initTime = new Date().toISOString();
 }
 
 /**
@@ -28,41 +25,48 @@ export function exposeCartAPI() {
 
 // Hook para componentes que necesiten exponer la API del carrito
 export function useCartIntegration() {
-  // Usar la estructura correcta de Redux
-  const { cart, addToCart, removeFromCart, updateQuantity, clearCart } = useCart();
+  const cartContext = useCart();
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Exportar funciones y datos al objeto global
       window.AlturaDivinaCart = {
-        // Getters - actualizar para usar la estructura de Redux
-        getItems: () => cart.items,
-        getCount: () => cart.totalItems,
-        getTotal: () => cart.totalAmount,
+        // Getters
+        getItems: () => cartContext.items,
+        getCount: () => cartContext.totalItems,
+        getTotal: () => cartContext.totalAmount,
         
-        // Acciones - actualizar con las funciones de Redux
+        // Acciones
         addItem: (product, quantity = 1) => {
-          addToCart({ ...product, quantity });
-          // El middleware ya maneja la notificación
+          cartContext.addItem(product, quantity);
+          notifyCartUpdated();
         },
         removeItem: (productId) => {
-          removeFromCart(productId);
+          cartContext.removeItem(productId);
+          notifyCartUpdated();
         },
         updateQuantity: (productId, quantity) => {
-          updateQuantity({ productId, quantity });
+          cartContext.updateQuantity(productId, quantity);
+          notifyCartUpdated();
         },
-        clearCart,
+        clearCart: () => {
+          cartContext.clearCart();
+          notifyCartUpdated();
+        },
         
-        // El resto igual
+        // Abrir/cerrar el carrito
         openCart: () => {
+          // Implementa el código para abrir tu carrito
           const event = new CustomEvent('OPEN_CART_SIDEBAR');
           window.dispatchEvent(event);
         },
         checkout: () => {
+          // Implementa el código para ir al checkout
           window.location.href = '/checkout';
         }
       };
     }
-  }, [cart, addToCart, removeFromCart, updateQuantity, clearCart]);
+  }, [cartContext]);
   
   return null;
 }

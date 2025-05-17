@@ -3,15 +3,6 @@ import { Inter, Bodoni_Moda, Playfair_Display_SC } from 'next/font/google'
 import '../styles/globals.css'
 import { CartProvider } from '../contexts/CartContext';
 import { CartAPIProvider } from '../utils/CartIntegration';
-import { QueryClient, QueryClientProvider } from 'react-query';
-import { Provider } from 'react-redux';
-import { PersistGate } from 'redux-persist/integration/react';
-import { store, persistor } from '../store';
-import { setupCartChannel } from '../utils/broadcastChannel';
-import { useEffect } from 'react';
-
-// Crear cliente de consulta
-const queryClient = new QueryClient();
 
 // Fuente para texto general y campos
 const inter = Inter({
@@ -37,16 +28,6 @@ const playfair = Playfair_Display_SC({
   weight: ['400', '700'],
 })
 
-// Componente para configurar el canal de broadcast
-function BroadcastSetup() {
-  useEffect(() => {
-    // Configurar canal de comunicación entre pestañas
-    setupCartChannel();
-  }, []);
-  
-  return null;
-}
-
 export default function RootLayout({ children }) {
   return (
     <html lang="es" className={`${inter.variable} ${bodoni.variable} ${playfair.variable}`}>
@@ -57,20 +38,14 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>
-          {/* Si decides eliminar CartProvider, aún debes tratar 
-              con aplicaciones que puedan estar usando el contexto */}
-          <Provider store={store}>
-            <PersistGate loading={null} persistor={persistor}>
-              <CartProvider>
-                <CartAPIProvider />
-                <BroadcastSetup />
-                {children}
-              </CartProvider>
-            </PersistGate>
-          </Provider>
-        </QueryClientProvider>
+        <CartProvider>
+          {/* Esto expone la API del carrito para componentes externos */}
+          <CartAPIProvider />
+          
+          {/* Tu app */}
+          {children}
+        </CartProvider>
       </body>
     </html>
-  );
+  )
 }

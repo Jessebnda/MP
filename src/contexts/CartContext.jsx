@@ -179,39 +179,6 @@ export const CartProvider = ({ children }) => {
     dispatch({ type: CART_ACTIONS.CLEAR_CART });
   };
 
-  // Modificación: Evento de notificación global
-  const notifyCartChange = () => {
-    if (typeof window !== 'undefined') {
-      // Obtener sessionId consistente
-      const urlParams = new URLSearchParams(window.location.search);
-      const sessionId = urlParams.get('sessionId') || 
-                        sessionStorage.getItem('mp_global_session_id') || 
-                        'default_session';
-      
-      // Guardar en sessionStorage (local)
-      sessionStorage.setItem('mp-cart', JSON.stringify(cartState));
-      
-      // Guardar en localStorage (para compartir entre componentes)
-      localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
-        items: cartState.items,
-        totalAmount: cartState.totalAmount,
-        totalItems: cartState.totalItems,
-        timestamp: new Date().toISOString()
-      }));
-      
-      // Emitir evento para notificar a todos los componentes
-      const event = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-        detail: { source: 'cart_context', sessionId }
-      });
-      window.dispatchEvent(event);
-    }
-  };
-
-  // Modificar el efecto para usar la función de notificación
-  useEffect(() => {
-    notifyCartChange();
-  }, [cartState]);
-  
   const value = {
     ...cartState,
     addItem,
