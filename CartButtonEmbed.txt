@@ -72,47 +72,61 @@ export function CartButtonEmbed(
         sessionIdOverride || getOrCreateGlobalSessionId(), 
     [getOrCreateGlobalSessionId, sessionIdOverride]);
     
-    // MODIFICADO: syncWithExternalCart ahora usa el sessionId correcto
+    // MODIFICADO: syncWithExternalCart ahora usa el sessionId correcto y maneja tanto API global como Redux
     const syncWithExternalCart = React.useCallback(() => {
+        // Intentar primero con Redux si está disponible en window
+        if (typeof window !== 'undefined' && window.__REDUX_STATE__ && window.__REDUX_STATE__.cart) {
+            const reduxCart = window.__REDUX_STATE__.cart;
+            setCartItems(reduxCart.items || []);
+            setCartTotal(reduxCart.totalAmount || 0);
+            setCartCount(reduxCart.totalItems || 0);
+            return;
+        }
+        
+        // Luego intentar con la API del carrito
         if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
-            // Si el sitio expone la API del carrito, la usamos
-            const { getItems, getTotal, getCount } = window.AlturaDivinaCart;
-            if (typeof getItems === 'function') {
-                setCartItems(getItems());
-            }
-            if (typeof getTotal === 'function') {
-                setCartTotal(getTotal());
-            }
-            if (typeof getCount === 'function') {
-                setCartCount(getCount());
-            }
-        } else {
-            // Fallback a localStorage/sessionStorage
             try {
-                // CLAVE: Primero intentar cargar con sessionId específico (como hace el iframe)
-                const savedCartWithSessionId = localStorage.getItem(`mp_cart_${sessionId}`);
-                if (savedCartWithSessionId) {
-                    const cartData = JSON.parse(savedCartWithSessionId);
-                    setCartItems(cartData.items || []);
-                    setCartTotal(cartData.totalAmount || 0);
-                    const count = (cartData.items || []).reduce(
-                        (total, item) => total + (item.quantity || 0), 0
-                    );
-                    setCartCount(count);
-                    return; // Si encuentra carrito con sessionId, terminar
+                const { getItems, getTotal, getCount } = window.AlturaDivinaCart;
+                if (typeof getItems === 'function') {
+                    setCartItems(getItems());
                 }
-                
-                // Si no hay carrito con sessionId, intentar obtener el general
-                const savedCart = sessionStorage.getItem('mp-cart');
-                if (savedCart) {
-                    const cartData = JSON.parse(savedCart);
-                    setCartItems(cartData.items || []);
-                    setCartTotal(cartData.totalAmount || 0);
-                    setCartCount(cartData.totalItems || 0);
+                if (typeof getTotal === 'function') {
+                    setCartTotal(getTotal());
                 }
+                if (typeof getCount === 'function') {
+                    setCartCount(getCount());
+                }
+                return;
             } catch (e) {
-                console.error("Error al acceder al carrito:", e);
+                console.warn("Error accediendo a AlturaDivinaCart:", e);
             }
+        }
+        
+        // Fallback a localStorage/sessionStorage
+        try {
+            // CLAVE: Primero intentar cargar con sessionId específico
+            const savedCartWithSessionId = localStorage.getItem(`mp_cart_${sessionId}`);
+            if (savedCartWithSessionId) {
+                const cartData = JSON.parse(savedCartWithSessionId);
+                setCartItems(cartData.items || []);
+                setCartTotal(cartData.totalAmount || 0);
+                const count = (cartData.items || []).reduce(
+                    (total, item) => total + (item.quantity || 0), 0
+                );
+                setCartCount(count);
+                return;
+            }
+            
+            // Si no hay carrito con sessionId, intentar obtener el general
+            const savedCart = sessionStorage.getItem('mp-cart');
+            if (savedCart) {
+                const cartData = JSON.parse(savedCart);
+                setCartItems(cartData.items || []);
+                setCartTotal(cartData.totalAmount || 0);
+                setCartCount(cartData.totalItems || 0);
+            }
+        } catch (e) {
+            console.error("Error al acceder al carrito:", e);
         }
     }, [sessionId]);
     

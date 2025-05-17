@@ -9,6 +9,9 @@ import { useCart } from '../hooks/useCart';
 // Inicializar el objeto global para la API del carrito
 if (typeof window !== 'undefined') {
   window.AlturaDivinaCart = window.AlturaDivinaCart || {};
+  
+  // Para debugging
+  window.AlturaDivinaCart.__DEBUG_initTime = new Date().toISOString();
 }
 
 /**
@@ -25,48 +28,41 @@ export function exposeCartAPI() {
 
 // Hook para componentes que necesiten exponer la API del carrito
 export function useCartIntegration() {
-  const cartContext = useCart();
+  // Usar la estructura correcta de Redux
+  const { cart, addToCart, removeFromCart, updateQuantity, clearCart } = useCart();
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Exportar funciones y datos al objeto global
       window.AlturaDivinaCart = {
-        // Getters
-        getItems: () => cartContext.items,
-        getCount: () => cartContext.totalItems,
-        getTotal: () => cartContext.totalAmount,
+        // Getters - actualizar para usar la estructura de Redux
+        getItems: () => cart.items,
+        getCount: () => cart.totalItems,
+        getTotal: () => cart.totalAmount,
         
-        // Acciones
+        // Acciones - actualizar con las funciones de Redux
         addItem: (product, quantity = 1) => {
-          cartContext.addItem(product, quantity);
-          notifyCartUpdated();
+          addToCart({ ...product, quantity });
+          // El middleware ya maneja la notificación
         },
         removeItem: (productId) => {
-          cartContext.removeItem(productId);
-          notifyCartUpdated();
+          removeFromCart(productId);
         },
         updateQuantity: (productId, quantity) => {
-          cartContext.updateQuantity(productId, quantity);
-          notifyCartUpdated();
+          updateQuantity({ productId, quantity });
         },
-        clearCart: () => {
-          cartContext.clearCart();
-          notifyCartUpdated();
-        },
+        clearCart,
         
-        // Abrir/cerrar el carrito
+        // El resto igual
         openCart: () => {
-          // Implementa el código para abrir tu carrito
           const event = new CustomEvent('OPEN_CART_SIDEBAR');
           window.dispatchEvent(event);
         },
         checkout: () => {
-          // Implementa el código para ir al checkout
           window.location.href = '/checkout';
         }
       };
     }
-  }, [cartContext]);
+  }, [cart, addToCart, removeFromCart, updateQuantity, clearCart]);
   
   return null;
 }
