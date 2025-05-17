@@ -3,10 +3,7 @@ import { addItem, removeItem, updateQuantity, clearCart, setSessionId } from '..
 import { useEffect } from 'react';
 
 export function useCart() {
-  const cart = useSelector(state => {
-    // Fallback a un objeto seguro si state.cart es undefined
-    return state?.cart || { items: [], totalAmount: 0, totalItems: 0, sessionId: null };
-  });
+  const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
   
   // Función para obtener/crear el sessionId

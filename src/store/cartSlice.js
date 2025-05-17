@@ -1,9 +1,8 @@
 // filepath: c:\Users\Owner\Downloads\MP\src\store\cartSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 
-// Asegurar que el estado inicial tenga todas las propiedades necesarias
 const initialState = {
-  items: [], // Este array debe existir SIEMPRE
+  items: [],
   totalAmount: 0,
   totalItems: 0,
   sessionId: null,
