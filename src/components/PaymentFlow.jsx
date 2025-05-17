@@ -11,6 +11,7 @@ import '../styles/mercadopago-globals.css';
 import { useCart } from '../hooks/useCart';
 import CartIcon from './CartIcon';
 import CartSidebar from './CartSidebar';
+import { useSessionId } from '../hooks/useSessionId';
 
 const formatPrice = (price) => {
   return Number(price).toLocaleString('es-MX', {
@@ -35,6 +36,7 @@ export default function PaymentFlow({
   initialProductId = null,
   customStyles = {},
   initialStep = 1, // New prop to set the initial step
+  initialSessionId = null, // Añadir este prop
 }) {
   if (!apiBaseUrl) {
     logError("PaymentFlow Error: 'apiBaseUrl' prop is required.");
@@ -78,7 +80,8 @@ export default function PaymentFlow({
   const [isCartOpen, setIsCartOpen] = useState(false);
   
   // Obtener datos del carrito
-  const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart();
+  const sessionId = useSessionId(initialSessionId);  // Añadir este prop opcional
+  const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart(sessionId);
 
   useEffect(() => {
     const fetchProducts = async () => {

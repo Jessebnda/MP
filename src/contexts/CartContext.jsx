@@ -143,6 +143,20 @@ export const CartProvider = ({ children }) => {
   // Guardar el estado del carrito en localStorage cuando cambie
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Obtener sessionId de la misma manera que los componentes Framer
+      const sessionId = getSessionIdFromUrl() || 
+                        sessionStorage.getItem('mp_global_session_id') || 
+                        'default_session';
+      
+      // Usar localStorage con la misma estructura de clave que usan los componentes Framer
+      localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
+        items: cartState.items,
+        totalAmount: cartState.totalAmount,
+        totalItems: cartState.totalItems,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Mantener también sessionStorage para compatibilidad con código existente
       sessionStorage.setItem('mp-cart', JSON.stringify(cartState));
     }
   }, [cartState]);
@@ -188,4 +202,13 @@ export const CartProvider = ({ children }) => {
   };
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+};
+
+// Añadir esta función para obtener sessionId de URL
+const getSessionIdFromUrl = () => {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('sessionId');
+  }
+  return null;
 };
