@@ -9,13 +9,15 @@ interface MercadoPagoEmbedProps {
     pendingUrl: string
     failureUrl: string
     hideTitle: boolean
-    buttonColor: string         // Color del botón de pago de MercadoPago
-    circleColor: string         // Color del círculo de MercadoPago
-    primaryButtonColor: string  // NUEVO: Color de los botones primarios (continuar, confirmar)
-    secondaryButtonColor: string // NUEVO: Color de los botones secundarios (volver, cancelar)
+    buttonColor: string         
+    circleColor: string         
+    primaryButtonColor: string  
+    secondaryButtonColor: string
     width: number | string
     height: number | string
     onRedirect?: (event: any) => void
+    // Nuevo prop opcional para forzar un sessionId
+    sessionIdOverride?: string
 }
 
 export function MercadoPagoEmbed(
@@ -30,13 +32,43 @@ export function MercadoPagoEmbed(
         hideTitle,
         buttonColor,
         circleColor,
-        primaryButtonColor,    // Nuevo prop
-        secondaryButtonColor,  // Nuevo prop
+        primaryButtonColor,
+        secondaryButtonColor,
         width,
         height,
-        onRedirect
+        onRedirect,
+        sessionIdOverride
     } = props;
     
+    // CAMBIO CLAVE: Usar un sessionId global para toda la página
+    const getOrCreateGlobalSessionId = React.useCallback(() => {
+        // 1. Intentar obtener de la URL
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionFromUrl = urlParams.get('sessionId');
+            if (sessionFromUrl) return sessionFromUrl;
+        }
+        
+        // 2. Intentar obtener del sessionStorage (persistente en la sesión)
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            const storedId = sessionStorage.getItem('mp_global_session_id');
+            if (storedId) return storedId;
+        }
+        
+        // 3. Crear uno nuevo y guardarlo para que sea consistente
+        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            sessionStorage.setItem('mp_global_session_id', newSessionId);
+        }
+        return newSessionId;
+    }, []);
+    
+    // Usar el sessionId global o el override proporcionado explícitamente
+    const sessionId = React.useMemo(() => 
+        sessionIdOverride || getOrCreateGlobalSessionId(), 
+    [getOrCreateGlobalSessionId, sessionIdOverride]);
+    
+    // El resto de tu código de MercadoPagoEmbed...
     React.useEffect(() => {
         // Escuchar mensajes del iframe
         const handleMessage = (event: MessageEvent) => {
@@ -89,6 +121,15 @@ export function MercadoPagoEmbed(
                     window.top.location.href = event.data.redirectUrl;
                 }
             }
+            else if (event.data.type === 'CART_UPDATE') {
+                // NUEVO: Cuando el iframe actualiza el carrito, notificar a otros componentes
+                if (typeof window !== 'undefined') {
+                    const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+                        detail: { source: 'mercadopago_iframe', sessionId }
+                    });
+                    window.dispatchEvent(updateEvent);
+                }
+            }
         };
         
         window.addEventListener('message', handleMessage);
@@ -96,10 +137,8 @@ export function MercadoPagoEmbed(
         return () => {
             window.removeEventListener('message', handleMessage);
         };
-    }, [onRedirect, successUrl, pendingUrl, failureUrl]);
+    }, [onRedirect, successUrl, pendingUrl, failureUrl, sessionId]);
     
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
     const baseUrl = "https://mercadopagoiframe.vercel.app/";
     const queryParams = new URLSearchParams({
         initialProductId: productId || '',
@@ -109,11 +148,11 @@ export function MercadoPagoEmbed(
         failureUrl: failureUrl || '',
         hideTitle: hideTitle ? 'true' : 'false',
         buttonColor: buttonColor || '#F26F32', 
-        circleColor: circleColor || '#F26F32',  // Cambiado de #009EE3 a #F26F32
-        primaryButtonColor: primaryButtonColor || '#F26F32',  // NUEVO
-        secondaryButtonColor: secondaryButtonColor || '#E5E5E5',  // NUEVO
+        circleColor: circleColor || '#F26F32',
+        primaryButtonColor: primaryButtonColor || '#F26F32',
+        secondaryButtonColor: secondaryButtonColor || '#E5E5E5',
         isInIframe: 'true',
-        sessionId: sessionId  // Añadir el sessionId
+        sessionId: sessionId  // Usar el sessionId consistente
     }).toString();
     
     const iframeSrc = `${baseUrl}?${queryParams}`;
@@ -205,6 +244,12 @@ addPropertyControls(MercadoPagoEmbed, {
         title: "On Redirect",
         type: ControlType.EventHandler,
     },
+    // Nuevo control para sessionId (opcional)
+    sessionIdOverride: {
+        title: "Session ID (opcional)",
+        type: ControlType.String,
+        defaultValue: "",
+    }
 })
 
 // Props por defecto en canvas

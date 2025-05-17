@@ -2,6 +2,7 @@
 import * as React from "react"
 import { addPropertyControls, ControlType } from "framer"
 
+// Mismo código para manejar sessionId globalmente
 interface CartButtonEmbedProps {
     checkoutUrl: string
     iconColor: string
@@ -15,6 +16,8 @@ interface CartButtonEmbedProps {
     height: number
     onCartOpen?: (event: any) => void
     onCheckout?: (event: any) => void
+    // Nuevo prop opcional para forzar un sessionId
+    sessionIdOverride?: string
 }
 
 export function CartButtonEmbed(
@@ -32,7 +35,8 @@ export function CartButtonEmbed(
         width,
         height,
         onCartOpen,
-        onCheckout
+        onCheckout,
+        sessionIdOverride
     } = props;
     
     const [isCartOpen, setIsCartOpen] = React.useState(false);
@@ -40,7 +44,35 @@ export function CartButtonEmbed(
     const [cartCount, setCartCount] = React.useState(0);
     const [cartTotal, setCartTotal] = React.useState(0);
     
-    // Para comunicarse con el CartContext del sitio principal
+    // CLAVE: Usar la misma lógica para obtener/crear el sessionId
+    const getOrCreateGlobalSessionId = React.useCallback(() => {
+        // 1. Intentar obtener de la URL
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionFromUrl = urlParams.get('sessionId');
+            if (sessionFromUrl) return sessionFromUrl;
+        }
+        
+        // 2. Intentar obtener del sessionStorage (persistente en la sesión)
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            const storedId = sessionStorage.getItem('mp_global_session_id');
+            if (storedId) return storedId;
+        }
+        
+        // 3. Crear uno nuevo y guardarlo para que sea consistente
+        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            sessionStorage.setItem('mp_global_session_id', newSessionId);
+        }
+        return newSessionId;
+    }, []);
+    
+    // Usar el sessionId global o el override proporcionado explícitamente
+    const sessionId = React.useMemo(() => 
+        sessionIdOverride || getOrCreateGlobalSessionId(), 
+    [getOrCreateGlobalSessionId, sessionIdOverride]);
+    
+    // MODIFICADO: syncWithExternalCart ahora usa el sessionId correcto
     const syncWithExternalCart = React.useCallback(() => {
         if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
             // Si el sitio expone la API del carrito, la usamos
@@ -55,9 +87,22 @@ export function CartButtonEmbed(
                 setCartCount(getCount());
             }
         } else {
-            // Fallback a localStorage si la API no está disponible
+            // Fallback a localStorage/sessionStorage
             try {
-                // Intentamos obtener el carrito desde sessionStorage como lo hace CartContext
+                // CLAVE: Primero intentar cargar con sessionId específico (como hace el iframe)
+                const savedCartWithSessionId = localStorage.getItem(`mp_cart_${sessionId}`);
+                if (savedCartWithSessionId) {
+                    const cartData = JSON.parse(savedCartWithSessionId);
+                    setCartItems(cartData.items || []);
+                    setCartTotal(cartData.totalAmount || 0);
+                    const count = (cartData.items || []).reduce(
+                        (total, item) => total + (item.quantity || 0), 0
+                    );
+                    setCartCount(count);
+                    return; // Si encuentra carrito con sessionId, terminar
+                }
+                
+                // Si no hay carrito con sessionId, intentar obtener el general
                 const savedCart = sessionStorage.getItem('mp-cart');
                 if (savedCart) {
                     const cartData = JSON.parse(savedCart);
@@ -69,7 +114,7 @@ export function CartButtonEmbed(
                 console.error("Error al acceder al carrito:", e);
             }
         }
-    }, []);
+    }, [sessionId]);
     
     // Cargar datos iniciales
     React.useEffect(() => {
@@ -78,7 +123,10 @@ export function CartButtonEmbed(
         // Intentar configurar un observador para cambios en el carrito
         if (typeof window !== 'undefined') {
             // Método 1: Escuchar un evento personalizado si está implementado
-            const handleCartUpdate = () => syncWithExternalCart();
+            const handleCartUpdate = () => {
+                console.log("CartButtonEmbed: Evento de actualización recibido");
+                syncWithExternalCart();
+            };
             window.addEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
             
             // Método 2: Usar MutationObserver para detectar cambios en el DOM
@@ -185,6 +233,29 @@ export function CartButtonEmbed(
         return false;
     };
     
+    // MODIFICADO: Función updateCartAndNotify para notificar cambios
+    const updateCartAndNotify = (items, total) => {
+        // Actualizar localStorage con el sessionId consistente
+        try {
+            localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
+                items: items,
+                totalAmount: total,
+                timestamp: new Date().toISOString()
+            }));
+            
+            // NUEVO: Disparar evento para notificar a otros componentes
+            if (typeof window !== 'undefined') {
+                const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+                    detail: { source: 'cart_button', sessionId }
+                });
+                window.dispatchEvent(updateEvent);
+            }
+            
+        } catch (e) {
+            console.error("Error al actualizar carrito:", e);
+        }
+    };
+    
     const removeItem = (productId) => {
         // Intentar usar la función externa primero
         if (handleExternalAction('remove', { productId })) {
@@ -196,9 +267,14 @@ export function CartButtonEmbed(
         const newTotal = updatedItems.reduce(
             (total, item) => total + (item.price * item.quantity), 0
         );
+        
+        // Actualizar estado local
         setCartItems(updatedItems);
         setCartTotal(newTotal);
         setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
+        
+        // Actualizar localStorage y notificar
+        updateCartAndNotify(updatedItems, newTotal);
     };
     
     const updateQuantity = (productId, quantity) => {
@@ -223,9 +299,14 @@ export function CartButtonEmbed(
         const newTotal = updatedItems.reduce(
             (total, item) => total + (item.price * item.quantity), 0
         );
+        
+        // Actualizar estado local
         setCartItems(updatedItems);
         setCartTotal(newTotal);
         setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
+        
+        // Actualizar localStorage y notificar
+        updateCartAndNotify(updatedItems, newTotal);
     };
     
     const clearCart = () => {
@@ -238,6 +319,9 @@ export function CartButtonEmbed(
         setCartItems([]);
         setCartTotal(0);
         setCartCount(0);
+        
+        // Actualizar localStorage y notificar
+        updateCartAndNotify([], 0);
     };
     
     const handleCheckout = () => {
@@ -652,6 +736,11 @@ addPropertyControls(CartButtonEmbed, {
         title: "Al Procesar Pago",
         type: ControlType.EventHandler,
     },
+    sessionIdOverride: {
+        title: "Session ID (opcional)",
+        type: ControlType.String,
+        defaultValue: "",
+    }
 })
 
 // Props por defecto en canvas

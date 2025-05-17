@@ -74,7 +74,25 @@ export function useCartIntegration() {
 // Función auxiliar para notificar a los componentes externos sobre cambios en el carrito
 function notifyCartUpdated() {
   if (typeof window !== 'undefined') {
-    const event = new CustomEvent('ALTURA_DIVINA_CART_UPDATE');
+    // Obtener el sessionId del mismo lugar donde lo obtienen los componentes Framer
+    let sessionId;
+    
+    // 1. Intentar obtener de la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    sessionId = urlParams.get('sessionId');
+    
+    // 2. Si no hay en URL, intentar obtener del sessionStorage
+    if (!sessionId) {
+      sessionId = sessionStorage.getItem('mp_global_session_id');
+    }
+    
+    // 3. Crear el evento con el sessionId en los detalles
+    const event = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+      detail: { 
+        source: 'cart_context',
+        sessionId: sessionId || 'default_session'
+      }
+    });
     window.dispatchEvent(event);
   }
 }
