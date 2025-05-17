@@ -121,13 +121,21 @@ export function MercadoPagoEmbed(
                     window.top.location.href = event.data.redirectUrl;
                 }
             }
-            else if (event.data.type === 'CART_UPDATE') {
+            // Cuando se recibe el evento CART_UPDATE
+            else if (event.data && event.data.type === 'CART_UPDATE') {
                 // NUEVO: Cuando el iframe actualiza el carrito, notificar a otros componentes
                 if (typeof window !== 'undefined') {
-                    const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                        detail: { source: 'mercadopago_iframe', sessionId }
-                    });
-                    window.dispatchEvent(updateEvent);
+                    try {
+                        const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+                            detail: { 
+                                source: 'mercadopago_iframe', 
+                                sessionId: sessionId || 'default_session'
+                            }
+                        });
+                        window.dispatchEvent(updateEvent);
+                    } catch (err) {
+                        console.error("Error al disparar evento de actualización:", err);
+                    }
                 }
             }
         };
