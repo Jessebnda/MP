@@ -2,6 +2,100 @@
 import * as React from "react"
 import { addPropertyControls, ControlType } from "framer"
 
+// Importamos el script de inicialización de framerInit.js mediante una referencia
+// Esto garantiza que se inicialice correctamente tanto en Framer como en la web principal
+React.useEffect(() => {
+  if (typeof document !== 'undefined') {
+    // Cargar script de inicialización si no está ya cargado
+    if (!window.framerCartInitialized) {
+      try {        // Intento 1: Cargar desde URL absoluta (cuando está en Framer)
+        const script = document.createElement('script');
+        script.src = '/framerInit.js';  // Cargar desde la carpeta public
+        script.async = true;
+        script.onerror = () => {
+          console.log('Cargando script de inicialización embebido...');
+          // Intento 2: Usar script embebido como fallback (para pruebas locales)
+          const inlineScript = document.createElement('script');
+          inlineScript.textContent = `
+            // Simple initialization script for Framer environments
+            (function initFramerCart() {
+              if (typeof window === 'undefined') return;
+              
+              // Create the most basic cart API for Framer
+              window.framerCartInitialized = true;
+              
+              // Get session ID from URL, storage, or create new one
+              const getSessionId = function() {
+                try {
+                  // 1. Try URL params
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const sessionFromUrl = urlParams.get('sessionId');
+                  if (sessionFromUrl) return sessionFromUrl;
+                  
+                  // 2. Try sessionStorage
+                  if (window.sessionStorage) {
+                    const storedId = sessionStorage.getItem('mp_global_session_id');
+                    if (storedId) return storedId;
+                  }
+                  
+                  // 3. Create new
+                  const newSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                  if (window.sessionStorage) {
+                    sessionStorage.setItem('mp_global_session_id', newSessionId);
+                  }
+                  return newSessionId;
+                } catch (e) {
+                  console.error('Error getting sessionId:', e);
+                  return 'session_' + Date.now();
+                }
+              };
+              
+              // Get/create sessionId
+              const sessionId = getSessionId();
+              window.mpSessionId = sessionId;
+              
+              // Create a simplified cart API
+              window.AlturaDivinaCart = window.AlturaDivinaCart || {
+                // Basic getters
+                getSessionId: function() { return sessionId; },
+                getCartCount: function() { return 0; },
+                
+                // Helper methods that work even without the main app
+                openCart: function() {
+                  console.log('Opening cart for session:', sessionId);
+                  try {
+                    // Dispatch both events to ensure compatibility
+                    window.dispatchEvent(new CustomEvent('ALTURA_DIVINA_OPEN_CART', { 
+                      detail: { sessionId } 
+                    }));
+                    window.dispatchEvent(new CustomEvent('OPEN_CART_SIDEBAR', { 
+                      detail: { sessionId } 
+                    }));
+                  } catch (e) {
+                    console.error('Error opening cart:', e);
+                  }
+                }
+              };
+              
+              console.log('Framer cart API initialized for session:', sessionId);
+            })();
+          `;
+          document.head.appendChild(inlineScript);
+        };
+        document.head.appendChild(script);
+      } catch (error) {
+        console.error('Error al cargar script de inicialización:', error);
+      }
+    }  }
+  
+  // Añadir verificación de conexión después de inicialización
+  setTimeout(() => {
+    if (window.checkCartConnection) {
+      console.log('Estado de conexión del carrito:', window.checkCartConnection());
+    }
+  }, 1000);
+}, []);
+
 interface MercadoPagoEmbedProps {
     productId: string
     publicKey: string
@@ -74,18 +168,9 @@ export function MercadoPagoEmbed(
     const sessionId = React.useMemo(() => 
         sessionIdOverride || getOrCreateGlobalSessionId(), 
     [getOrCreateGlobalSessionId, sessionIdOverride]);
-    
-    // Sincronizar con la API central
+      // Asegurar que el sessionId esté sincronizado
     React.useEffect(() => {
         if (typeof window === 'undefined' || !sessionId) return;
-        
-        // Verificar si la API global está disponible
-        if (!window.AlturaDivinaCart) {
-            // Si no está disponible, crear una versión básica
-            window.AlturaDivinaCart = window.AlturaDivinaCart || {
-                getSessionId: () => sessionId
-            };
-        }
         
         // Asegurarnos de que el sessionId global esté sincronizado
         if (window.sessionStorage) {
@@ -145,72 +230,28 @@ export function MercadoPagoEmbed(
                 if (event.data.redirectUrl) {
                     window.top.location.href = event.data.redirectUrl;
                 }
-            }
-            else if (event.data.type === 'CART_UPDATE') {
+            }            else if (event.data.type === 'CART_UPDATE') {
                 // NUEVO: Cuando el iframe actualiza el carrito, notificar a otros componentes
                 if (typeof window !== 'undefined') {
-                    // Si hay API global, intentar usarla primero
-                    if (window.AlturaDivinaCart && typeof window.AlturaDivinaCart.getCartItems === 'function') {
-                        window.AlturaDivinaCart.getCartItems().then((items) => {
-                            if (items) {
-                                const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                                    detail: { 
-                                        source: 'mercadopago_iframe', 
-                                        sessionId,
-                                        action: event.data.action || 'update',
-                                        productId: event.data.productId,
-                                        quantity: event.data.quantity,
-                                        cart: {
-                                            items,
-                                            totalItems: items.reduce((sum, item) => sum + (item.quantity || 1), 0)
-                                        }
-                                    }
-                                });
-                                window.dispatchEvent(updateEvent);
-                            }
-                        }).catch(() => {
-                            // Si falla, usar localStorage como fallback
-                            try {
-                                const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
-                                if (savedCart) {
-                                    const cartData = JSON.parse(savedCart);
-                                    const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                                        detail: { 
-                                            source: 'mercadopago_iframe', 
-                                            sessionId,
-                                            action: event.data.action || 'update',
-                                            productId: event.data.productId,
-                                            quantity: event.data.quantity,
-                                            cart: cartData
-                                        }
-                                    });
-                                    window.dispatchEvent(updateEvent);
+                    try {
+                        // Usar localStorage como fuente de datos
+                        const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
+                        if (savedCart) {
+                            const cartData = JSON.parse(savedCart);
+                            const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+                                detail: { 
+                                    source: 'mercadopago_iframe', 
+                                    sessionId,
+                                    action: event.data.action || 'update',
+                                    productId: event.data.productId,
+                                    quantity: event.data.quantity,
+                                    cart: cartData
                                 }
-                            } catch (e) {
-                                console.error("Error reading cart data:", e);
-                            }
-                        });
-                    } else {
-                        // Si no hay API global, usar localStorage como fallback
-                        try {
-                            const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
-                            if (savedCart) {
-                                const cartData = JSON.parse(savedCart);
-                                const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                                    detail: { 
-                                        source: 'mercadopago_iframe', 
-                                        sessionId,
-                                        action: event.data.action || 'update',
-                                        productId: event.data.productId,
-                                        quantity: event.data.quantity,
-                                        cart: cartData
-                                    }
-                                });
-                                window.dispatchEvent(updateEvent);
-                            }
-                        } catch (e) {
-                            console.error("Error reading cart data:", e);
+                            });
+                            window.dispatchEvent(updateEvent);
                         }
+                    } catch (e) {
+                        console.error("Error reading cart data:", e);
                     }
                 }
             }

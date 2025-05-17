@@ -2,6 +2,123 @@
 import * as React from "react";
 import { addPropertyControls, ControlType } from "framer";
 
+// Importamos el script de inicialización de framerInit.js
+React.useEffect(() => {
+  if (typeof document !== 'undefined') {
+    // Verificar si ya existe el objeto AlturaDivinaCart
+    if (!window.framerCartInitialized) {
+      try {        // Cargar el script de inicialización
+        const script = document.createElement('script');
+        script.src = '/framerInit.js';  // Cargar desde la carpeta public
+        script.async = true;
+        
+        // Fallback por si no se puede cargar desde la URL
+        script.onerror = () => {
+          console.log('Usando inicialización local para Framer Cart...');
+          
+          // Crear el script manualmente
+          const localScript = document.createElement('script');
+          localScript.textContent = `
+            // Simple cart initialization for Framer
+            (function() {
+              if (typeof window === 'undefined') return;
+              
+              window.framerCartInitialized = true;
+              
+              // Get sessionId
+              const getSessionId = function() {
+                try {
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const sessionFromUrl = urlParams.get('sessionId');
+                  if (sessionFromUrl) return sessionFromUrl;
+                  
+                  if (window.sessionStorage) {
+                    const storedId = window.sessionStorage.getItem('mp_global_session_id');
+                    if (storedId) return storedId;
+                  }
+                  
+                  const newSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+                  if (window.sessionStorage) {
+                    window.sessionStorage.setItem('mp_global_session_id', newSessionId);
+                  }
+                  return newSessionId;
+                } catch (e) {
+                  console.error('Error getting sessionId:', e);
+                  return 'session_' + Date.now();
+                }
+              };
+              
+              const sessionId = getSessionId();
+              window.mpSessionId = sessionId;
+              
+              // Create cart data
+              let cartData = { items: [], totalItems: 0, totalAmount: 0 };
+              
+              try {
+                const savedCart = localStorage.getItem('mp_cart_' + sessionId);
+                if (savedCart) {
+                  cartData = JSON.parse(savedCart);
+                }
+              } catch (e) {
+                console.error('Error loading cart:', e);
+              }
+              
+              // Store cart count globally for easy access
+              window.mpCartCount = cartData.totalItems || 0;
+              
+              // Helper to save cart
+              const saveCart = function(cart) {
+                try {
+                  localStorage.setItem('mp_cart_' + sessionId, JSON.stringify(cart));
+                  window.mpCartCount = cart.totalItems || 0;
+                  
+                  // Notify changes
+                  window.dispatchEvent(new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+                    detail: { 
+                      source: 'framer_cart', 
+                      sessionId,
+                      cart
+                    }
+                  }));
+                } catch (e) {
+                  console.error('Error saving cart:', e);
+                }
+              };
+              
+              // Create basic cart API
+              window.AlturaDivinaCart = {
+                getSessionId: function() { return sessionId; },
+                getCartCount: function() { return Promise.resolve(cartData.totalItems || 0); },
+                getCartItems: function() { return Promise.resolve(cartData.items || []); },
+                
+                openCart: function() {
+                  console.log('Opening cart for session:', sessionId);
+                  try {
+                    window.dispatchEvent(new CustomEvent('ALTURA_DIVINA_OPEN_CART', { 
+                      detail: { sessionId } 
+                    }));
+                    window.dispatchEvent(new CustomEvent('OPEN_CART_SIDEBAR', { 
+                      detail: { sessionId } 
+                    }));
+                  } catch (e) {
+                    console.error('Error opening cart:', e);
+                  }
+                }
+              };
+              
+              console.log('Cart API initialized for Framer with session:', sessionId);
+            })();
+          `;
+          document.head.appendChild(localScript);
+        };
+        document.head.appendChild(script);
+      } catch (error) {
+        console.error('Error initializing Framer cart:', error);
+      }
+    }
+  }
+}, []);
+
 /**
  * Componente CartButtonEmbed simplificado para Framer
  * Este componente ahora actúa como un puente hacia la API
@@ -62,52 +179,59 @@ export function CartButtonEmbed(
   const sessionId = React.useMemo(
     () => sessionIdOverride || getOrCreateGlobalSessionId(),
     [getOrCreateGlobalSessionId, sessionIdOverride]
-  );
-
-  // Función para obtener datos del carrito mediante la API global o API REST
+  );  // Función para obtener datos del carrito - VERSIÓN ULTRA SIMPLIFICADA para Framer
   const fetchCartData = React.useCallback(async () => {
     if (typeof window === "undefined" || !sessionId) return;
     
     try {
-      // 1. Intentar usar la API global si está disponible
+      // Prioridad 1: Usar la API global si está disponible
       if (window.AlturaDivinaCart && typeof window.AlturaDivinaCart.getCartCount === 'function') {
         try {
-          // Obtener contador del carrito de la API global
           const count = await window.AlturaDivinaCart.getCartCount();
           if (typeof count === 'number') {
             setCartCount(count);
             return;
           }
         } catch (e) {
-          console.error("Error al usar API global del carrito:", e);
+          console.log("Error usando API global:", e);
         }
       }
       
-      // 2. Intentar obtener mediante API REST
-      if (window.location.hostname !== 'framer.com' && 
-          !window.location.hostname.includes('framer.app')) {
+      // Prioridad 2: Intentar obtener mediante API REST directa
+      try {
         const response = await fetch(`/api/cart?sessionId=${sessionId}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.cart) {
             setCartCount(data.cart.totalItems || 0);
+            return;
           }
         }
-        return;
+      } catch (apiError) {
+        console.log("API no disponible:", apiError);
       }
       
-      // 3. Fallback: usar localStorage si estamos en Framer
+      // Prioridad 3: Usar localStorage como fallback
       try {
         const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
         if (savedCart) {
           const cartData = JSON.parse(savedCart);
           setCartCount(cartData.totalItems || 0);
+          return;
         }
-      } catch (e) {
-        console.error("Error al leer datos del carrito:", e);
+      } catch (storageError) {
+        console.error("Error al leer datos del carrito:", storageError);
       }
+      
+      // Prioridad 4: Revisar si hay un objeto de carrito en la ventana global
+      if (window.mpCartCount !== undefined) {
+        setCartCount(window.mpCartCount);
+        return;
+      }
+      
+      console.log("No se encontraron datos del carrito para sessionId:", sessionId);
     } catch (error) {
-      console.error("Error al obtener datos del carrito:", error);
+      console.error("Error general al obtener datos del carrito:", error);
     }
   }, [sessionId]);
   
@@ -139,16 +263,31 @@ export function CartButtonEmbed(
       };
     }
   }, [fetchCartData, sessionId]);
-  
-  // Manejar clic en el botón del carrito
-  const handleCartButtonClick = () => {
-    // 1. Intentar usar la API global si está disponible
-    if (typeof window !== "undefined" && window.AlturaDivinaCart && 
-        typeof window.AlturaDivinaCart.openCart === 'function') {
-      window.AlturaDivinaCart.openCart();
-    } else {
-      // 2. Emitir evento personalizado como fallback
-      if (typeof window !== "undefined") {
+    // Manejar clic en el botón del carrito  const handleCartButtonClick = () => {
+    // Versión ultra robusta para Framer
+    if (typeof window !== "undefined") {
+      // 1. Intentar usar API global (si existe)
+      try {
+        if (window.AlturaDivinaCart && typeof window.AlturaDivinaCart.openCart === 'function') {
+          window.AlturaDivinaCart.openCart();
+          console.log("Abriendo carrito mediante API global");
+        } else {
+          // 2. Método de fallback: emitir evento personalizado
+          console.log("API global no disponible, usando evento personalizado");
+          const event = new CustomEvent("ALTURA_DIVINA_OPEN_CART", {
+            detail: { sessionId }
+          });
+          window.dispatchEvent(event);
+          
+          // 3. Método alternativo: intentar abrir mediante evento del DOM
+          const event2 = new CustomEvent("OPEN_CART_SIDEBAR", {
+            detail: { sessionId }
+          });
+          window.dispatchEvent(event2);
+        }
+      } catch (error) {
+        console.error("Error al abrir carrito:", error);
+        // Fallback: seguir emitiendo el evento estándar
         const event = new CustomEvent("ALTURA_DIVINA_OPEN_CART", {
           detail: { sessionId }
         });
