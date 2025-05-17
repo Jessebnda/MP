@@ -1,10 +1,35 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCart } from '../hooks/useCart';
 import CartItem from './CartItem';
 import styles from '../styles/CartSidebar.module.css';
 import { cn } from '../lib/utils';
 
-const CartSidebar = ({ isOpen, onClose, checkoutUrl = '/checkout' }) => {
+const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout' }) => {
+  // Estado local para control interno
+  const [isOpenInternal, setIsOpenInternal] = useState(externalIsOpen || false);
+  
+  // Sincronizar con prop externa si cambia
+  useEffect(() => {
+    if (externalIsOpen !== undefined) {
+      setIsOpenInternal(externalIsOpen);
+    }
+  }, [externalIsOpen]);
+  
+  // Escuchar evento externo para abrir el sidebar
+  useEffect(() => {
+    const handleOpenCart = () => {
+      setIsOpenInternal(true);
+    };
+    
+    window.addEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
+    return () => window.removeEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
+  }, []);
+  
+  const handleClose = () => {
+    setIsOpenInternal(false);
+    if (onClose) onClose();
+  };
+  
   const { items, totalAmount, clearCart } = useCart();
   
   const formatPrice = (price) => {
@@ -22,11 +47,11 @@ const CartSidebar = ({ isOpen, onClose, checkoutUrl = '/checkout' }) => {
 
   return (
     <>
-      {isOpen && <div className={styles.overlay} onClick={onClose}></div>}
-      <div className={cn(styles.cartSidebar, isOpen && styles.open)}>
+      {isOpenInternal && <div className={styles.overlay} onClick={handleClose}></div>}
+      <div className={cn(styles.cartSidebar, isOpenInternal && styles.open)}>
         <div className={styles.header}>
           <h2>Tu Carrito</h2>
-          <button onClick={onClose} className={styles.closeButton} aria-label="Cerrar carrito">
+          <button onClick={handleClose} className={styles.closeButton} aria-label="Cerrar carrito">
             &times;
           </button>
         </div>
@@ -35,7 +60,7 @@ const CartSidebar = ({ isOpen, onClose, checkoutUrl = '/checkout' }) => {
           {items.length === 0 ? (
             <div className={styles.emptyCart}>
               <p>Tu carrito está vacío</p>
-              <button onClick={onClose} className={styles.continueShoppingButton}>
+              <button onClick={handleClose} className={styles.continueShoppingButton}>
                 Seguir Comprando
               </button>
             </div>

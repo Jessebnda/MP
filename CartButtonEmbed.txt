@@ -40,78 +40,79 @@ export function CartButtonEmbed(
     const [cartCount, setCartCount] = React.useState(0);
     const [cartTotal, setCartTotal] = React.useState(0);
     
-    // Generar sessionId único o recuperar existente
-    const sessionId = React.useMemo(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionFromUrl = urlParams.get('sessionId');
-        return sessionFromUrl || `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }, []);
-    
-    // Cargar carrito del localStorage
-    React.useEffect(() => {
-        try {
-            const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
-            if (savedCart) {
-                const cartData = JSON.parse(savedCart);
-                setCartItems(cartData.items || []);
-                setCartTotal(cartData.totalAmount || 0);
-                
-                // Calcular total de items
-                const count = (cartData.items || []).reduce(
-                    (total, item) => total + (item.quantity || 0), 0
-                );
-                setCartCount(count);
+    // Para comunicarse con el CartContext del sitio principal
+    const syncWithExternalCart = React.useCallback(() => {
+        if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
+            // Si el sitio expone la API del carrito, la usamos
+            const { getItems, getTotal, getCount } = window.AlturaDivinaCart;
+            if (typeof getItems === 'function') {
+                setCartItems(getItems());
             }
-        } catch (e) {
-            console.error("Error al cargar el carrito:", e);
-        }
-    }, [sessionId]);
-    
-    // Escuchar cambios en el carrito de otros componentes
-    React.useEffect(() => {
-        const handleStorageChange = (e) => {
-            if (e.key === `mp_cart_${sessionId}`) {
-                try {
-                    const cartData = JSON.parse(e.newValue);
-                    if (cartData) {
-                        setCartItems(cartData.items || []);
-                        setCartTotal(cartData.totalAmount || 0);
-                        
-                        // Recalcular contador
-                        const count = (cartData.items || []).reduce(
-                            (total, item) => total + (item.quantity || 0), 0
-                        );
-                        setCartCount(count);
-                    }
-                } catch (error) {
-                    console.error("Error al procesar cambios en el carrito:", error);
+            if (typeof getTotal === 'function') {
+                setCartTotal(getTotal());
+            }
+            if (typeof getCount === 'function') {
+                setCartCount(getCount());
+            }
+        } else {
+            // Fallback a localStorage si la API no está disponible
+            try {
+                // Intentamos obtener el carrito desde sessionStorage como lo hace CartContext
+                const savedCart = sessionStorage.getItem('mp-cart');
+                if (savedCart) {
+                    const cartData = JSON.parse(savedCart);
+                    setCartItems(cartData.items || []);
+                    setCartTotal(cartData.totalAmount || 0);
+                    setCartCount(cartData.totalItems || 0);
                 }
+            } catch (e) {
+                console.error("Error al acceder al carrito:", e);
             }
-        };
-        
-        window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
-    }, [sessionId]);
-    
-    // Escuchar mensajes del contenedor
-    React.useEffect(() => {
-        const handleMessage = (event: MessageEvent) => {
-            if (event.data.type === 'CART_UPDATE') {
-                const { items, totalAmount } = event.data.cart;
-                setCartItems(items || []);
-                setCartTotal(totalAmount || 0);
-                
-                // Recalcular contador
-                const count = (items || []).reduce(
-                    (total, item) => total + (item.quantity || 0), 0
-                );
-                setCartCount(count);
-            }
-        };
-        
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
+        }
     }, []);
+    
+    // Cargar datos iniciales
+    React.useEffect(() => {
+        syncWithExternalCart();
+        
+        // Intentar configurar un observador para cambios en el carrito
+        if (typeof window !== 'undefined') {
+            // Método 1: Escuchar un evento personalizado si está implementado
+            const handleCartUpdate = () => syncWithExternalCart();
+            window.addEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
+            
+            // Método 2: Usar MutationObserver para detectar cambios en el DOM
+            // que puedan indicar cambios en el carrito (como actualizaciones de badge)
+            try {
+                const targetNode = document.querySelector('.cart-badge') || document.body;
+                const observer = new MutationObserver((mutations) => {
+                    syncWithExternalCart();
+                });
+                observer.observe(targetNode, { 
+                    attributes: true, 
+                    childList: true,
+                    subtree: true,
+                    characterData: true
+                });
+                
+                return () => {
+                    window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
+                    observer.disconnect();
+                };
+            } catch (e) {
+                console.warn('No se pudo configurar el observador DOM:', e);
+                return () => {
+                    window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
+                };
+            }
+        }
+    }, [syncWithExternalCart]);
+    
+    // Verificar periódicamente si hay cambios en el carrito
+    React.useEffect(() => {
+        const intervalId = setInterval(syncWithExternalCart, 2000);
+        return () => clearInterval(intervalId);
+    }, [syncWithExternalCart]);
     
     // Formatear precio
     const formatPrice = (price) => {
@@ -125,42 +126,88 @@ export function CartButtonEmbed(
         const newState = !isCartOpen;
         setIsCartOpen(newState);
         
-        if (newState && onCartOpen) {
-            onCartOpen({
-                cartItems,
-                cartTotal,
-                sessionId
-            });
+        // Si estamos abriendo el carrito y existe el CartContext externo, mostrar el sidebar del sitio en lugar del nuestro
+        if (newState) {
+            if (typeof window !== 'undefined' && window.AlturaDivinaCart && typeof window.AlturaDivinaCart.openCart === 'function') {
+                // Usar la función de abrir carrito del sitio
+                window.AlturaDivinaCart.openCart();
+                setIsCartOpen(false); // No mostrar nuestro propio sidebar
+                
+                if (onCartOpen) {
+                    onCartOpen({
+                        cartItems,
+                        cartTotal,
+                        externalCartUsed: true
+                    });
+                }
+                return;
+            }
+            
+            if (onCartOpen) {
+                onCartOpen({
+                    cartItems,
+                    cartTotal,
+                    externalCartUsed: false
+                });
+            }
         }
     };
     
+    const handleExternalAction = (action, payload) => {
+        if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
+            // Si tenemos acceso a la API del carrito del sitio
+            const { removeItem, updateQuantity, clearCart } = window.AlturaDivinaCart;
+            
+            switch (action) {
+                case 'remove':
+                    if (typeof removeItem === 'function') {
+                        removeItem(payload.productId);
+                        syncWithExternalCart();
+                        return true;
+                    }
+                    break;
+                case 'update':
+                    if (typeof updateQuantity === 'function') {
+                        updateQuantity(payload.productId, payload.quantity);
+                        syncWithExternalCart();
+                        return true;
+                    }
+                    break;
+                case 'clear':
+                    if (typeof clearCart === 'function') {
+                        clearCart();
+                        syncWithExternalCart();
+                        return true;
+                    }
+                    break;
+            }
+        }
+        return false;
+    };
+    
     const removeItem = (productId) => {
+        // Intentar usar la función externa primero
+        if (handleExternalAction('remove', { productId })) {
+            return;
+        }
+        
+        // Si no hay API externa, actualizar solo el estado local
         const updatedItems = cartItems.filter(item => item.productId !== productId);
-        
-        // Actualizar estado
-        setCartItems(updatedItems);
-        
-        // Recalcular total
         const newTotal = updatedItems.reduce(
             (total, item) => total + (item.price * item.quantity), 0
         );
+        setCartItems(updatedItems);
         setCartTotal(newTotal);
-        
-        // Recalcular contador
-        const count = updatedItems.reduce(
-            (total, item) => total + item.quantity, 0
-        );
-        setCartCount(count);
-        
-        // Guardar en localStorage
-        localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
-            items: updatedItems,
-            totalAmount: newTotal,
-            timestamp: new Date().toISOString()
-        }));
+        setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
     };
     
     const updateQuantity = (productId, quantity) => {
+        // Intentar usar la función externa primero
+        if (handleExternalAction('update', { productId, quantity })) {
+            return;
+        }
+        
+        // Implementación local como fallback
         if (quantity <= 0) {
             removeItem(productId);
             return;
@@ -173,54 +220,42 @@ export function CartButtonEmbed(
             return item;
         });
         
-        // Actualizar estado
-        setCartItems(updatedItems);
-        
-        // Recalcular total
         const newTotal = updatedItems.reduce(
             (total, item) => total + (item.price * item.quantity), 0
         );
+        setCartItems(updatedItems);
         setCartTotal(newTotal);
-        
-        // Recalcular contador
-        const count = updatedItems.reduce(
-            (total, item) => total + item.quantity, 0
-        );
-        setCartCount(count);
-        
-        // Guardar en localStorage
-        localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
-            items: updatedItems,
-            totalAmount: newTotal,
-            timestamp: new Date().toISOString()
-        }));
+        setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
     };
     
     const clearCart = () => {
+        // Intentar usar la función externa primero
+        if (handleExternalAction('clear', {})) {
+            return;
+        }
+        
+        // Implementación local como fallback
         setCartItems([]);
         setCartTotal(0);
         setCartCount(0);
-        
-        // Guardar en localStorage
-        localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
-            items: [],
-            totalAmount: 0,
-            timestamp: new Date().toISOString()
-        }));
     };
     
     const handleCheckout = () => {
         if (onCheckout) {
             onCheckout({
                 cartItems,
-                cartTotal,
-                sessionId
+                cartTotal
             });
         }
         
-        // Redirigir a checkout
-        const finalCheckoutUrl = `${checkoutUrl}${checkoutUrl.includes('?') ? '&' : '?'}sessionId=${sessionId}`;
-        window.location.href = finalCheckoutUrl;
+        // Si hay una función de checkout en el sitio, usarla
+        if (typeof window !== 'undefined' && window.AlturaDivinaCart && typeof window.AlturaDivinaCart.checkout === 'function') {
+            window.AlturaDivinaCart.checkout();
+            return;
+        }
+        
+        // Fallback: redirigir a la URL de checkout
+        window.location.href = checkoutUrl;
     };
     
     return (
@@ -276,7 +311,7 @@ export function CartButtonEmbed(
                 )}
             </button>
             
-            {/* Sidebar del carrito */}
+            {/* Sidebar del carrito (solo se muestra si no pudimos usar el del sitio) */}
             {isCartOpen && (
                 <>
                     {/* Overlay */}
@@ -548,7 +583,7 @@ export function CartButtonEmbed(
     );
 }
 
-// Controles para el panel de Framer
+// Controles para el panel de Framer (igual que antes)
 addPropertyControls(CartButtonEmbed, {
     checkoutUrl: {
         title: "URL de Checkout",

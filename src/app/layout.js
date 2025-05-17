@@ -1,6 +1,8 @@
+'use client';
 import { Inter, Bodoni_Moda, Playfair_Display_SC } from 'next/font/google'
 import '../styles/globals.css'
 import { CartProvider } from '../contexts/CartContext';
+import { CartAPIProvider } from '../utils/CartIntegration';
 
 // Fuente para texto general y campos
 const inter = Inter({
@@ -26,11 +28,6 @@ const playfair = Playfair_Display_SC({
   weight: ['400', '700'],
 })
 
-export const metadata = {
-  title: 'Componente de Pago MercadoPago',
-  description: 'Componente React para integraciones con MercadoPago',
-};
-
 export default function RootLayout({ children }) {
   return (
     <html lang="es" className={`${inter.variable} ${bodoni.variable} ${playfair.variable}`}>
@@ -42,6 +39,10 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <CartProvider>
+          {/* Esto expone la API del carrito para componentes externos */}
+          <CartAPIProvider />
+          
+          {/* Tu app */}
           {children}
         </CartProvider>
       </body>
