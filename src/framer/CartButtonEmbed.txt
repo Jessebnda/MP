@@ -1,0 +1,256 @@
+// src/framer/CartButtonEmbed.tsx
+import * as React from "react";
+import { addPropertyControls, ControlType } from "framer";
+
+/**
+ * Componente CartButtonEmbed simplificado para Framer
+ * Este componente ahora actúa como un puente hacia la API
+ * en lugar de implementar la lógica del carrito internamente
+ */
+interface CartButtonEmbedProps {
+  iconColor: string;
+  badgeColor: string;
+  size: number;
+  showBadge: boolean;
+  width: number | string;
+  height: number | string;
+  onCartOpen?: (event: any) => void;
+  // Prop opcional para forzar un sessionId
+  sessionIdOverride?: string;
+}
+
+export function CartButtonEmbed(
+  props: CartButtonEmbedProps
+): React.ReactElement {
+  const {
+    iconColor,
+    badgeColor,
+    size,
+    showBadge,
+    width,
+    height,
+    onCartOpen,
+    sessionIdOverride
+  } = props;
+
+  const [cartCount, setCartCount] = React.useState(0);
+  
+  // Obtener o crear sessionId global
+  const getOrCreateGlobalSessionId = React.useCallback(() => {
+    // 1. Intentar obtener de la URL
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionFromUrl = urlParams.get("sessionId");
+      if (sessionFromUrl) return sessionFromUrl;
+    }
+    
+    // 2. Intentar obtener del sessionStorage
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      const storedId = sessionStorage.getItem("mp_global_session_id");
+      if (storedId) return storedId;
+    }
+    
+    // 3. Crear uno nuevo y guardarlo
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      sessionStorage.setItem("mp_global_session_id", newSessionId);
+    }
+    return newSessionId;
+  }, []);
+  
+  // Usar el sessionId global o el override proporcionado
+  const sessionId = React.useMemo(
+    () => sessionIdOverride || getOrCreateGlobalSessionId(),
+    [getOrCreateGlobalSessionId, sessionIdOverride]
+  );
+
+  // Función para obtener datos del carrito mediante la API global o API REST
+  const fetchCartData = React.useCallback(async () => {
+    if (typeof window === "undefined" || !sessionId) return;
+    
+    try {
+      // 1. Intentar usar la API global si está disponible
+      if (window.AlturaDivinaCart && typeof window.AlturaDivinaCart.getCartCount === 'function') {
+        try {
+          // Obtener contador del carrito de la API global
+          const count = await window.AlturaDivinaCart.getCartCount();
+          if (typeof count === 'number') {
+            setCartCount(count);
+            return;
+          }
+        } catch (e) {
+          console.error("Error al usar API global del carrito:", e);
+        }
+      }
+      
+      // 2. Intentar obtener mediante API REST
+      if (window.location.hostname !== 'framer.com' && 
+          !window.location.hostname.includes('framer.app')) {
+        const response = await fetch(`/api/cart?sessionId=${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.cart) {
+            setCartCount(data.cart.totalItems || 0);
+          }
+        }
+        return;
+      }
+      
+      // 3. Fallback: usar localStorage si estamos en Framer
+      try {
+        const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
+        if (savedCart) {
+          const cartData = JSON.parse(savedCart);
+          setCartCount(cartData.totalItems || 0);
+        }
+      } catch (e) {
+        console.error("Error al leer datos del carrito:", e);
+      }
+    } catch (error) {
+      console.error("Error al obtener datos del carrito:", error);
+    }
+  }, [sessionId]);
+  
+  // Cargar datos iniciales y configurar listener para actualizaciones
+  React.useEffect(() => {
+    fetchCartData();
+    
+    // Escuchar eventos de actualización del carrito
+    const handleCartUpdate = (event) => {
+      // Solo actualizar si es el mismo sessionId
+      if (event.detail && event.detail.sessionId === sessionId) {
+        if (event.detail.cart && typeof event.detail.cart.totalItems === 'number') {
+          setCartCount(event.detail.cart.totalItems);
+        } else {
+          fetchCartData(); // Actualizar desde la API si no se incluyen los datos
+        }
+      }
+    };
+    
+    if (typeof window !== "undefined") {
+      window.addEventListener("ALTURA_DIVINA_CART_UPDATE", handleCartUpdate);
+      
+      // Verificar cada 3 segundos para mantener sincronizado
+      const intervalId = setInterval(fetchCartData, 3000);
+      
+      return () => {
+        window.removeEventListener("ALTURA_DIVINA_CART_UPDATE", handleCartUpdate);
+        clearInterval(intervalId);
+      };
+    }
+  }, [fetchCartData, sessionId]);
+  
+  // Manejar clic en el botón del carrito
+  const handleCartButtonClick = () => {
+    // 1. Intentar usar la API global si está disponible
+    if (typeof window !== "undefined" && window.AlturaDivinaCart && 
+        typeof window.AlturaDivinaCart.openCart === 'function') {
+      window.AlturaDivinaCart.openCart();
+    } else {
+      // 2. Emitir evento personalizado como fallback
+      if (typeof window !== "undefined") {
+        const event = new CustomEvent("ALTURA_DIVINA_OPEN_CART", {
+          detail: { sessionId }
+        });
+        window.dispatchEvent(event);
+      }
+    }
+    
+    // Ejecutar callback si existe
+    if (onCartOpen) {
+      onCartOpen({
+        sessionId,
+        cartCount
+      });
+    }
+  };
+  
+  return (
+    <div style={{ width, height, position: "relative" }}>
+      <button 
+        onClick={handleCartButtonClick}
+        style={{
+          backgroundColor: "transparent",
+          border: "none",
+          cursor: "pointer",
+          padding: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: "100%",
+          height: "100%"
+        }}
+        aria-label="Ver carrito"
+      >
+        <svg 
+          width={size} 
+          height={size} 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke={iconColor} 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        >
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        
+        {/* Badge con contador */}
+        {showBadge && cartCount > 0 && (
+          <span style={{
+            position: "absolute",
+            top: "-8px",
+            right: "-8px",
+            backgroundColor: badgeColor,
+            color: "#FFFFFF",
+            borderRadius: "50%",
+            width: `${size * 0.45}px`,
+            height: `${size * 0.45}px`,
+            fontSize: `${size * 0.25}px`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: "bold"
+          }}>
+            {cartCount > 99 ? "99+" : cartCount}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+// Controles de propiedad para el panel de Framer
+addPropertyControls(CartButtonEmbed, {
+  iconColor: {
+    title: "Icon Color",
+    type: ControlType.Color,
+    defaultValue: "#333333"
+  },
+  badgeColor: {
+    title: "Badge Color",
+    type: ControlType.Color,
+    defaultValue: "#F26F32"
+  },
+  size: {
+    title: "Icon Size",
+    type: ControlType.Number,
+    defaultValue: 24,
+    min: 12,
+    max: 72,
+    step: 1
+  },
+  showBadge: {
+    title: "Show Badge",
+    type: ControlType.Boolean,
+    defaultValue: true
+  },
+  sessionIdOverride: {
+    title: "Session ID (opcional)",
+    type: ControlType.String,
+    defaultValue: "",
+    placeholder: "Dejar vacío para usar el global"
+  }
+});

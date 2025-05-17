@@ -3,13 +3,32 @@
 import { Suspense, useState, useEffect } from 'react'
 import PaymentFlow from '../components/PaymentFlow'
 import MercadoPagoProvider from '../components/MercadoPagoProvider'
+import CartProvider from '../components/CartProvider'
+import SimpleCartButton from '../components/SimpleCartButton'
 
 export default function Home() {
   const [params, setParams] = useState({});
-
+  const [sessionId, setSessionId] = useState(null);
+  
   useEffect(() => {
     // Obtener parámetros de URL
     const urlParams = new URLSearchParams(window.location.search);
+    
+    // Obtener sessionId de la URL (importante para sincronizar componentes)
+    const urlSessionId = urlParams.get('sessionId');
+    if (urlSessionId) {
+      setSessionId(urlSessionId);
+      // Asegurar que el sessionId esté disponible para todos los componentes
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('mp_global_session_id', urlSessionId);
+      }
+    } else if (typeof window !== 'undefined') {
+      // Si no hay sessionId en la URL, intentar obtenerlo del sessionStorage
+      const storedId = sessionStorage.getItem('mp_global_session_id');
+      if (storedId) {
+        setSessionId(storedId);
+      }
+    }
     
     // Asegurar que los colores tengan formato hexadecimal con #
     const formatColor = (color) => {
@@ -71,36 +90,38 @@ export default function Home() {
   }, []);
 
   return (
-    <div>
-      <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración de pago...</div>}>
-        <PaymentFlow
-          apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
-          productsEndpoint="/api/products"
-          mercadoPagoPublicKey={params.publicKey}
-          PaymentProviderComponent={(props) => (
-            <MercadoPagoProvider
-              {...props}
-              customStyles={{
-                buttonColor: params.buttonColor,
-                circleColor: params.circleColor,
-                primaryButtonColor: params.primaryButtonColor,
-                secondaryButtonColor: params.secondaryButtonColor
-              }}
-            />
-          )}
-          successUrl={params.finalSuccessUrl}
-          pendingUrl={params.finalPendingUrl}
-          failureUrl={params.finalFailureUrl}
-          onSuccess={(data) => console.log('Pago exitoso', data)}
-          onError={(error) => console.error('Error en el pago', error)}
-          hideTitle={params.hideTitle}
-          initialProductId={params.initialProductId}
-          customStyles={{
-            primaryButtonColor: params.primaryButtonColor,
-            secondaryButtonColor: params.secondaryButtonColor
-          }}
-        />
-      </Suspense>
-    </div>
+    <CartProvider initialSessionId={sessionId}>
+      <div>
+        <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración de pago...</div>}>
+          <PaymentFlow
+            apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'}
+            productsEndpoint="/api/products"
+            mercadoPagoPublicKey={params.publicKey}
+            PaymentProviderComponent={(props) => (
+              <MercadoPagoProvider
+                {...props}
+                customStyles={{
+                  buttonColor: params.buttonColor,
+                  circleColor: params.circleColor,
+                  primaryButtonColor: params.primaryButtonColor,
+                  secondaryButtonColor: params.secondaryButtonColor
+                }}
+              />
+            )}
+            successUrl={params.finalSuccessUrl}
+            pendingUrl={params.finalPendingUrl}
+            failureUrl={params.finalFailureUrl}
+            onSuccess={(data) => console.log('Pago exitoso', data)}
+            onError={(error) => console.error('Error en el pago', error)}
+            hideTitle={params.hideTitle}
+            initialProductId={params.initialProductId}
+            customStyles={{
+              primaryButtonColor: params.primaryButtonColor,
+              secondaryButtonColor: params.secondaryButtonColor
+            }}
+          />
+        </Suspense>
+      </div>
+    </CartProvider>
   );
 }

@@ -2,20 +2,19 @@
 import * as React from "react"
 import { addPropertyControls, ControlType } from "framer"
 
-// Mismo código para manejar sessionId globalmente
+/**
+ * Componente CartButtonEmbed simplificado para Framer
+ * Este componente ahora actúa como un puente hacia la API
+ * en lugar de implementar la lógica del carrito internamente
+ */
 interface CartButtonEmbedProps {
-    checkoutUrl: string
     iconColor: string
     badgeColor: string
-    cartBgColor: string
-    buttonColor: string
-    textColor: string
     size: number
     showBadge: boolean
     width: number
     height: number
     onCartOpen?: (event: any) => void
-    onCheckout?: (event: any) => void
     // Nuevo prop opcional para forzar un sessionId
     sessionIdOverride?: string
 }
@@ -24,27 +23,18 @@ export function CartButtonEmbed(
     props: CartButtonEmbedProps
 ): React.ReactElement {
     const {
-        checkoutUrl,
         iconColor,
         badgeColor,
-        cartBgColor,
-        buttonColor,
-        textColor,
         size,
         showBadge,
         width,
         height,
         onCartOpen,
-        onCheckout,
         sessionIdOverride
     } = props;
     
-    const [isCartOpen, setIsCartOpen] = React.useState(false);
-    const [cartItems, setCartItems] = React.useState([]);
     const [cartCount, setCartCount] = React.useState(0);
-    const [cartTotal, setCartTotal] = React.useState(0);
-    
-    // CLAVE: Usar la misma lógica para obtener/crear el sessionId
+      // Obtener o crear sessionId global
     const getOrCreateGlobalSessionId = React.useCallback(() => {
         // 1. Intentar obtener de la URL
         if (typeof window !== 'undefined') {
@@ -53,13 +43,13 @@ export function CartButtonEmbed(
             if (sessionFromUrl) return sessionFromUrl;
         }
         
-        // 2. Intentar obtener del sessionStorage (persistente en la sesión)
+        // 2. Intentar obtener del sessionStorage
         if (typeof window !== 'undefined' && window.sessionStorage) {
             const storedId = sessionStorage.getItem('mp_global_session_id');
             if (storedId) return storedId;
         }
         
-        // 3. Crear uno nuevo y guardarlo para que sea consistente
+        // 3. Crear uno nuevo y guardarlo
         const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         if (typeof window !== 'undefined' && window.sessionStorage) {
             sessionStorage.setItem('mp_global_session_id', newSessionId);
@@ -67,298 +57,89 @@ export function CartButtonEmbed(
         return newSessionId;
     }, []);
     
-    // Usar el sessionId global o el override proporcionado explícitamente
+    // Usar el sessionId global o el override proporcionado
     const sessionId = React.useMemo(() => 
         sessionIdOverride || getOrCreateGlobalSessionId(), 
     [getOrCreateGlobalSessionId, sessionIdOverride]);
     
-    // MODIFICADO: syncWithExternalCart ahora usa el sessionId correcto
-    const syncWithExternalCart = React.useCallback(() => {
-        if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
-            // Si el sitio expone la API del carrito, la usamos
-            const { getItems, getTotal, getCount } = window.AlturaDivinaCart;
-            if (typeof getItems === 'function') {
-                setCartItems(getItems());
-            }
-            if (typeof getTotal === 'function') {
-                setCartTotal(getTotal());
-            }
-            if (typeof getCount === 'function') {
-                setCartCount(getCount());
-            }
-        } else {
-            // Fallback a localStorage/sessionStorage
-            try {
-                // CLAVE: Primero intentar cargar con sessionId específico (como hace el iframe)
-                const savedCartWithSessionId = localStorage.getItem(`mp_cart_${sessionId}`);
-                if (savedCartWithSessionId) {
-                    const cartData = JSON.parse(savedCartWithSessionId);
-                    setCartItems(cartData.items || []);
-                    setCartTotal(cartData.totalAmount || 0);
-                    const count = (cartData.items || []).reduce(
-                        (total, item) => total + (item.quantity || 0), 0
-                    );
-                    setCartCount(count);
-                    return; // Si encuentra carrito con sessionId, terminar
-                }
-                
-                // Si no hay carrito con sessionId, intentar obtener el general
-                const savedCart = sessionStorage.getItem('mp-cart');
-                if (savedCart) {
-                    const cartData = JSON.parse(savedCart);
-                    setCartItems(cartData.items || []);
-                    setCartTotal(cartData.totalAmount || 0);
-                    setCartCount(cartData.totalItems || 0);
-                }
-            } catch (e) {
-                console.error("Error al acceder al carrito:", e);
-            }
-        }
-    }, [sessionId]);
-    
-    // Cargar datos iniciales
-    React.useEffect(() => {
-        syncWithExternalCart();
+    // Cargar los datos del carrito desde la API
+    const fetchCartData = React.useCallback(async () => {
+        if (typeof window === 'undefined' || !sessionId) return;
         
-        // Intentar configurar un observador para cambios en el carrito
-        if (typeof window !== 'undefined') {
-            // Método 1: Escuchar un evento personalizado si está implementado
-            const handleCartUpdate = () => {
-                console.log("CartButtonEmbed: Evento de actualización recibido");
-                syncWithExternalCart();
-            };
-            window.addEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
-            
-            // Método 2: Usar MutationObserver para detectar cambios en el DOM
-            // que puedan indicar cambios en el carrito (como actualizaciones de badge)
-            try {
-                const targetNode = document.querySelector('.cart-badge') || document.body;
-                const observer = new MutationObserver((mutations) => {
-                    syncWithExternalCart();
-                });
-                observer.observe(targetNode, { 
-                    attributes: true, 
-                    childList: true,
-                    subtree: true,
-                    characterData: true
-                });
+        try {
+            // Si la API está disponible, usarla directamente
+            if (window.location.hostname !== 'framer.com' && 
+                !window.location.hostname.includes('framer.app')) {
+                const response = await fetch(`/api/cart?sessionId=${sessionId}`);
+                const data = await response.json();
                 
-                return () => {
-                    window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
-                    observer.disconnect();
-                };
-            } catch (e) {
-                console.warn('No se pudo configurar el observador DOM:', e);
-                return () => {
-                    window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
-                };
-            }
-        }
-    }, [syncWithExternalCart]);
-    
-    // Verificar periódicamente si hay cambios en el carrito
-    React.useEffect(() => {
-        const intervalId = setInterval(syncWithExternalCart, 2000);
-        return () => clearInterval(intervalId);
-    }, [syncWithExternalCart]);
-    
-    // Formatear precio
-    const formatPrice = (price) => {
-        return price.toLocaleString('es-MX', {
-            style: 'currency',
-            currency: 'MXN',
-        });
-    };
-    
-    const toggleCart = () => {
-        const newState = !isCartOpen;
-        setIsCartOpen(newState);
-        
-        // Si estamos abriendo el carrito y existe el CartContext externo, mostrar el sidebar del sitio en lugar del nuestro
-        if (newState) {
-            if (typeof window !== 'undefined' && window.AlturaDivinaCart && typeof window.AlturaDivinaCart.openCart === 'function') {
-                // Usar la función de abrir carrito del sitio
-                window.AlturaDivinaCart.openCart();
-                setIsCartOpen(false); // No mostrar nuestro propio sidebar
-                
-                if (onCartOpen) {
-                    onCartOpen({
-                        cartItems,
-                        cartTotal,
-                        externalCartUsed: true
-                    });
+                if (data.success && data.cart) {
+                    setCartCount(data.cart.totalItems || 0);
                 }
                 return;
             }
             
-            if (onCartOpen) {
-                onCartOpen({
-                    cartItems,
-                    cartTotal,
-                    externalCartUsed: false
-                });
-            }
-        }
-    };
-    
-    const handleExternalAction = (action, payload) => {
-        if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
-            // Si tenemos acceso a la API del carrito del sitio
-            const { removeItem, updateQuantity, clearCart } = window.AlturaDivinaCart;
-            
-            switch (action) {
-                case 'remove':
-                    if (typeof removeItem === 'function') {
-                        removeItem(payload.productId);
-                        syncWithExternalCart();
-                        return true;
-                    }
-                    break;
-                case 'update':
-                    if (typeof updateQuantity === 'function') {
-                        updateQuantity(payload.productId, payload.quantity);
-                        syncWithExternalCart();
-                        return true;
-                    }
-                    break;
-                case 'clear':
-                    if (typeof clearCart === 'function') {
-                        clearCart();
-                        syncWithExternalCart();
-                        return true;
-                    }
-                    break;
-            }
-        }
-        return false;
-    };
-    
-    // MODIFICADO: Función updateCartAndNotify para notificar cambios
-    const updateCartAndNotify = (items, total, action = 'update', affectedProductId = null, affectedQuantity = null) => {
-        // Actualizar localStorage con el sessionId consistente
-        try {
-            localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
-                items: items,
-                totalAmount: total,
-                totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
-                timestamp: new Date().toISOString()
-            }));
-            
-            // NUEVO: Disparar evento para notificar a otros componentes
-            if (typeof window !== 'undefined') {
-                const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                    detail: { 
-                        source: 'cart_button', 
-                        sessionId,
-                        action: action,
-                        productId: affectedProductId,
-                        quantity: affectedQuantity,
-                        cart: {
-                            items: items,
-                            totalAmount: total,
-                            totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
-                        }
-                    }
-                });
-                window.dispatchEvent(updateEvent);
+            // Si estamos en Framer, intentar obtener del localStorage
+            try {
+                const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
+                if (savedCart) {
+                    const cartData = JSON.parse(savedCart);
+                    setCartCount(cartData.totalItems || 0);
+                }
+            } catch (e) {
+                console.error("Error al leer datos del carrito:", e);
             }
             
-        } catch (e) {
-            console.error("Error al actualizar carrito:", e);
+        } catch (error) {
+            console.error("Error al obtener datos del carrito:", error);
         }
-    };
-    
-    const removeItem = (productId) => {
-        // Intentar usar la función externa primero
-        if (handleExternalAction('remove', { productId })) {
-            return;
-        }
+    }, [sessionId]);
+      // Cargar datos iniciales y configurar listener para actualizaciones
+    React.useEffect(() => {
+        fetchCartData();
         
-        // Si no hay API externa, actualizar solo el estado local
-        const updatedItems = cartItems.filter(item => item.productId !== productId);
-        const newTotal = updatedItems.reduce(
-            (total, item) => total + (item.price * item.quantity), 0
-        );
-        
-        // Actualizar estado local
-        setCartItems(updatedItems);
-        setCartTotal(newTotal);
-        setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
-        
-        // Actualizar localStorage y notificar
-        updateCartAndNotify(updatedItems, newTotal, 'remove', productId, 0);
-    };
-    
-    const updateQuantity = (productId, quantity) => {
-        // Intentar usar la función externa primero
-        if (handleExternalAction('update', { productId, quantity })) {
-            return;
-        }
-        
-        // Implementación local como fallback
-        if (quantity <= 0) {
-            removeItem(productId);
-            return;
-        }
-        
-        const updatedItems = cartItems.map(item => {
-            if (item.productId === productId) {
-                return { ...item, quantity };
+        // Escuchar eventos de actualización del carrito
+        const handleCartUpdate = (event) => {
+            if (event.detail && event.detail.sessionId === sessionId) {
+                fetchCartData();
             }
-            return item;
-        });
+        };
         
-        const newTotal = updatedItems.reduce(
-            (total, item) => total + (item.price * item.quantity), 0
-        );
-        
-        // Actualizar estado local
-        setCartItems(updatedItems);
-        setCartTotal(newTotal);
-        setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
-        
-        // Actualizar localStorage y notificar
-        updateCartAndNotify(updatedItems, newTotal, 'update', productId, quantity);
-    };
-    
-    const clearCart = () => {
-        // Intentar usar la función externa primero
-        if (handleExternalAction('clear', {})) {
-            return;
+        if (typeof window !== 'undefined') {
+            window.addEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
+            
+            // Verificar cada 3 segundos
+            const intervalId = setInterval(fetchCartData, 3000);
+            
+            return () => {
+                window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
+                clearInterval(intervalId);
+            };
+        }
+    }, [fetchCartData, sessionId]);
+      // Manejar clic en el botón del carrito
+    const handleCartButtonClick = () => {
+        // Notificar a la aplicación principal
+        if (typeof window !== 'undefined') {
+            const event = new CustomEvent('ALTURA_DIVINA_OPEN_CART', {
+                detail: { sessionId }
+            });
+            window.dispatchEvent(event);
         }
         
-        // Implementación local como fallback
-        setCartItems([]);
-        setCartTotal(0);
-        setCartCount(0);
-        
-        // Actualizar localStorage y notificar
-        updateCartAndNotify([], 0, 'clear');
-    };
-    
-    const handleCheckout = () => {
-        if (onCheckout) {
-            onCheckout({
-                cartItems,
-                cartTotal
+        // Callback opcional
+        if (onCartOpen) {
+            onCartOpen({
+                sessionId,
+                cartCount
             });
         }
-        
-        // Si hay una función de checkout en el sitio, usarla
-        if (typeof window !== 'undefined' && window.AlturaDivinaCart && typeof window.AlturaDivinaCart.checkout === 'function') {
-            window.AlturaDivinaCart.checkout();
-            return;
-        }
-        
-        // Fallback: redirigir a la URL de checkout
-        window.location.href = checkoutUrl;
     };
-    
-    return (
+      // El resto del código de CartButtonEmbed se ha simplificado
+    // Ahora solo muestra un botón que abre el carrito del sitio principal    return (
         <div style={{ width, height, position: 'relative' }}>
-            {/* Botón del carrito */}
             <button 
-                onClick={toggleCart}
+                onClick={handleCartButtonClick}
                 style={{
                     backgroundColor: 'transparent',
                     border: 'none',
@@ -366,7 +147,9 @@ export function CartButtonEmbed(
                     padding: 0,
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: '100%'
                 }}
                 aria-label="Ver carrito"
             >
@@ -386,8 +169,7 @@ export function CartButtonEmbed(
                 </svg>
                 
                 {/* Badge con contador */}
-                {showBadge && cartCount > 0 && (
-                    <span style={{
+                {showBadge && cartCount > 0 && (<span style={{
                         position: 'absolute',
                         top: '-8px',
                         right: '-8px',
@@ -403,29 +185,10 @@ export function CartButtonEmbed(
                         fontWeight: 'bold'
                     }}>
                         {cartCount > 99 ? '99+' : cartCount}
-                    </span>
-                )}
+                    </span>                )}
             </button>
-            
-            {/* Sidebar del carrito (solo se muestra si no pudimos usar el del sitio) */}
-            {isCartOpen && (
-                <>
-                    {/* Overlay */}
-                    <div 
-                        style={{
-                            position: 'fixed',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                            zIndex: 9998
-                        }}
-                        onClick={toggleCart}
-                    ></div>
-                    
-                    {/* Panel del carrito */}
-                    <div style={{
+        </div>
+    );
                         position: 'fixed',
                         top: 0,
                         right: 0,
@@ -679,13 +442,8 @@ export function CartButtonEmbed(
     );
 }
 
-// Controles para el panel de Framer (igual que antes)
+// Controles para el panel de Framer
 addPropertyControls(CartButtonEmbed, {
-    checkoutUrl: {
-        title: "URL de Checkout",
-        type: ControlType.String,
-        defaultValue: "/checkout",
-    },
     iconColor: {
         title: "Color del Icono",
         type: ControlType.Color,
@@ -695,21 +453,6 @@ addPropertyControls(CartButtonEmbed, {
         title: "Color de Badge",
         type: ControlType.Color,
         defaultValue: "#F26F32",
-    },
-    cartBgColor: {
-        title: "Color Fondo Carrito",
-        type: ControlType.Color,
-        defaultValue: "#FFFFFF",
-    },
-    buttonColor: {
-        title: "Color de Botones",
-        type: ControlType.Color,
-        defaultValue: "#F26F32",
-    },
-    textColor: {
-        title: "Color de Texto",
-        type: ControlType.Color,
-        defaultValue: "#333333",
     },
     size: {
         title: "Tamaño Icono",
@@ -744,10 +487,6 @@ addPropertyControls(CartButtonEmbed, {
         title: "Al Abrir Carrito",
         type: ControlType.EventHandler,
     },
-    onCheckout: {
-        title: "Al Procesar Pago",
-        type: ControlType.EventHandler,
-    },
     sessionIdOverride: {
         title: "Session ID (opcional)",
         type: ControlType.String,
@@ -757,12 +496,8 @@ addPropertyControls(CartButtonEmbed, {
 
 // Props por defecto en canvas
 CartButtonEmbed.defaultProps = {
-    checkoutUrl: "/checkout",
     iconColor: "#333333",
     badgeColor: "#F26F32",
-    cartBgColor: "#FFFFFF",
-    buttonColor: "#F26F32",
-    textColor: "#333333",
     size: 24,
     showBadge: true,
     width: 40,
