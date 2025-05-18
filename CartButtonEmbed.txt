@@ -234,31 +234,19 @@ export function CartButtonEmbed(
     };
     
     // MODIFICADO: Función updateCartAndNotify para notificar cambios
-    const updateCartAndNotify = (items, total, action = 'update', affectedProductId = null, affectedQuantity = null) => {
+    const updateCartAndNotify = (items, total) => {
         // Actualizar localStorage con el sessionId consistente
         try {
             localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
                 items: items,
                 totalAmount: total,
-                totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
                 timestamp: new Date().toISOString()
             }));
             
             // NUEVO: Disparar evento para notificar a otros componentes
             if (typeof window !== 'undefined') {
                 const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                    detail: { 
-                        source: 'cart_button', 
-                        sessionId,
-                        action: action,
-                        productId: affectedProductId,
-                        quantity: affectedQuantity,
-                        cart: {
-                            items: items,
-                            totalAmount: total,
-                            totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
-                        }
-                    }
+                    detail: { source: 'cart_button', sessionId }
                 });
                 window.dispatchEvent(updateEvent);
             }
@@ -286,7 +274,7 @@ export function CartButtonEmbed(
         setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
         
         // Actualizar localStorage y notificar
-        updateCartAndNotify(updatedItems, newTotal, 'remove', productId, 0);
+        updateCartAndNotify(updatedItems, newTotal);
     };
     
     const updateQuantity = (productId, quantity) => {
@@ -318,7 +306,7 @@ export function CartButtonEmbed(
         setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
         
         // Actualizar localStorage y notificar
-        updateCartAndNotify(updatedItems, newTotal, 'update', productId, quantity);
+        updateCartAndNotify(updatedItems, newTotal);
     };
     
     const clearCart = () => {
@@ -333,7 +321,7 @@ export function CartButtonEmbed(
         setCartCount(0);
         
         // Actualizar localStorage y notificar
-        updateCartAndNotify([], 0, 'clear');
+        updateCartAndNotify([], 0);
     };
     
     const handleCheckout = () => {

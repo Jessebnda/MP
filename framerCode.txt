@@ -124,26 +124,8 @@ export function MercadoPagoEmbed(
             else if (event.data.type === 'CART_UPDATE') {
                 // NUEVO: Cuando el iframe actualiza el carrito, notificar a otros componentes
                 if (typeof window !== 'undefined') {
-                    // Try to get the cart data from localStorage
-                    let cartData = null;
-                    try {
-                        const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
-                        if (savedCart) {
-                            cartData = JSON.parse(savedCart);
-                        }
-                    } catch (e) {
-                        console.error("Error reading cart data:", e);
-                    }
-                    
                     const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                        detail: { 
-                            source: 'mercadopago_iframe', 
-                            sessionId,
-                            action: event.data.action || 'update',
-                            productId: event.data.productId,
-                            quantity: event.data.quantity,
-                            cart: cartData
-                        }
+                        detail: { source: 'mercadopago_iframe', sessionId }
                     });
                     window.dispatchEvent(updateEvent);
                 }
