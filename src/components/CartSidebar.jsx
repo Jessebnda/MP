@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCart } from '../hooks/useCart';
 import CartItem from './CartItem';
 import styles from '../styles/CartSidebar.module.css';
@@ -14,11 +14,9 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
       setIsOpenInternal(externalIsOpen);
     }
   }, [externalIsOpen]);
-  
-  // Escuchar eventos externos para abrir el sidebar
+    // Escuchar eventos externos para abrir el sidebar
   useEffect(() => {
     const handleOpenCart = (event) => {
-      console.log('Evento para abrir carrito recibido', event.type);
       setIsOpenInternal(true);
     };
     
@@ -26,30 +24,18 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
     window.addEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
     window.addEventListener('ALTURA_DIVINA_OPEN_CART', handleOpenCart);
     
-    // También usar click en document como método de debug
-    const handleDocumentClick = (event) => {
-      if (event.target.closest('[data-cart-button]')) {
-        console.log('Clic en botón de carrito detectado');
-        setIsOpenInternal(true);
-      }
-    };
-    
-    document.addEventListener('click', handleDocumentClick);
-    
     return () => {
       window.removeEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
       window.removeEventListener('ALTURA_DIVINA_OPEN_CART', handleOpenCart);
-      document.removeEventListener('click', handleDocumentClick);
     };
   }, []);
   
   const handleClose = () => {
-    console.log('Cerrando carrito');
     setIsOpenInternal(false);
     if (onClose) onClose();
   };
   
-  const { items, totalAmount, clearCart, removeItem, updateQuantity } = useCart();
+  const { items, totalAmount, clearCart } = useCart();
   
   const formatPrice = (price) => {
     return price.toLocaleString('es-MX', {
@@ -59,27 +45,10 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
   };
 
   const handleCheckout = () => {
-    handleClose();
+    onClose();
     // Use the checkoutUrl prop or default to /checkout
-    const sessionId = window.AlturaDivinaCart?.getSessionId?.() || '';
-    window.location.href = `${checkoutUrl}?sessionId=${sessionId}`;
+    window.location.href = checkoutUrl;
   };
-  
-  const handleClearCart = useCallback(() => {
-    if (window.confirm('¿Estás seguro de que deseas vaciar tu carrito?')) {
-      clearCart();
-    }
-  }, [clearCart]);
-  
-  const handleUpdateQuantity = useCallback((productId, quantity) => {
-    if (quantity <= 0) {
-      if (window.confirm('¿Quieres eliminar este producto del carrito?')) {
-        removeItem(productId);
-      }
-    } else {
-      updateQuantity(productId, quantity);
-    }
-  }, [removeItem, updateQuantity]);
 
   return (
     <>
@@ -93,7 +62,7 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
         </div>
         
         <div className={styles.cartContent}>
-          {!items || items.length === 0 ? (
+          {items.length === 0 ? (
             <div className={styles.emptyCart}>
               <p>Tu carrito está vacío</p>
               <button onClick={handleClose} className={styles.continueShoppingButton}>
@@ -104,12 +73,7 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
             <>
               <div className={styles.cartItems}>
                 {items.map((item) => (
-                  <CartItem 
-                    key={item.productId} 
-                    item={item}
-                    onUpdateQuantity={(qty) => handleUpdateQuantity(item.productId, qty)}
-                    onRemove={() => removeItem(item.productId)}
-                  />
+                  <CartItem key={item.productId} item={item} />
                 ))}
               </div>
               
@@ -120,7 +84,7 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
                 </div>
                 
                 <div className={styles.cartActions}>
-                  <button onClick={handleClearCart} className={styles.clearCartButton}>
+                  <button onClick={clearCart} className={styles.clearCartButton}>
                     Vaciar Carrito
                   </button>
                   <button 
