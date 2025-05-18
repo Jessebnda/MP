@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useCart } from '../hooks/useCart';
-import { useSessionId } from '../hooks/useSessionId';
 
 /**
  * Este archivo expone la API del carrito para que componentes externos
@@ -27,7 +26,6 @@ export function exposeCartAPI() {
 // Hook para componentes que necesiten exponer la API del carrito
 export function useCartIntegration() {
   const cartContext = useCart();
-  const sessionId = useSessionId();
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -37,88 +35,58 @@ export function useCartIntegration() {
         getItems: () => cartContext.items,
         getCount: () => cartContext.totalItems,
         getTotal: () => cartContext.totalAmount,
-        getSessionId: () => sessionId,
         
         // Acciones
         addItem: (product, quantity = 1) => {
           cartContext.addItem(product, quantity);
-          notifyCartUpdated(sessionId);
+          notifyCartUpdated();
         },
         removeItem: (productId) => {
           cartContext.removeItem(productId);
-          notifyCartUpdated(sessionId);
+          notifyCartUpdated();
         },
         updateQuantity: (productId, quantity) => {
           cartContext.updateQuantity(productId, quantity);
-          notifyCartUpdated(sessionId);
+          notifyCartUpdated();
         },
         clearCart: () => {
           cartContext.clearCart();
-          notifyCartUpdated(sessionId);
+          notifyCartUpdated();
         },
         
         // Abrir/cerrar el carrito
         openCart: () => {
-          const event = new CustomEvent('OPEN_CART_SIDEBAR', {
-            detail: { sessionId }
-          });
+          // Implementa el código para abrir tu carrito
+          const event = new CustomEvent('OPEN_CART_SIDEBAR');
           window.dispatchEvent(event);
         },
         checkout: () => {
-          window.location.href = `/checkout?sessionId=${sessionId}`;
+          // Implementa el código para ir al checkout
+          window.location.href = '/checkout';
         }
-      };
-      
-      // Escuchar eventos de actualización del carrito desde componentes Framer
-      const handleExternalCartUpdate = (event) => {
-        try {
-          // Si el evento viene de un componente Framer con el mismo sessionId
-          if (event.detail && event.detail.sessionId === sessionId && 
-              event.detail.source && 
-              (event.detail.source === 'cart_button' || event.detail.source === 'mercadopago_iframe')) {
-            
-            // Intentar cargar el carrito desde localStorage
-            const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
-            if (savedCart) {
-              const cartData = JSON.parse(savedCart);
-              
-              // Solo actualizar si es diferente al estado actual
-              const currentCartJson = JSON.stringify(cartContext.items);
-              const newCartJson = JSON.stringify(cartData.items || []);
-              
-              if (currentCartJson !== newCartJson && cartData.items) {
-                // Primero limpiar el carrito
-                cartContext.clearCart();
-                
-                // Luego añadir los nuevos items
-                setTimeout(() => {
-                  cartData.items.forEach(item => {
-                    if (item.product && item.quantity) {
-                      cartContext.addItem(item.product, item.quantity);
-                    }
-                  });
-                }, 0);
-              }
-            }
-          }
-        } catch (err) {
-          console.error('Error al sincronizar carrito:', err);
-        }
-      };
-      
-      window.addEventListener('ALTURA_DIVINA_CART_UPDATE', handleExternalCartUpdate);
-      return () => {
-        window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleExternalCartUpdate);
       };
     }
-  }, [cartContext, sessionId]);
+  }, [cartContext]);
   
   return null;
 }
 
 // Función auxiliar para notificar a los componentes externos sobre cambios en el carrito
-function notifyCartUpdated(sessionId) {
+function notifyCartUpdated() {
   if (typeof window !== 'undefined') {
+    // Obtener el sessionId del mismo lugar donde lo obtienen los componentes Framer
+    let sessionId;
+    
+    // 1. Intentar obtener de la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    sessionId = urlParams.get('sessionId');
+    
+    // 2. Si no hay en URL, intentar obtener del sessionStorage
+    if (!sessionId) {
+      sessionId = sessionStorage.getItem('mp_global_session_id');
+    }
+    
+    // 3. Crear el evento con el sessionId en los detalles
     const event = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
       detail: { 
         source: 'cart_context',

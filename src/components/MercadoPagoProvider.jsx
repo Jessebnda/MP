@@ -27,7 +27,6 @@ export default function MercadoPagoProvider({
   containerStyles = {},
   hideTitle = false,
   customStyles = {}, // Added customStyles prop
-  sessionId = null, // Añadir este prop
 }) {
   const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000';
 
@@ -62,7 +61,6 @@ export default function MercadoPagoProvider({
     pendingUrl,
     failureUrl,
     hostUrl,
-    sessionId, // Pasar el sessionId
   });
 
   const [displayError, setDisplayError] = useState(null);

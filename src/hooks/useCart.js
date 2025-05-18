@@ -1,40 +1,57 @@
 import { useContext, useEffect } from 'react';
 import { CartContext } from '../contexts/CartContext';
-import { useSessionId } from './useSessionId';
 
-export function useCart(sessionIdOverride = null) {
+export function useCart() {
   const context = useContext(CartContext);
-  // Usar el hook unificado
-  const sessionId = useSessionId(sessionIdOverride);
   
   // Detectar si estamos en iframe
   const isInIframe = typeof window !== 'undefined' && window !== window.parent;
   
+  // Obtener sessionId de URL si está disponible
+  const getSessionIdFromUrl = () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('sessionId');
+    }
+    return null;
+  };
+  
   useEffect(() => {
-    // Si estamos en iframe y el carrito está vacío, intentar cargar desde localStorage
-    if (isInIframe && context.items.length === 0) {
+    const sessionId = getSessionIdFromUrl();
+    
+    // Si tenemos un sessionId y estamos en iframe, intentar cargar el carrito 
+    // con ese ID del localStorage
+    if (sessionId && isInIframe && context.items.length === 0) {
       try {
         const savedCart = localStorage.getItem(`mp_cart_${sessionId}`);
         if (savedCart) {
           const cartData = JSON.parse(savedCart);
           // Restaurar el carrito desde localStorage
-          if (cartData.items && Array.isArray(cartData.items)) {
-            cartData.items.forEach(item => {
-              if (item.product && item.quantity) {
-                context.addItem(item.product, item.quantity);
-              }
-            });
-          }
+          cartData.items.forEach(item => {
+            context.addItem(item.product, item.quantity);
+          });
         }
       } catch (e) {
         console.error("Error al restaurar carrito:", e);
       }
     }
-  }, [sessionId, isInIframe, context]);
+  }, []);
   
-  // Incluir el sessionId en el objeto retornado para que esté disponible
-  return {
-    ...context,
-    sessionId
-  };
+  // Guardar carrito en localStorage cuando cambie
+  useEffect(() => {
+    const sessionId = getSessionIdFromUrl();
+    if (sessionId) {
+      try {
+        localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
+          items: context.items,
+          totalAmount: context.totalAmount,
+          timestamp: new Date().toISOString()
+        }));
+      } catch (e) {
+        console.error("Error al guardar carrito:", e);
+      }
+    }
+  }, [context.items]);
+  
+  return context;
 }

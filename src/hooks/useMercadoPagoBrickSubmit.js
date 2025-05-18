@@ -30,7 +30,6 @@ export function useMercadoPagoBrickSubmit({
   pendingUrl,   // Redirect URL
   failureUrl,   // Redirect URL
   hostUrl,
-  sessionId, // Nuevo parámetro
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState(null);
@@ -116,8 +115,7 @@ export function useMercadoPagoBrickSubmit({
             window.parent.postMessage({
               type: 'MP_PAYMENT_SUCCESS',
               redirectUrl: successUrl,
-              paymentData: data,
-              sessionId: sessionId // Incluir el sessionId
+              paymentData: data
             }, '*');
             
             // Delay para asegurar que el mensaje llegue al contenedor
@@ -143,8 +141,7 @@ export function useMercadoPagoBrickSubmit({
             window.parent.postMessage({
               type: 'MP_PAYMENT_PENDING',
               redirectUrl: pendingUrl,
-              paymentData: data,
-              sessionId: sessionId // Incluir el sessionId
+              paymentData: data
             }, '*');
             
             setTimeout(() => {
