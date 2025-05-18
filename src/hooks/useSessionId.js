@@ -1,10 +1,6 @@
-import { useCallback, useMemo, useEffect } from 'react';
+// Nuevo archivo para centralizar la lógica del sessionId
+import { useCallback, useMemo } from 'react';
 
-/**
- * Hook para manejar el sessionId de manera consistente en toda la aplicación
- * Este hook asegura que el sessionId sea el mismo para todos los componentes
- * y que se propague correctamente entre la página principal y los iframes de Framer
- */
 export function useSessionId(sessionIdOverride = null) {
   // Función para obtener o crear el sessionId global
   const getOrCreateGlobalSessionId = useCallback(() => {
@@ -33,17 +29,6 @@ export function useSessionId(sessionIdOverride = null) {
   const sessionId = useMemo(() => 
     sessionIdOverride || getOrCreateGlobalSessionId(), 
   [getOrCreateGlobalSessionId, sessionIdOverride]);
-  
-  // Asegurar que el sessionId esté disponible para los componentes Framer
-  useEffect(() => {
-    if (typeof window !== 'undefined' && sessionId) {
-      // Guardar en sessionStorage para que esté disponible para todos los componentes
-      sessionStorage.setItem('mp_global_session_id', sessionId);
-      
-      // También hacer disponible como propiedad global
-      window.mpSessionId = sessionId;
-    }
-  }, [sessionId]);
   
   return sessionId;
 }

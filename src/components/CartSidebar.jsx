@@ -14,20 +14,15 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
       setIsOpenInternal(externalIsOpen);
     }
   }, [externalIsOpen]);
-    // Escuchar eventos externos para abrir el sidebar
+  
+  // Escuchar evento externo para abrir el sidebar
   useEffect(() => {
-    const handleOpenCart = (event) => {
+    const handleOpenCart = () => {
       setIsOpenInternal(true);
     };
     
-    // Escuchar tanto el evento del sitio como el evento de Framer
     window.addEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
-    window.addEventListener('ALTURA_DIVINA_OPEN_CART', handleOpenCart);
-    
-    return () => {
-      window.removeEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
-      window.removeEventListener('ALTURA_DIVINA_OPEN_CART', handleOpenCart);
-    };
+    return () => window.removeEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
   }, []);
   
   const handleClose = () => {
