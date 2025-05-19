@@ -5,32 +5,43 @@ import styles from '../styles/CartSidebar.module.css';
 import { cn } from '../lib/utils';
 
 const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout' }) => {
-  // Estado local para control interno
   const [isOpenInternal, setIsOpenInternal] = useState(externalIsOpen || false);
-  
-  // Sincronizar con prop externa si cambia
+  const { items, totalAmount, clearCart } = useCart(); // Asegúrate que useCart está importado
+
   useEffect(() => {
     if (externalIsOpen !== undefined) {
       setIsOpenInternal(externalIsOpen);
     }
   }, [externalIsOpen]);
-  
-  // Escuchar evento externo para abrir el sidebar
+
   useEffect(() => {
     const handleOpenCart = () => {
       setIsOpenInternal(true);
     };
-    
     window.addEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
     return () => window.removeEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
   }, []);
-  
+
+  // Notificar al padre (Framer) sobre el estado del sidebar
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.parent !== window) {
+      // Intentar obtener sessionId para dar contexto si es necesario
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionIdFromUrl = urlParams.get('sessionId');
+      const sessionId = sessionIdFromUrl || sessionStorage.getItem('mp_global_session_id');
+
+      window.parent.postMessage({
+        type: 'MP_IFRAME_CART_SIDEBAR_STATE', // Nombre de evento claro
+        isOpen: isOpenInternal,
+        sessionId: sessionId, // Opcional, para contexto
+      }, '*'); // Considera restringir el targetOrigin en producción
+    }
+  }, [isOpenInternal]);
+
   const handleClose = () => {
     setIsOpenInternal(false);
     if (onClose) onClose();
   };
-  
-  const { items, totalAmount, clearCart } = useCart();
   
   const formatPrice = (price) => {
     return price.toLocaleString('es-MX', {

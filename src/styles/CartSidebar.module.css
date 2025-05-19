@@ -11,12 +11,12 @@
 .cartSidebar {
   position: fixed;
   top: 0;
-  right: -400px;
-  width: 400px;
-  max-width: 90vw;
-  height: 100vh;
+  right: -400px; /* Oculto fuera de pantalla inicialmente */
+  width: 400px;   /* Ancho deseado para el sidebar */
+  max-width: 90vw; /* Máximo ancho relativo al viewport */
+  height: 100vh; /* Altura completa del viewport */
   background-color: white;
-  z-index: 999;
+  z-index: 999; /* Asegurar que esté por encima de otro contenido */
   box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
   transition: right 0.3s ease;
   display: flex;
@@ -24,7 +24,7 @@
 }
 
 .open {
-  right: 0;
+  right: 0; /* Se desliza para mostrarse */
 }
 
 .header {
