@@ -11,6 +11,7 @@ export const CART_ACTIONS = {
   REMOVE_ITEM: 'REMOVE_ITEM',
   UPDATE_QUANTITY: 'UPDATE_QUANTITY',
   CLEAR_CART: 'CLEAR_CART',
+  SYNC_CART_FROM_STORAGE: 'SYNC_CART_FROM_STORAGE', // Nueva acción
 };
 
 // Estado inicial
@@ -117,6 +118,25 @@ function cartReducer(state, action) {
     case CART_ACTIONS.CLEAR_CART:
       return initialState;
 
+    case CART_ACTIONS.SYNC_CART_FROM_STORAGE: {
+      if (typeof window !== 'undefined') {
+        const savedCart = sessionStorage.getItem('mp-cart');
+        if (savedCart) {
+          try {
+            // Solo actualiza si el estado es diferente para evitar bucles innecesarios
+            // Esta comparación es simple; podría necesitar ser más profunda si causa problemas.
+            if (JSON.stringify(state) !== savedCart) {
+              return JSON.parse(savedCart);
+            }
+            return state; // No hay cambios necesarios
+          } catch (error) {
+            console.error("Error parsing cart from storage for sync:", error);
+            return initialState; // O devuelve el estado actual: return state;
+          }
+        }
+      }
+      return state; // O initialState si no hay nada guardado
+    }
     default:
       return state;
   }
@@ -146,6 +166,22 @@ export const CartProvider = ({ children }) => {
       sessionStorage.setItem('mp-cart', JSON.stringify(cartState));
     }
   }, [cartState]);
+
+  // NUEVO: useEffect para escuchar eventos de storage
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === 'mp-cart' && event.storageArea === sessionStorage) {
+        logInfo('StorageEvent detectado para mp-cart. Sincronizando carrito.');
+        dispatch({ type: CART_ACTIONS.SYNC_CART_FROM_STORAGE });
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [dispatch]); // dispatch es estable y no necesita estar en las dependencias si se usa useCallback para las action creators
 
   // Funciones para interactuar con el carrito
   const addItem = (product, quantity = 1) => {
