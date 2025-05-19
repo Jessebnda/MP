@@ -39,12 +39,9 @@ export function MercadoPagoEmbed(
         height,
         onRedirect,
         sessionIdOverride,
-        displayMode,
-        initialStep,
+        displayMode, // New prop
+        initialStep, // New prop
     } = props
-
-    const [isSidebarOpenInIframe, setIsSidebarOpenInIframe] = React.useState(false)
-    const [iframeKey, setIframeKey] = React.useState(Date.now()) // Para forzar recarga del iframe si es necesario
 
     // CAMBIO CLAVE: Usar un sessionId global para toda la página
     const getOrCreateGlobalSessionId = React.useCallback(() => {
@@ -76,20 +73,16 @@ export function MercadoPagoEmbed(
     
     // El resto de tu código de MercadoPagoEmbed...
     React.useEffect(() => {
+        // Escuchar mensajes del iframe
         const handleMessage = (event: MessageEvent) => {
-            // CAMBIO: Usar una URL más específica o verificar el origen de forma más robusta
-            const allowedOriginPattern = /^https?:\/\/mercadopagoiframe\.vercel\.app$/;
-            if (!allowedOriginPattern.test(event.origin)) {
-                 // console.warn(`Mensaje ignorado de origen no permitido: ${event.origin}`);
+            // Verificar origen para seguridad
+            if (!event.origin.includes('mercadopagoiframe.vercel.app')) {
                 return;
             }
-
-            // Escuchar el estado del sidebar desde el iframe
-            if (event.data.type === 'MP_IFRAME_CART_SIDEBAR_STATE') {
-                setIsSidebarOpenInIframe(event.data.isOpen);
-            } 
-            else if (event.data.type === 'MP_PAYMENT_SUCCESS') { // Asegúrate que este tipo de evento exista y se maneje
+            
+            if (event.data.type === 'MP_PAYMENT_SUCCESS') {
                 console.log('Pago exitoso, redirigiendo a:', event.data.redirectUrl);
+                // Llamar al callback de redirección si existe
                 if (onRedirect) {
                     onRedirect({
                         status: 'success',
@@ -97,7 +90,9 @@ export function MercadoPagoEmbed(
                         data: event.data.paymentData
                     });
                 }
-                if (event.data.redirectUrl && window.top) {
+                
+                // Redireccionar la página completa
+                if (event.data.redirectUrl) {
                     window.top.location.href = event.data.redirectUrl;
                 }
             } 
@@ -139,14 +134,15 @@ export function MercadoPagoEmbed(
                 }
             }
         };
-
+        
         window.addEventListener('message', handleMessage);
+        
         return () => {
             window.removeEventListener('message', handleMessage);
         };
-    }, [onRedirect, successUrl, pendingUrl, failureUrl, sessionId]); // Añadir dependencias si es necesario
-
-    const baseUrl = "https://mercadopagoiframe.vercel.app/" // Asegúrate que esta es tu URL de deploy
+    }, [onRedirect, successUrl, pendingUrl, failureUrl, sessionId]);
+    
+    const baseUrl = "https://mercadopagoiframe.vercel.app/"
     const params = {
         initialProductId: productId || "",
         publicKey: publicKey || "",
@@ -168,43 +164,26 @@ export function MercadoPagoEmbed(
     if (initialStep !== undefined && initialStep !== null) {
         params["initialStep"] = initialStep.toString()
     }
-    // ... (construcción de queryParams e iframeSrc) ...
-    const queryParams = new URLSearchParams(Object.fromEntries(
-        Object.entries(params).filter(([_, v]) => v !== null && v !== undefined)
-    )).toString();
-    const iframeSrc = `${baseUrl}?${queryParams}`;
 
-
-    // Determinar dimensiones del iframe
-    let iframeWidth = width;
-    let iframeHeight = height;
-
-    if (displayMode === "cartIconOnly" && isSidebarOpenInIframe) {
-        iframeWidth = props.sidebarWidth || 320; // Nuevo prop para ancho del sidebar, o un valor fijo
-        iframeHeight = props.sidebarHeight || "100%"; // Nuevo prop para altura, o un valor fijo
-    } else if (displayMode === "cartIconOnly" && !isSidebarOpenInIframe) {
-        iframeWidth = props.iconWidth || 60; // Nuevo prop para ancho del icono
-        iframeHeight = props.iconHeight || 60; // Nuevo prop para alto del icono
-    }
-
+    const queryParams = new URLSearchParams(params).toString()
+    const iframeSrc = `${baseUrl}?${queryParams}`
 
     return (
         <iframe
-            key={iframeKey} // Puede ayudar a forzar la recarga si cambian props críticas
             src={iframeSrc}
-            width={iframeWidth}
-            height={iframeHeight}
+            width={width}
+            height={height}
             style={{
                 border: "none",
                 borderRadius: "8px",
                 overflow: "hidden",
-                transition: "width 0.3s ease, height 0.3s ease", // Transición suave
             }}
             allow="payment"
         />
     )
 }
 
+// Controles en el panel de Framer
 addPropertyControls(MercadoPagoEmbed, {
     productId: {
         title: "Product ID",
@@ -291,40 +270,16 @@ addPropertyControls(MercadoPagoEmbed, {
     initialStep: {
         title: "Initial Step (PaymentFlow)",
         type: ControlType.Number,
-        defaultValue: 1,
+        defaultValue: 1, // Or undefined if you prefer no default to be sent
         min: 1,
         step: 1,
         hidden(props) {
-            return props.displayMode === "cartIconOnly" || props.displayMode === "full"
+            return props.displayMode === "cartIconOnly"
         },
     },
-    // Nuevos props para controlar tamaños en modo cartIconOnly
-    iconWidth: {
-        title: "Icon Width (cartIconOnly)",
-        type: ControlType.Number,
-        defaultValue: 60,
-        hidden(props) { return props.displayMode !== "cartIconOnly"; },
-    },
-    iconHeight: {
-        title: "Icon Height (cartIconOnly)",
-        type: ControlType.Number,
-        defaultValue: 60,
-        hidden(props) { return props.displayMode !== "cartIconOnly"; },
-    },
-    sidebarWidth: {
-        title: "Sidebar Width (cartIconOnly)",
-        type: ControlType.Number,
-        defaultValue: 320,
-        hidden(props) { return props.displayMode !== "cartIconOnly"; },
-    },
-    sidebarHeight: {
-        title: "Sidebar Height (cartIconOnly)",
-        type: ControlType.String, // Puede ser número o "100%"
-        defaultValue: "100%",
-        hidden(props) { return props.displayMode !== "cartIconOnly"; },
-    },
-});
+})
 
+// Props por defecto en canvas
 MercadoPagoEmbed.defaultProps = {
     productId: "2",
     publicKey: "",
@@ -340,8 +295,4 @@ MercadoPagoEmbed.defaultProps = {
     height: 500,
     displayMode: "full",
     initialStep: 1,
-    iconWidth: 60,
-    iconHeight: 60,
-    sidebarWidth: 320,
-    sidebarHeight: "100%",
 }
