@@ -9,15 +9,16 @@ interface MercadoPagoEmbedProps {
     pendingUrl: string
     failureUrl: string
     hideTitle: boolean
-    buttonColor: string         
-    circleColor: string         
-    primaryButtonColor: string  
+    buttonColor: string
+    circleColor: string
+    primaryButtonColor: string
     secondaryButtonColor: string
     width: number | string
     height: number | string
     onRedirect?: (event: any) => void
-    // Nuevo prop opcional para forzar un sessionId
     sessionIdOverride?: string
+    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly" // New prop
+    initialStep?: number // New prop
 }
 
 export function MercadoPagoEmbed(
@@ -37,9 +38,11 @@ export function MercadoPagoEmbed(
         width,
         height,
         onRedirect,
-        sessionIdOverride
-    } = props;
-    
+        sessionIdOverride,
+        displayMode, // New prop
+        initialStep, // New prop
+    } = props
+
     // CAMBIO CLAVE: Usar un sessionId global para toda la página
     const getOrCreateGlobalSessionId = React.useCallback(() => {
         // 1. Intentar obtener de la URL
@@ -139,24 +142,32 @@ export function MercadoPagoEmbed(
         };
     }, [onRedirect, successUrl, pendingUrl, failureUrl, sessionId]);
     
-    const baseUrl = "https://mercadopagoiframe.vercel.app/";
-    const queryParams = new URLSearchParams({
-        initialProductId: productId || '',
-        publicKey: publicKey || '',
-        successUrl: successUrl || '',
-        pendingUrl: pendingUrl || '',
-        failureUrl: failureUrl || '',
-        hideTitle: hideTitle ? 'true' : 'false',
-        buttonColor: buttonColor || '#F26F32', 
-        circleColor: circleColor || '#F26F32',
-        primaryButtonColor: primaryButtonColor || '#F26F32',
-        secondaryButtonColor: secondaryButtonColor || '#E5E5E5',
-        isInIframe: 'true',
-        sessionId: sessionId  // Usar el sessionId consistente
-    }).toString();
-    
-    const iframeSrc = `${baseUrl}?${queryParams}`;
-    
+    const baseUrl = "https://mercadopagoiframe.vercel.app/"
+    const params = {
+        initialProductId: productId || "",
+        publicKey: publicKey || "",
+        successUrl: successUrl || "",
+        pendingUrl: pendingUrl || "",
+        failureUrl: failureUrl || "",
+        hideTitle: hideTitle ? "true" : "false",
+        buttonColor: buttonColor || "#F26F32",
+        circleColor: circleColor || "#F26F32",
+        primaryButtonColor: primaryButtonColor || "#F26F32",
+        secondaryButtonColor: secondaryButtonColor || "#E5E5E5",
+        isInIframe: "true",
+        sessionId: sessionId, // Usar el sessionId consistente
+    }
+
+    if (displayMode) {
+        params["displayMode"] = displayMode
+    }
+    if (initialStep !== undefined && initialStep !== null) {
+        params["initialStep"] = initialStep.toString()
+    }
+
+    const queryParams = new URLSearchParams(params).toString()
+    const iframeSrc = `${baseUrl}?${queryParams}`
+
     return (
         <iframe
             src={iframeSrc}
@@ -165,11 +176,11 @@ export function MercadoPagoEmbed(
             style={{
                 border: "none",
                 borderRadius: "8px",
-                overflow: "hidden"
+                overflow: "hidden",
             }}
             allow="payment"
         />
-    );
+    )
 }
 
 // Controles en el panel de Framer
@@ -249,7 +260,23 @@ addPropertyControls(MercadoPagoEmbed, {
         title: "Session ID (opcional)",
         type: ControlType.String,
         defaultValue: "",
-    }
+    },
+    displayMode: {
+        title: "Display Mode",
+        type: ControlType.Enum,
+        options: ["full", "cartIconOnly", "paymentFlowOnly"],
+        defaultValue: "full",
+    },
+    initialStep: {
+        title: "Initial Step (PaymentFlow)",
+        type: ControlType.Number,
+        defaultValue: 1, // Or undefined if you prefer no default to be sent
+        min: 1,
+        step: 1,
+        hidden(props) {
+            return props.displayMode === "cartIconOnly"
+        },
+    },
 })
 
 // Props por defecto en canvas
@@ -266,4 +293,6 @@ MercadoPagoEmbed.defaultProps = {
     secondaryButtonColor: "#E5E5E5",
     width: 300,
     height: 500,
+    displayMode: "full",
+    initialStep: 1,
 }

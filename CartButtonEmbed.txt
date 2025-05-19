@@ -2,7 +2,6 @@
 import * as React from "react"
 import { addPropertyControls, ControlType } from "framer"
 
-// Mismo código para manejar sessionId globalmente
 interface CartButtonEmbedProps {
     checkoutUrl: string
     iconColor: string
@@ -16,8 +15,6 @@ interface CartButtonEmbedProps {
     height: number
     onCartOpen?: (event: any) => void
     onCheckout?: (event: any) => void
-    // Nuevo prop opcional para forzar un sessionId
-    sessionIdOverride?: string
 }
 
 export function CartButtonEmbed(
@@ -36,459 +33,417 @@ export function CartButtonEmbed(
         height,
         onCartOpen,
         onCheckout,
-        sessionIdOverride
-    } = props;
-    
-    const [isCartOpen, setIsCartOpen] = React.useState(false);
-    const [cartItems, setCartItems] = React.useState([]);
-    const [cartCount, setCartCount] = React.useState(0);
-    const [cartTotal, setCartTotal] = React.useState(0);
-    
-    // CLAVE: Usar la misma lógica para obtener/crear el sessionId
-    const getOrCreateGlobalSessionId = React.useCallback(() => {
-        // 1. Intentar obtener de la URL
-        if (typeof window !== 'undefined') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionFromUrl = urlParams.get('sessionId');
-            if (sessionFromUrl) return sessionFromUrl;
-        }
-        
-        // 2. Intentar obtener del sessionStorage (persistente en la sesión)
-        if (typeof window !== 'undefined' && window.sessionStorage) {
-            const storedId = sessionStorage.getItem('mp_global_session_id');
-            if (storedId) return storedId;
-        }
-        
-        // 3. Crear uno nuevo y guardarlo para que sea consistente
-        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        if (typeof window !== 'undefined' && window.sessionStorage) {
-            sessionStorage.setItem('mp_global_session_id', newSessionId);
-        }
-        return newSessionId;
-    }, []);
-    
-    // Usar el sessionId global o el override proporcionado explícitamente
-    const sessionId = React.useMemo(() => 
-        sessionIdOverride || getOrCreateGlobalSessionId(), 
-    [getOrCreateGlobalSessionId, sessionIdOverride]);
-    
-    // MODIFICADO: syncWithExternalCart ahora usa el sessionId correcto
+    } = props
+
+    const [isCartOpen, setIsCartOpen] = React.useState(false)
+    const [cartItems, setCartItems] = React.useState([])
+    const [cartCount, setCartCount] = React.useState(0)
+    const [cartTotal, setCartTotal] = React.useState(0)
+
+    // Para comunicarse con el CartContext del sitio principal
     const syncWithExternalCart = React.useCallback(() => {
-        if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
+        if (typeof window !== "undefined" && window.AlturaDivinaCart) {
             // Si el sitio expone la API del carrito, la usamos
-            const { getItems, getTotal, getCount } = window.AlturaDivinaCart;
-            if (typeof getItems === 'function') {
-                setCartItems(getItems());
+            const { getItems, getTotal, getCount } = window.AlturaDivinaCart
+            if (typeof getItems === "function") {
+                setCartItems(getItems())
             }
-            if (typeof getTotal === 'function') {
-                setCartTotal(getTotal());
+            if (typeof getTotal === "function") {
+                setCartTotal(getTotal())
             }
-            if (typeof getCount === 'function') {
-                setCartCount(getCount());
+            if (typeof getCount === "function") {
+                setCartCount(getCount())
             }
         } else {
-            // Fallback a localStorage/sessionStorage
+            // Fallback a localStorage si la API no está disponible
             try {
-                // CLAVE: Primero intentar cargar con sessionId específico (como hace el iframe)
-                const savedCartWithSessionId = localStorage.getItem(`mp_cart_${sessionId}`);
-                if (savedCartWithSessionId) {
-                    const cartData = JSON.parse(savedCartWithSessionId);
-                    setCartItems(cartData.items || []);
-                    setCartTotal(cartData.totalAmount || 0);
-                    const count = (cartData.items || []).reduce(
-                        (total, item) => total + (item.quantity || 0), 0
-                    );
-                    setCartCount(count);
-                    return; // Si encuentra carrito con sessionId, terminar
-                }
-                
-                // Si no hay carrito con sessionId, intentar obtener el general
-                const savedCart = sessionStorage.getItem('mp-cart');
+                // Intentamos obtener el carrito desde sessionStorage como lo hace CartContext
+                const savedCart = sessionStorage.getItem("mp-cart")
                 if (savedCart) {
-                    const cartData = JSON.parse(savedCart);
-                    setCartItems(cartData.items || []);
-                    setCartTotal(cartData.totalAmount || 0);
-                    setCartCount(cartData.totalItems || 0);
+                    const cartData = JSON.parse(savedCart)
+                    setCartItems(cartData.items || [])
+                    setCartTotal(cartData.totalAmount || 0)
+                    setCartCount(cartData.totalItems || 0)
                 }
             } catch (e) {
-                console.error("Error al acceder al carrito:", e);
+                console.error("Error al acceder al carrito:", e)
             }
         }
-    }, [sessionId]);
-    
+    }, [])
+
     // Cargar datos iniciales
     React.useEffect(() => {
-        syncWithExternalCart();
-        
+        syncWithExternalCart()
+
         // Intentar configurar un observador para cambios en el carrito
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
             // Método 1: Escuchar un evento personalizado si está implementado
-            const handleCartUpdate = () => {
-                console.log("CartButtonEmbed: Evento de actualización recibido");
-                syncWithExternalCart();
-            };
-            window.addEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
-            
+            const handleCartUpdate = () => syncWithExternalCart()
+            window.addEventListener(
+                "ALTURA_DIVINA_CART_UPDATE",
+                handleCartUpdate
+            )
+
             // Método 2: Usar MutationObserver para detectar cambios en el DOM
             // que puedan indicar cambios en el carrito (como actualizaciones de badge)
             try {
-                const targetNode = document.querySelector('.cart-badge') || document.body;
+                const targetNode =
+                    document.querySelector(".cart-badge") || document.body
                 const observer = new MutationObserver((mutations) => {
-                    syncWithExternalCart();
-                });
-                observer.observe(targetNode, { 
-                    attributes: true, 
+                    syncWithExternalCart()
+                })
+                observer.observe(targetNode, {
+                    attributes: true,
                     childList: true,
                     subtree: true,
-                    characterData: true
-                });
-                
+                    characterData: true,
+                })
+
                 return () => {
-                    window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
-                    observer.disconnect();
-                };
+                    window.removeEventListener(
+                        "ALTURA_DIVINA_CART_UPDATE",
+                        handleCartUpdate
+                    )
+                    observer.disconnect()
+                }
             } catch (e) {
-                console.warn('No se pudo configurar el observador DOM:', e);
+                console.warn("No se pudo configurar el observador DOM:", e)
                 return () => {
-                    window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleCartUpdate);
-                };
+                    window.removeEventListener(
+                        "ALTURA_DIVINA_CART_UPDATE",
+                        handleCartUpdate
+                    )
+                }
             }
         }
-    }, [syncWithExternalCart]);
-    
+    }, [syncWithExternalCart])
+
     // Verificar periódicamente si hay cambios en el carrito
     React.useEffect(() => {
-        const intervalId = setInterval(syncWithExternalCart, 2000);
-        return () => clearInterval(intervalId);
-    }, [syncWithExternalCart]);
-    
+        const intervalId = setInterval(syncWithExternalCart, 2000)
+        return () => clearInterval(intervalId)
+    }, [syncWithExternalCart])
+
     // Formatear precio
     const formatPrice = (price) => {
-        return price.toLocaleString('es-MX', {
-            style: 'currency',
-            currency: 'MXN',
-        });
-    };
-    
+        return price.toLocaleString("es-MX", {
+            style: "currency",
+            currency: "MXN",
+        })
+    }
+
     const toggleCart = () => {
-        const newState = !isCartOpen;
-        setIsCartOpen(newState);
-        
+        const newState = !isCartOpen
+        setIsCartOpen(newState)
+
         // Si estamos abriendo el carrito y existe el CartContext externo, mostrar el sidebar del sitio en lugar del nuestro
         if (newState) {
-            if (typeof window !== 'undefined' && window.AlturaDivinaCart && typeof window.AlturaDivinaCart.openCart === 'function') {
+            if (
+                typeof window !== "undefined" &&
+                window.AlturaDivinaCart &&
+                typeof window.AlturaDivinaCart.openCart === "function"
+            ) {
                 // Usar la función de abrir carrito del sitio
-                window.AlturaDivinaCart.openCart();
-                setIsCartOpen(false); // No mostrar nuestro propio sidebar
-                
+                window.AlturaDivinaCart.openCart()
+                setIsCartOpen(false) // No mostrar nuestro propio sidebar
+
                 if (onCartOpen) {
                     onCartOpen({
                         cartItems,
                         cartTotal,
-                        externalCartUsed: true
-                    });
+                        externalCartUsed: true,
+                    })
                 }
-                return;
+                return
             }
-            
+
             if (onCartOpen) {
                 onCartOpen({
                     cartItems,
                     cartTotal,
-                    externalCartUsed: false
-                });
+                    externalCartUsed: false,
+                })
             }
         }
-    };
-    
+    }
+
     const handleExternalAction = (action, payload) => {
-        if (typeof window !== 'undefined' && window.AlturaDivinaCart) {
+        if (typeof window !== "undefined" && window.AlturaDivinaCart) {
             // Si tenemos acceso a la API del carrito del sitio
-            const { removeItem, updateQuantity, clearCart } = window.AlturaDivinaCart;
-            
+            const { removeItem, updateQuantity, clearCart } =
+                window.AlturaDivinaCart
+
             switch (action) {
-                case 'remove':
-                    if (typeof removeItem === 'function') {
-                        removeItem(payload.productId);
-                        syncWithExternalCart();
-                        return true;
+                case "remove":
+                    if (typeof removeItem === "function") {
+                        removeItem(payload.productId)
+                        syncWithExternalCart()
+                        return true
                     }
-                    break;
-                case 'update':
-                    if (typeof updateQuantity === 'function') {
-                        updateQuantity(payload.productId, payload.quantity);
-                        syncWithExternalCart();
-                        return true;
+                    break
+                case "update":
+                    if (typeof updateQuantity === "function") {
+                        updateQuantity(payload.productId, payload.quantity)
+                        syncWithExternalCart()
+                        return true
                     }
-                    break;
-                case 'clear':
-                    if (typeof clearCart === 'function') {
-                        clearCart();
-                        syncWithExternalCart();
-                        return true;
+                    break
+                case "clear":
+                    if (typeof clearCart === "function") {
+                        clearCart()
+                        syncWithExternalCart()
+                        return true
                     }
-                    break;
+                    break
             }
         }
-        return false;
-    };
-    
-    // MODIFICADO: Función updateCartAndNotify para notificar cambios
-    const updateCartAndNotify = (items, total) => {
-        // Actualizar localStorage con el sessionId consistente
-        try {
-            localStorage.setItem(`mp_cart_${sessionId}`, JSON.stringify({
-                items: items,
-                totalAmount: total,
-                timestamp: new Date().toISOString()
-            }));
-            
-            // NUEVO: Disparar evento para notificar a otros componentes
-            if (typeof window !== 'undefined') {
-                const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                    detail: { source: 'cart_button', sessionId }
-                });
-                window.dispatchEvent(updateEvent);
-            }
-            
-        } catch (e) {
-            console.error("Error al actualizar carrito:", e);
-        }
-    };
-    
+        return false
+    }
+
     const removeItem = (productId) => {
         // Intentar usar la función externa primero
-        if (handleExternalAction('remove', { productId })) {
-            return;
+        if (handleExternalAction("remove", { productId })) {
+            return
         }
-        
+
         // Si no hay API externa, actualizar solo el estado local
-        const updatedItems = cartItems.filter(item => item.productId !== productId);
+        const updatedItems = cartItems.filter(
+            (item) => item.productId !== productId
+        )
         const newTotal = updatedItems.reduce(
-            (total, item) => total + (item.price * item.quantity), 0
-        );
-        
-        // Actualizar estado local
-        setCartItems(updatedItems);
-        setCartTotal(newTotal);
-        setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
-        
-        // Actualizar localStorage y notificar
-        updateCartAndNotify(updatedItems, newTotal);
-    };
-    
+            (total, item) => total + item.price * item.quantity,
+            0
+        )
+        setCartItems(updatedItems)
+        setCartTotal(newTotal)
+        setCartCount(
+            updatedItems.reduce((total, item) => total + item.quantity, 0)
+        )
+    }
+
     const updateQuantity = (productId, quantity) => {
         // Intentar usar la función externa primero
-        if (handleExternalAction('update', { productId, quantity })) {
-            return;
+        if (handleExternalAction("update", { productId, quantity })) {
+            return
         }
-        
+
         // Implementación local como fallback
         if (quantity <= 0) {
-            removeItem(productId);
-            return;
+            removeItem(productId)
+            return
         }
-        
-        const updatedItems = cartItems.map(item => {
+
+        const updatedItems = cartItems.map((item) => {
             if (item.productId === productId) {
-                return { ...item, quantity };
+                return { ...item, quantity }
             }
-            return item;
-        });
-        
+            return item
+        })
+
         const newTotal = updatedItems.reduce(
-            (total, item) => total + (item.price * item.quantity), 0
-        );
-        
-        // Actualizar estado local
-        setCartItems(updatedItems);
-        setCartTotal(newTotal);
-        setCartCount(updatedItems.reduce((total, item) => total + item.quantity, 0));
-        
-        // Actualizar localStorage y notificar
-        updateCartAndNotify(updatedItems, newTotal);
-    };
-    
+            (total, item) => total + item.price * item.quantity,
+            0
+        )
+        setCartItems(updatedItems)
+        setCartTotal(newTotal)
+        setCartCount(
+            updatedItems.reduce((total, item) => total + item.quantity, 0)
+        )
+    }
+
     const clearCart = () => {
         // Intentar usar la función externa primero
-        if (handleExternalAction('clear', {})) {
-            return;
+        if (handleExternalAction("clear", {})) {
+            return
         }
-        
+
         // Implementación local como fallback
-        setCartItems([]);
-        setCartTotal(0);
-        setCartCount(0);
-        
-        // Actualizar localStorage y notificar
-        updateCartAndNotify([], 0);
-    };
-    
+        setCartItems([])
+        setCartTotal(0)
+        setCartCount(0)
+    }
+
     const handleCheckout = () => {
         if (onCheckout) {
             onCheckout({
                 cartItems,
-                cartTotal
-            });
+                cartTotal,
+            })
         }
-        
+
         // Si hay una función de checkout en el sitio, usarla
-        if (typeof window !== 'undefined' && window.AlturaDivinaCart && typeof window.AlturaDivinaCart.checkout === 'function') {
-            window.AlturaDivinaCart.checkout();
-            return;
+        if (
+            typeof window !== "undefined" &&
+            window.AlturaDivinaCart &&
+            typeof window.AlturaDivinaCart.checkout === "function"
+        ) {
+            window.AlturaDivinaCart.checkout()
+            return
         }
-        
+
         // Fallback: redirigir a la URL de checkout
-        window.location.href = checkoutUrl;
-    };
-    
+        window.location.href = checkoutUrl
+    }
+
     return (
-        <div style={{ width, height, position: 'relative' }}>
+        <div style={{ width, height, position: "relative" }}>
             {/* Botón del carrito */}
-            <button 
+            <button
                 onClick={toggleCart}
                 style={{
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
+                    backgroundColor: "transparent",
+                    border: "none",
+                    cursor: "pointer",
                     padding: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                 }}
                 aria-label="Ver carrito"
             >
-                <svg 
-                    width={size} 
-                    height={size} 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke={iconColor} 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
+                <svg
+                    width={size}
+                    height={size}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke={iconColor}
+                    strokeWidth="2"
+                    strokeLinecap="round"
                     strokeLinejoin="round"
                 >
                     <circle cx="9" cy="21" r="1"></circle>
                     <circle cx="20" cy="21" r="1"></circle>
                     <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
                 </svg>
-                
+
                 {/* Badge con contador */}
                 {showBadge && cartCount > 0 && (
-                    <span style={{
-                        position: 'absolute',
-                        top: '-8px',
-                        right: '-8px',
-                        backgroundColor: badgeColor,
-                        color: '#FFFFFF',
-                        borderRadius: '50%',
-                        width: `${size * 0.45}px`,
-                        height: `${size * 0.45}px`,
-                        fontSize: `${size * 0.25}px`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 'bold'
-                    }}>
-                        {cartCount > 99 ? '99+' : cartCount}
+                    <span
+                        style={{
+                            position: "absolute",
+                            top: "-8px",
+                            right: "-8px",
+                            backgroundColor: badgeColor,
+                            color: "#FFFFFF",
+                            borderRadius: "50%",
+                            width: `${size * 0.45}px`,
+                            height: `${size * 0.45}px`,
+                            fontSize: `${size * 0.25}px`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "bold",
+                        }}
+                    >
+                        {cartCount > 99 ? "99+" : cartCount}
                     </span>
                 )}
             </button>
-            
+
             {/* Sidebar del carrito (solo se muestra si no pudimos usar el del sitio) */}
             {isCartOpen && (
                 <>
                     {/* Overlay */}
-                    <div 
+                    <div
                         style={{
-                            position: 'fixed',
+                            position: "fixed",
                             top: 0,
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                            zIndex: 9998
+                            backgroundColor: "rgba(0, 0, 0, 0.5)",
+                            zIndex: 9998,
                         }}
                         onClick={toggleCart}
                     ></div>
-                    
+
                     {/* Panel del carrito */}
-                    <div style={{
-                        position: 'fixed',
-                        top: 0,
-                        right: 0,
-                        width: '320px',
-                        height: '100vh',
-                        backgroundColor: cartBgColor,
-                        boxShadow: '-2px 0 10px rgba(0, 0, 0, 0.15)',
-                        zIndex: 9999,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        fontFamily: 'Inter, sans-serif'
-                    }}>
+                    <div
+                        style={{
+                            position: "fixed",
+                            top: 0,
+                            right: 0,
+                            width: "320px",
+                            height: "100vh",
+                            backgroundColor: cartBgColor,
+                            boxShadow: "-2px 0 10px rgba(0, 0, 0, 0.15)",
+                            zIndex: 9999,
+                            display: "flex",
+                            flexDirection: "column",
+                            fontFamily: "Inter, sans-serif",
+                        }}
+                    >
                         {/* Header */}
-                        <div style={{
-                            padding: '16px',
-                            borderBottom: '1px solid #eee',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                        }}>
-                            <h3 style={{ 
-                                margin: 0, 
-                                color: textColor,
-                                fontSize: '18px',
-                                fontWeight: 600
-                            }}>
+                        <div
+                            style={{
+                                padding: "16px",
+                                borderBottom: "1px solid #eee",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                            }}
+                        >
+                            <h3
+                                style={{
+                                    margin: 0,
+                                    color: textColor,
+                                    fontSize: "18px",
+                                    fontWeight: 600,
+                                }}
+                            >
                                 Tu Carrito
                             </h3>
-                            <button 
+                            <button
                                 onClick={toggleCart}
                                 style={{
-                                    backgroundColor: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
+                                    backgroundColor: "transparent",
+                                    border: "none",
+                                    cursor: "pointer",
                                     color: textColor,
-                                    fontSize: '24px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    padding: '4px'
+                                    fontSize: "24px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    padding: "4px",
                                 }}
                                 aria-label="Cerrar carrito"
                             >
                                 &times;
                             </button>
                         </div>
-                        
+
                         {/* Contenido del carrito */}
-                        <div style={{
-                            flex: 1,
-                            overflowY: 'auto',
-                            padding: '16px'
-                        }}>
+                        <div
+                            style={{
+                                flex: 1,
+                                overflowY: "auto",
+                                padding: "16px",
+                            }}
+                        >
                             {cartItems.length === 0 ? (
-                                <div style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    height: '100%',
-                                    textAlign: 'center',
-                                    color: textColor
-                                }}>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        height: "100%",
+                                        textAlign: "center",
+                                        color: textColor,
+                                    }}
+                                >
                                     <p>Tu carrito está vacío</p>
-                                    <button 
+                                    <button
                                         onClick={toggleCart}
                                         style={{
                                             backgroundColor: buttonColor,
-                                            color: '#FFFFFF',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            padding: '10px 20px',
-                                            cursor: 'pointer',
-                                            fontSize: '14px',
-                                            fontWeight: 500
+                                            color: "#FFFFFF",
+                                            border: "none",
+                                            borderRadius: "4px",
+                                            padding: "10px 20px",
+                                            cursor: "pointer",
+                                            fontSize: "14px",
+                                            fontWeight: 500,
                                         }}
                                     >
                                         Seguir Comprando
@@ -498,101 +453,145 @@ export function CartButtonEmbed(
                                 <div>
                                     {/* Lista de productos */}
                                     {cartItems.map((item, index) => (
-                                        <div key={`${item.productId}-${index}`} style={{
-                                            marginBottom: '16px',
-                                            padding: '12px',
-                                            borderBottom: '1px solid #eee',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            color: textColor
-                                        }}>
-                                            <div style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                marginBottom: '8px'
-                                            }}>
-                                                <h4 style={{ 
-                                                    margin: 0, 
-                                                    fontSize: '16px',
-                                                    fontWeight: 500
-                                                }}>
+                                        <div
+                                            key={`${item.productId}-${index}`}
+                                            style={{
+                                                marginBottom: "16px",
+                                                padding: "12px",
+                                                borderBottom: "1px solid #eee",
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                color: textColor,
+                                            }}
+                                        >
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    justifyContent:
+                                                        "space-between",
+                                                    marginBottom: "8px",
+                                                }}
+                                            >
+                                                <h4
+                                                    style={{
+                                                        margin: 0,
+                                                        fontSize: "16px",
+                                                        fontWeight: 500,
+                                                    }}
+                                                >
                                                     {item.name}
                                                 </h4>
-                                                <button 
-                                                    onClick={() => removeItem(item.productId)}
+                                                <button
+                                                    onClick={() =>
+                                                        removeItem(
+                                                            item.productId
+                                                        )
+                                                    }
                                                     style={{
-                                                        backgroundColor: 'transparent',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        color: '#999',
-                                                        fontSize: '18px',
-                                                        padding: '0 4px'
+                                                        backgroundColor:
+                                                            "transparent",
+                                                        border: "none",
+                                                        cursor: "pointer",
+                                                        color: "#999",
+                                                        fontSize: "18px",
+                                                        padding: "0 4px",
                                                     }}
                                                     aria-label={`Eliminar ${item.name}`}
                                                 >
                                                     &times;
                                                 </button>
                                             </div>
-                                            
-                                            <div style={{ 
-                                                fontSize: '14px',
-                                                marginBottom: '8px',
-                                                color: textColor
-                                            }}>
-                                                {formatPrice(item.price)} / unidad
+
+                                            <div
+                                                style={{
+                                                    fontSize: "14px",
+                                                    marginBottom: "8px",
+                                                    color: textColor,
+                                                }}
+                                            >
+                                                {formatPrice(item.price)} /
+                                                unidad
                                             </div>
-                                            
-                                            <div style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center'
-                                            }}>
-                                                <div style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    border: '1px solid #ddd',
-                                                    borderRadius: '4px',
-                                                    overflow: 'hidden'
-                                                }}>
-                                                    <button 
-                                                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+
+                                            <div
+                                                style={{
+                                                    display: "flex",
+                                                    justifyContent:
+                                                        "space-between",
+                                                    alignItems: "center",
+                                                }}
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        border: "1px solid #ddd",
+                                                        borderRadius: "4px",
+                                                        overflow: "hidden",
+                                                    }}
+                                                >
+                                                    <button
+                                                        onClick={() =>
+                                                            updateQuantity(
+                                                                item.productId,
+                                                                item.quantity -
+                                                                    1
+                                                            )
+                                                        }
                                                         style={{
-                                                            backgroundColor: '#f5f5f5',
-                                                            border: 'none',
-                                                            borderRight: '1px solid #ddd',
-                                                            padding: '4px 8px',
-                                                            cursor: 'pointer',
-                                                            color: '#333'
+                                                            backgroundColor:
+                                                                "#f5f5f5",
+                                                            border: "none",
+                                                            borderRight:
+                                                                "1px solid #ddd",
+                                                            padding: "4px 8px",
+                                                            cursor: "pointer",
+                                                            color: "#333",
                                                         }}
                                                     >
                                                         -
                                                     </button>
-                                                    <span style={{
-                                                        padding: '4px 12px',
-                                                        fontSize: '14px'
-                                                    }}>
+                                                    <span
+                                                        style={{
+                                                            padding: "4px 12px",
+                                                            fontSize: "14px",
+                                                        }}
+                                                    >
                                                         {item.quantity}
                                                     </span>
-                                                    <button 
-                                                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                                                    <button
+                                                        onClick={() =>
+                                                            updateQuantity(
+                                                                item.productId,
+                                                                item.quantity +
+                                                                    1
+                                                            )
+                                                        }
                                                         style={{
-                                                            backgroundColor: '#f5f5f5',
-                                                            border: 'none',
-                                                            borderLeft: '1px solid #ddd',
-                                                            padding: '4px 8px',
-                                                            cursor: 'pointer',
-                                                            color: '#333'
+                                                            backgroundColor:
+                                                                "#f5f5f5",
+                                                            border: "none",
+                                                            borderLeft:
+                                                                "1px solid #ddd",
+                                                            padding: "4px 8px",
+                                                            cursor: "pointer",
+                                                            color: "#333",
                                                         }}
                                                     >
                                                         +
                                                     </button>
                                                 </div>
-                                                
-                                                <div style={{
-                                                    fontWeight: 'bold',
-                                                    fontSize: '15px'
-                                                }}>
-                                                    {formatPrice(item.price * item.quantity)}
+
+                                                <div
+                                                    style={{
+                                                        fontWeight: "bold",
+                                                        fontSize: "15px",
+                                                    }}
+                                                >
+                                                    {formatPrice(
+                                                        item.price *
+                                                            item.quantity
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -600,59 +599,65 @@ export function CartButtonEmbed(
                                 </div>
                             )}
                         </div>
-                        
+
                         {/* Footer con total y botones */}
                         {cartItems.length > 0 && (
-                            <div style={{
-                                padding: '16px',
-                                borderTop: '1px solid #eee',
-                                backgroundColor: cartBgColor
-                            }}>
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    marginBottom: '16px',
-                                    fontWeight: 'bold',
-                                    fontSize: '18px',
-                                    color: textColor
-                                }}>
+                            <div
+                                style={{
+                                    padding: "16px",
+                                    borderTop: "1px solid #eee",
+                                    backgroundColor: cartBgColor,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        marginBottom: "16px",
+                                        fontWeight: "bold",
+                                        fontSize: "18px",
+                                        color: textColor,
+                                    }}
+                                >
                                     <span>Total:</span>
                                     <span>{formatPrice(cartTotal)}</span>
                                 </div>
-                                
-                                <div style={{ 
-                                    display: 'flex',
-                                    gap: '10px' 
-                                }}>
-                                    <button 
+
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        gap: "10px",
+                                    }}
+                                >
+                                    <button
                                         onClick={clearCart}
                                         style={{
-                                            flex: '1',
-                                            padding: '10px',
-                                            backgroundColor: '#E5E5E5',
-                                            color: '#333',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontSize: '14px',
-                                            fontWeight: 500
+                                            flex: "1",
+                                            padding: "10px",
+                                            backgroundColor: "#E5E5E5",
+                                            color: "#333",
+                                            border: "none",
+                                            borderRadius: "4px",
+                                            cursor: "pointer",
+                                            fontSize: "14px",
+                                            fontWeight: 500,
                                         }}
                                     >
                                         Vaciar
                                     </button>
-                                    
-                                    <button 
+
+                                    <button
                                         onClick={handleCheckout}
                                         style={{
-                                            flex: '2',
-                                            padding: '10px',
+                                            flex: "2",
+                                            padding: "10px",
                                             backgroundColor: buttonColor,
-                                            color: '#FFFFFF',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            cursor: 'pointer',
-                                            fontSize: '14px',
-                                            fontWeight: 500
+                                            color: "#FFFFFF",
+                                            border: "none",
+                                            borderRadius: "4px",
+                                            cursor: "pointer",
+                                            fontSize: "14px",
+                                            fontWeight: 500,
                                         }}
                                     >
                                         Proceder al Pago
@@ -664,7 +669,7 @@ export function CartButtonEmbed(
                 </>
             )}
         </div>
-    );
+    )
 }
 
 // Controles para el panel de Framer (igual que antes)
@@ -736,11 +741,6 @@ addPropertyControls(CartButtonEmbed, {
         title: "Al Procesar Pago",
         type: ControlType.EventHandler,
     },
-    sessionIdOverride: {
-        title: "Session ID (opcional)",
-        type: ControlType.String,
-        defaultValue: "",
-    }
 })
 
 // Props por defecto en canvas
