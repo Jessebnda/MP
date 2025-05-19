@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useReducer, useEffect, useState } from 'react'; // Added useState
+import React, { createContext, useReducer, useEffect } from 'react';
 import { logInfo } from '../utils/logger';
 
 export const CartContext = createContext();
@@ -123,6 +123,7 @@ function cartReducer(state, action) {
 }
 
 export const CartProvider = ({ children }) => {
+  // Recuperar estado del carrito del localStorage
   const getInitialState = () => {
     if (typeof window !== 'undefined') {
       const savedCart = sessionStorage.getItem('mp-cart');
@@ -130,7 +131,6 @@ export const CartProvider = ({ children }) => {
         try {
           return JSON.parse(savedCart);
         } catch (error) {
-          console.error("Error parsing saved cart:", error);
           return initialState;
         }
       }
@@ -140,40 +140,12 @@ export const CartProvider = ({ children }) => {
 
   const [cartState, dispatch] = useReducer(cartReducer, getInitialState());
 
-  // Get sessionId from URL for messaging
-  const [iframeSessionId, setIframeSessionId] = useState(null);
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      setIframeSessionId(params.get('sessionId'));
-    }
-  }, []);
-
+  // Guardar el estado del carrito en localStorage cuando cambie
   useEffect(() => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('mp-cart', JSON.stringify(cartState));
-
-      // Notify parent Framer component about cart update
-      if (window.parent !== window && iframeSessionId && cartState._triggeredBy !== 'initialLoad') { // Check iframeSessionId is resolved
-        console.log(`CartContext (iframe session: ${iframeSessionId}): Posting CART_UPDATE to parent.`);
-        window.parent.postMessage({
-          type: 'CART_UPDATE',
-          sessionId: iframeSessionId, // The sessionId passed from FramerEmbed to this iframe
-          cartData: {
-            totalItems: cartState.totalItems,
-            totalAmount: cartState.totalAmount,
-            // You can include more cart details if needed by the parent
-          }
-        }, '*'); // IMPORTANT: In production, replace '*' with your Framer/parent domain for security
-      }
-      // Reset trigger after processing
-      if (cartState._triggeredBy) {
-        // This is a conceptual way to avoid loops on initial load.
-        // Actual implementation might need more robust logic if initial state also triggers this.
-        // For now, we assume cartState changes are due to user actions or programmatic updates post-load.
-      }
     }
-  }, [cartState, iframeSessionId]); // Add iframeSessionId
+  }, [cartState]);
 
   // Funciones para interactuar con el carrito
   const addItem = (product, quantity = 1) => {
@@ -184,7 +156,7 @@ export const CartProvider = ({ children }) => {
         name: product.name,
         price: product.price,
         quantity,
-        product: product
+        product: product // Mantener referencia al objeto producto completo
       },
     });
   };

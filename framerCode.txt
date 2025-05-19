@@ -17,8 +17,8 @@ interface MercadoPagoEmbedProps {
     height: number | string
     onRedirect?: (event: any) => void
     sessionIdOverride?: string
-    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly"
-    initialStep?: number
+    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly" // New prop
+    initialStep?: number // New prop
 }
 
 export function MercadoPagoEmbed(
@@ -39,78 +39,111 @@ export function MercadoPagoEmbed(
         height,
         onRedirect,
         sessionIdOverride,
-        displayMode,
-        initialStep,
+        displayMode, // New prop
+        initialStep, // New prop
     } = props
 
-    const getSharedSessionId = React.useCallback(() => {
-        const storageKey = 'mp_shared_framer_session_id'; // Shared key for all embeds on the page
-        if (typeof window !== 'undefined' && window.sessionStorage) {
-            let id = sessionStorage.getItem(storageKey);
-            if (id) return id;
-            id = `session_shared_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            sessionStorage.setItem(storageKey, id);
-            return id;
+    // CAMBIO CLAVE: Usar un sessionId global para toda la página
+    const getOrCreateGlobalSessionId = React.useCallback(() => {
+        // 1. Intentar obtener de la URL
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionFromUrl = urlParams.get('sessionId');
+            if (sessionFromUrl) return sessionFromUrl;
         }
-        return `session_fallback_${Date.now()}`;
+        
+        // 2. Intentar obtener del sessionStorage (persistente en la sesión)
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            const storedId = sessionStorage.getItem('mp_global_session_id');
+            if (storedId) return storedId;
+        }
+        
+        // 3. Crear uno nuevo y guardarlo para que sea consistente
+        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            sessionStorage.setItem('mp_global_session_id', newSessionId);
+        }
+        return newSessionId;
     }, []);
-
-    const currentSessionId = React.useMemo(() => {
-        return sessionIdOverride || getSharedSessionId();
-    }, [sessionIdOverride, getSharedSessionId]);
-
-    const [iframeKey, setIframeKey] = React.useState(() => `${currentSessionId}_${Date.now()}`);
-
+    
+    // Usar el sessionId global o el override proporcionado explícitamente
+    const sessionId = React.useMemo(() => 
+        sessionIdOverride || getOrCreateGlobalSessionId(), 
+    [getOrCreateGlobalSessionId, sessionIdOverride]);
+    
+    // El resto de tu código de MercadoPagoEmbed...
     React.useEffect(() => {
-        const handleMessageFromOwnIframe = (event: MessageEvent) => {
-            if (!event.origin.includes('mercadopagoiframe.vercel.app')) { // Replace with your iframe's actual origin
+        // Escuchar mensajes del iframe
+        const handleMessage = (event: MessageEvent) => {
+            // Verificar origen para seguridad
+            if (!event.origin.includes('mercadopagoiframe.vercel.app')) {
                 return;
             }
-
-            const data = event.data;
-
-            if (data.type === 'MP_PAYMENT_SUCCESS' || data.type === 'MP_PAYMENT_PENDING' || data.type === 'MP_PAYMENT_FAILED') {
+            
+            if (event.data.type === 'MP_PAYMENT_SUCCESS') {
+                console.log('Pago exitoso, redirigiendo a:', event.data.redirectUrl);
+                // Llamar al callback de redirección si existe
                 if (onRedirect) {
-                    onRedirect({ status: data.type.split('_')[2].toLowerCase(), redirectUrl: data.redirectUrl, data: data.paymentData });
+                    onRedirect({
+                        status: 'success',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
                 }
-                if (data.redirectUrl && window.top) {
-                    window.top.location.href = data.redirectUrl;
+                
+                // Redireccionar la página completa
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
                 }
-                return;
+            } 
+            else if (event.data.type === 'MP_PAYMENT_PENDING') {
+                console.log('Pago pendiente, redirigiendo a:', event.data.redirectUrl);
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'pending',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
+                }
             }
-
-            if (data.type === 'CART_UPDATE' && data.sessionId === currentSessionId) {
-                console.log(`FramerEmbed (${currentSessionId}): Received CART_UPDATE from own iframe. Dispatching global ALTURA_DIVINA_CART_UPDATE.`);
-                const globalUpdateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
-                    detail: {
-                        source: 'mercadopago_embed_parent',
-                        sessionId: currentSessionId, // The sessionId of the cart that was updated
-                    }
-                });
-                window.dispatchEvent(globalUpdateEvent);
+            else if (event.data.type === 'MP_PAYMENT_FAILED') {
+                console.log('Pago fallido, redirigiendo a:', event.data.redirectUrl);
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'failed',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl;
+                }
+            }
+            else if (event.data.type === 'CART_UPDATE') {
+                // NUEVO: Cuando el iframe actualiza el carrito, notificar a otros componentes
+                if (typeof window !== 'undefined') {
+                    const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+                        detail: { source: 'mercadopago_iframe', sessionId }
+                    });
+                    window.dispatchEvent(updateEvent);
+                }
             }
         };
-
-        const handleGlobalCartEventListener = (event: CustomEvent) => {
-            // Check if the event is the one we're interested in and for our session
-            if (event.type === 'ALTURA_DIVINA_CART_UPDATE' && event.detail && event.detail.sessionId === currentSessionId) {
-                console.log(`FramerEmbed (${currentSessionId}): Heard global ALTURA_DIVINA_CART_UPDATE for my session. Refreshing iframe.`);
-                setIframeKey(`${currentSessionId}_refresh_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
-            }
-        };
-
-        window.addEventListener('message', handleMessageFromOwnIframe);
-        window.addEventListener('ALTURA_DIVINA_CART_UPDATE', handleGlobalCartEventListener as EventListener);
-
+        
+        window.addEventListener('message', handleMessage);
+        
         return () => {
-            window.removeEventListener('message', handleMessageFromOwnIframe);
-            window.removeEventListener('ALTURA_DIVINA_CART_UPDATE', handleGlobalCartEventListener as EventListener);
+            window.removeEventListener('message', handleMessage);
         };
-    }, [currentSessionId, onRedirect, successUrl, pendingUrl, failureUrl]);
-
-
-    const baseUrl = "https://mercadopagoiframe.vercel.app/"; // Your iframe's base URL
-    const paramsForIframe: Record<string, string> = {
+    }, [onRedirect, successUrl, pendingUrl, failureUrl, sessionId]);
+    
+    const baseUrl = "https://mercadopagoiframe.vercel.app/"
+    const params = {
         initialProductId: productId || "",
         publicKey: publicKey || "",
         successUrl: successUrl || "",
@@ -122,22 +155,21 @@ export function MercadoPagoEmbed(
         primaryButtonColor: primaryButtonColor || "#F26F32",
         secondaryButtonColor: secondaryButtonColor || "#E5E5E5",
         isInIframe: "true",
-        sessionId: currentSessionId,
-    };
+        sessionId: sessionId, // Usar el sessionId consistente
+    }
 
     if (displayMode) {
-        paramsForIframe["displayMode"] = displayMode;
+        params["displayMode"] = displayMode
     }
     if (initialStep !== undefined && initialStep !== null) {
-        paramsForIframe["initialStep"] = initialStep.toString();
+        params["initialStep"] = initialStep.toString()
     }
 
-    const queryParams = new URLSearchParams(paramsForIframe).toString();
-    const iframeSrc = `${baseUrl}?${queryParams}`;
+    const queryParams = new URLSearchParams(params).toString()
+    const iframeSrc = `${baseUrl}?${queryParams}`
 
     return (
         <iframe
-            key={iframeKey}
             src={iframeSrc}
             width={width}
             height={height}
@@ -148,35 +180,106 @@ export function MercadoPagoEmbed(
             }}
             allow="payment"
         />
-    );
+    )
 }
 
+// Controles en el panel de Framer
 addPropertyControls(MercadoPagoEmbed, {
-    productId: { title: "Product ID", type: ControlType.String, defaultValue: "2" },
-    publicKey: { title: "MP Public Key", type: ControlType.String, defaultValue: "" },
-    successUrl: { title: "Success URL", type: ControlType.String, defaultValue: "https://alturadivina.com/confirmacion-de-compra" },
-    pendingUrl: { title: "Pending URL", type: ControlType.String, defaultValue: "https://alturadivina.com/proceso-de-compra" },
-    failureUrl: { title: "Failure URL", type: ControlType.String, defaultValue: "https://alturadivina.com/error-de-compra" },
-    hideTitle: { title: "Hide Title", type: ControlType.Boolean, defaultValue: false },
-    buttonColor: { title: "MP Button Color", type: ControlType.Color, defaultValue: "#F26F32" },
-    circleColor: { title: "MP Circle Color", type: ControlType.Color, defaultValue: "#F26F32" },
-    primaryButtonColor: { title: "Primary Button Color", type: ControlType.Color, defaultValue: "#F26F32" },
-    secondaryButtonColor: { title: "Secondary Button Color", type: ControlType.Color, defaultValue: "#E5E5E5" },
-    width: { title: "Width", type: ControlType.Number, defaultValue: 400, min: 100, max: 2000, step: 10 },
-    height: { title: "Height", type: ControlType.Number, defaultValue: 600, min: 100, max: 3000, step: 10 },
-    onRedirect: { title: "On Redirect", type: ControlType.EventHandler },
-    sessionIdOverride: { title: "Session ID Override", type: ControlType.String, defaultValue: "", description: "Manually set a session ID. Leave empty for shared session." },
-    displayMode: { title: "Display Mode", type: ControlType.Enum, options: ["full", "cartIconOnly", "paymentFlowOnly"], defaultValue: "full" },
+    productId: {
+        title: "Product ID",
+        type: ControlType.String,
+        defaultValue: "2",
+    },
+    publicKey: {
+        title: "MP Public Key",
+        type: ControlType.String,
+        defaultValue: "",
+    },
+    successUrl: {
+        title: "Success URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/confirmacion-de-compra",
+    },
+    pendingUrl: {
+        title: "Pending URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/proceso-de-compra",
+    },
+    failureUrl: {
+        title: "Failure URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/error-de-compra",
+    },
+    hideTitle: {
+        title: "Hide Title",
+        type: ControlType.Boolean,
+        defaultValue: false,
+    },
+    buttonColor: {
+        title: "MP Button Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",
+    },
+    circleColor: {
+        title: "MP Circle Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",  // Cambiado de #009EE3 a #F26F32
+    },
+    primaryButtonColor: {
+        title: "Primary Button Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",
+    },
+    secondaryButtonColor: {
+        title: "Secondary Button Color",
+        type: ControlType.Color,
+        defaultValue: "#E5E5E5",
+    },
+    width: {
+        title: "Width",
+        type: ControlType.Number,
+        defaultValue: 400,
+        min: 100,
+        max: 2000,
+        step: 10,
+    },
+    height: {
+        title: "Height",
+        type: ControlType.Number,
+        defaultValue: 600,
+        min: 100,
+        max: 3000,
+        step: 10,
+    },
+    onRedirect: {
+        title: "On Redirect",
+        type: ControlType.EventHandler,
+    },
+    // Nuevo control para sessionId (opcional)
+    sessionIdOverride: {
+        title: "Session ID (opcional)",
+        type: ControlType.String,
+        defaultValue: "",
+    },
+    displayMode: {
+        title: "Display Mode",
+        type: ControlType.Enum,
+        options: ["full", "cartIconOnly", "paymentFlowOnly"],
+        defaultValue: "full",
+    },
     initialStep: {
         title: "Initial Step (PaymentFlow)",
         type: ControlType.Number,
-        defaultValue: 1,
+        defaultValue: 1, // Or undefined if you prefer no default to be sent
         min: 1,
         step: 1,
-        hidden(props) { return props.displayMode === "cartIconOnly"; },
+        hidden(props) {
+            return props.displayMode === "cartIconOnly"
+        },
     },
-});
+})
 
+// Props por defecto en canvas
 MercadoPagoEmbed.defaultProps = {
     productId: "2",
     publicKey: "",
@@ -185,12 +288,11 @@ MercadoPagoEmbed.defaultProps = {
     failureUrl: "https://alturadivina.com/error-de-compra",
     hideTitle: false,
     buttonColor: "#F26F32",
-    circleColor: "#F26F32",
+    circleColor: "#F26F32",  // Cambiado de #009EE3 a #F26F32
     primaryButtonColor: "#F26F32",
     secondaryButtonColor: "#E5E5E5",
     width: 300,
     height: 500,
-    displayMode: "full" as "full",
+    displayMode: "full",
     initialStep: 1,
-    sessionIdOverride: "",
-};
+}
