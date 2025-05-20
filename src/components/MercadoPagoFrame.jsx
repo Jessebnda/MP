@@ -44,7 +44,7 @@ export function MercadoPagoFrame({
       width={width}
       height={height}
       style={{ border: "none" }}
-      allow="payment"
+      allow="payment; allow-top-navigation-by-user-activation" // <-- Cambia aquí
     />
   );
 }

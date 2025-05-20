@@ -166,7 +166,7 @@ export function MercadoPagoEmbed(
                 borderRadius: "8px",
                 overflow: "hidden",
             }}
-            allow="payment"
+            allow="payment; allow-top-navigation-by-user-activation" // <-- Cambia aquí
         />
     )
 }
