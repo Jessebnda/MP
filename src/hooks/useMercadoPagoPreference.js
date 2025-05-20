@@ -60,9 +60,9 @@ export function useMercadoPagoPreference({
         return url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
       };
 
-      const finalSuccessUrl = ensureAbsoluteUrl(successUrl, `${baseUrl}/confirmacion-de-compra`);
-      const finalFailureUrl = ensureAbsoluteUrl(failureUrl, `${baseUrl}/error-de-compra`);
-      const finalPendingUrl = ensureAbsoluteUrl(pendingUrl, `${baseUrl}/proceso-de-compra`);
+      const finalSuccessUrl = successUrl || "https://alturadivina.com/confirmacion-de-compra";
+      const finalFailureUrl = failureUrl || "https://alturadivina.com/error-de-compra";
+      const finalPendingUrl = pendingUrl || "https://alturadivina.com/proceso-de-compra";
 
       // Log para verificar
       logInfo("Enviando solicitud de preferencia con URLs y datos de usuario:", {

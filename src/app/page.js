@@ -29,9 +29,9 @@ export default function Home() {
       hideTitle,
       initialProductId,
       publicKey,
-      finalSuccessUrl,
-      finalPendingUrl,
-      finalFailureUrl,
+      successUrl: "https://alturadivina.com/confirmacion-de-compra",
+      pendingUrl: "https://alturadivina.com/proceso-de-compra",
+      failureUrl: "https://alturadivina.com/error-de-compra",
       displayMode,
       initialStep,
       apiBaseUrl: process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'
@@ -68,9 +68,9 @@ export default function Home() {
         // No customStyles
       />
     ),
-    successUrl: params.finalSuccessUrl,
-    pendingUrl: params.finalPendingUrl,
-    failureUrl: params.finalFailureUrl,
+    successUrl: params.successUrl,      // <--- Cambia esto
+    pendingUrl: params.pendingUrl,      // <--- Cambia esto
+    failureUrl: params.failureUrl,      // <--- Cambia esto
     onSuccess: (data) => console.log('Pago exitoso (Home Page):', data),
     onError: (error) => console.error('Error en el pago (Home Page):', error),
     hideTitle: params.hideTitle,
