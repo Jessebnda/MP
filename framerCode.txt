@@ -13,9 +13,8 @@ interface MercadoPagoEmbedProps {
     height: number | string
     onRedirect?: (event: any) => void
     sessionIdOverride?: string
-    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly" | "sidebarOnly" // <--- agrega sidebarOnly
+    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly"
     initialStep?: number
-    cartIconColor?: string // <--- nuevo prop
 }
 
 export function MercadoPagoEmbed(
@@ -34,7 +33,6 @@ export function MercadoPagoEmbed(
         sessionIdOverride,
         displayMode, // New prop
         initialStep, // New prop
-        cartIconColor, // <--- nuevo prop
     } = props
 
     // CAMBIO CLAVE: Usar un sessionId global para toda la página
@@ -158,36 +156,6 @@ export function MercadoPagoEmbed(
     const queryParams = new URLSearchParams(params).toString()
     const iframeSrc = `${baseUrl}?${queryParams}`
 
-    // Renderizado condicional según displayMode
-    if (displayMode === "sidebarOnly") {
-        // Renderiza solo el sidebar abierto
-        return (
-            <CartSidebar
-                isOpen={true}
-                onClose={() => {}} // No-op o puedes exponer un callback si lo deseas
-                checkoutUrl="/checkout"
-            />
-        )
-    }
-
-    if (displayMode === "cartIconOnly") {
-        // Renderiza solo el ícono y el sidebar controlado
-        const [isCartOpen, setIsCartOpen] = React.useState(false)
-        return (
-            <>
-                <CartIcon
-                    onClick={() => setIsCartOpen(true)}
-                    color={cartIconColor} // <--- pasa el color
-                />
-                <CartSidebar
-                    isOpen={isCartOpen}
-                    onClose={() => setIsCartOpen(false)}
-                    checkoutUrl="/checkout"
-                />
-            </>
-        )
-    }
-
     return (
         <iframe
             src={iframeSrc}
@@ -199,7 +167,6 @@ export function MercadoPagoEmbed(
                 overflow: "hidden",
             }}
             allow="payment; allow-top-navigation-by-user-activation" // <-- Cambia aquí
-            sandbox="allow-scripts allow-same-origin allow-top-navigation-by-user-activation"
         />
     )
 }
@@ -265,16 +232,8 @@ addPropertyControls(MercadoPagoEmbed, {
     displayMode: {
         title: "Display Mode",
         type: ControlType.Enum,
-        options: ["full", "cartIconOnly", "paymentFlowOnly", "sidebarOnly"], // <--- agrega sidebarOnly
+        options: ["full", "cartIconOnly", "paymentFlowOnly"],
         defaultValue: "full",
-    },
-    cartIconColor: {
-        title: "Cart Icon Color",
-        type: ControlType.Color,
-        defaultValue: "#333333",
-        hidden(props) {
-            return props.displayMode !== "cartIconOnly"
-        },
     },
     initialStep: {
         title: "Initial Step (PaymentFlow)",
