@@ -411,11 +411,14 @@ export default function PaymentFlow({
           )}
         </div>
         
-        <CartSidebar 
-          isOpen={isCartOpen} 
-          onClose={() => setIsCartOpen(false)} 
-          checkoutUrl={`${apiBaseUrl}/checkout`}
-        />
+        {/* Solo muestra el CartSidebar si NO es paymentFlowOnly */}
+        {displayMode !== "paymentFlowOnly" && (
+          <CartSidebar 
+            isOpen={isCartOpen} 
+            onClose={() => setIsCartOpen(false)} 
+            checkoutUrl={`${apiBaseUrl}/checkout`}
+          />
+        )}
         
         <div className={styles['mp-product-selection-container']}>
           {/* Show only one product selector */}
