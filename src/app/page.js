@@ -97,6 +97,20 @@ export default function Home() {
     ...(params.initialStep !== undefined && { initialStep: params.initialStep }),
   };
 
+  if (params.displayMode === 'paymentFlowOnly') {
+    return (
+      <div style={{ padding: '20px' }}>
+        <PaymentFlow
+          {...paymentFlowProps}
+          initialProductId={params.initialProductId}
+          initialStep={params.initialStep}
+          displayMode="paymentFlowOnly"
+          cartIconColor={params.cartIconColor}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando componente de pago...</div>}>

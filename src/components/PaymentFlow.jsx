@@ -405,7 +405,7 @@ export default function PaymentFlow({
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
         <div className={styles['mp-header']}>
           {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona un Producto</h2>}
-          {/* Solo muestra el CartIcon si NO es paymentFlowOnly */}
+          {/* Solo muestra el CartIcon si es full o cartIconOnly, NUNCA en paymentFlowOnly */}
           {(displayMode === "full" || displayMode === "cartIconOnly") && (
             <CartIcon onClick={() => setIsCartOpen(true)} color={cartIconColor} />
           )}
