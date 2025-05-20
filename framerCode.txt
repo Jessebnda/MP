@@ -13,8 +13,9 @@ interface MercadoPagoEmbedProps {
     height: number | string
     onRedirect?: (event: any) => void
     sessionIdOverride?: string
-    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly"
+    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly" | "sidebarOnly"
     initialStep?: number
+    cartIconColor?: string
 }
 
 export function MercadoPagoEmbed(
@@ -31,8 +32,9 @@ export function MercadoPagoEmbed(
         height,
         onRedirect,
         sessionIdOverride,
-        displayMode, // New prop
-        initialStep, // New prop
+        displayMode,
+        initialStep,
+        cartIconColor, // Nueva prop
     } = props
 
     // CAMBIO CLAVE: Usar un sessionId global para toda la página
@@ -152,6 +154,9 @@ export function MercadoPagoEmbed(
     if (initialStep !== undefined && initialStep !== null) {
         params["initialStep"] = initialStep.toString()
     }
+    if (cartIconColor && displayMode === "cartIconOnly") {
+        params["cartIconColor"] = cartIconColor
+    }
 
     const queryParams = new URLSearchParams(params).toString()
     const iframeSrc = `${baseUrl}?${queryParams}`
@@ -232,8 +237,16 @@ addPropertyControls(MercadoPagoEmbed, {
     displayMode: {
         title: "Display Mode",
         type: ControlType.Enum,
-        options: ["full", "cartIconOnly", "paymentFlowOnly"],
+        options: ["full", "cartIconOnly", "paymentFlowOnly", "sidebarOnly"],
         defaultValue: "full",
+    },
+    cartIconColor: {
+        title: "Cart Icon Color",
+        type: ControlType.Color,
+        defaultValue: "#333333",
+        hidden(props) {
+            return props.displayMode !== "cartIconOnly"
+        },
     },
     initialStep: {
         title: "Initial Step (PaymentFlow)",
@@ -259,4 +272,5 @@ MercadoPagoEmbed.defaultProps = {
     height: 500,
     displayMode: "full" as const,
     initialStep: 1,
+    cartIconColor: "#333333",
 }

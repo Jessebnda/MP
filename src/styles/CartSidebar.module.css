@@ -129,6 +129,26 @@
   background-color: #e05a20;
 }
 
+/* Agregar después de los estilos existentes */
+
+/* Estilo para cuando el sidebar está siempre abierto */
+.alwaysOpen {
+  position: relative;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  box-shadow: none;
+  z-index: 50;
+}
+
+@media (min-width: 768px) {
+  .alwaysOpen {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
 @media (max-width: 480px) {
   .cartActions {
     flex-direction: column;

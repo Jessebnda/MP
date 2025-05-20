@@ -33,9 +33,9 @@ export default function PaymentFlow({
   hideTitle = false,
   className = '',
   initialProductId = null,
-  
-  initialStep = 1, // New prop to set the initial step
-  displayMode = "full", // <--- agrega esto con default
+  initialStep = 1,
+  displayMode = "full",
+  cartIconColor = "currentColor", // Nueva prop para el color del ícono del carrito
 }) {
   if (!apiBaseUrl) {
     logError("PaymentFlow Error: 'apiBaseUrl' prop is required.");
@@ -407,7 +407,7 @@ export default function PaymentFlow({
           {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona un Producto</h2>}
           {/* Solo muestra el CartIcon si NO es paymentFlowOnly */}
           {(displayMode === "full" || displayMode === "cartIconOnly") && (
-            <CartIcon onClick={() => setIsCartOpen(true)} />
+            <CartIcon onClick={() => setIsCartOpen(true)} color={cartIconColor} />
           )}
         </div>
         

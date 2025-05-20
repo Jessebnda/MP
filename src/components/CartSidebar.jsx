@@ -4,30 +4,34 @@ import CartItem from './CartItem';
 import styles from '../styles/CartSidebar.module.css';
 import { cn } from '../lib/utils';
 
-const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout' }) => {
+const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout', alwaysOpen = false }) => {
   // Estado local para control interno
-  const [isOpenInternal, setIsOpenInternal] = useState(externalIsOpen || false);
+  const [isOpenInternal, setIsOpenInternal] = useState(externalIsOpen || alwaysOpen || false);
   
   // Sincronizar con prop externa si cambia
   useEffect(() => {
     if (externalIsOpen !== undefined) {
-      setIsOpenInternal(externalIsOpen);
+      setIsOpenInternal(alwaysOpen || externalIsOpen);
     }
-  }, [externalIsOpen]);
+  }, [externalIsOpen, alwaysOpen]);
   
   // Escuchar evento externo para abrir el sidebar
   useEffect(() => {
     const handleOpenCart = () => {
-      setIsOpenInternal(true);
+      if (!alwaysOpen) { // Solo permitir abrir/cerrar si no está en modo alwaysOpen
+        setIsOpenInternal(true);
+      }
     };
     
     window.addEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
     return () => window.removeEventListener('OPEN_CART_SIDEBAR', handleOpenCart);
-  }, []);
+  }, [alwaysOpen]);
   
   const handleClose = () => {
-    setIsOpenInternal(false);
-    if (onClose) onClose();
+    if (!alwaysOpen) { // Solo permitir cerrar si no está en modo alwaysOpen
+      setIsOpenInternal(false);
+      if (onClose) onClose();
+    }
   };
   
   const { items, totalAmount, clearCart } = useCart();
@@ -40,29 +44,37 @@ const CartSidebar = ({ isOpen: externalIsOpen, onClose, checkoutUrl = '/checkout
   };
 
   const handleCheckout = () => {
-    onClose();
+    if (!alwaysOpen) onClose();
     // Use the checkoutUrl prop or default to /checkout
     window.location.href = checkoutUrl;
   };
 
   return (
     <>
-      {isOpenInternal && <div className={styles.overlay} onClick={handleClose}></div>}
-      <div className={cn(styles.cartSidebar, isOpenInternal && styles.open)}>
+      {isOpenInternal && !alwaysOpen && <div className={styles.overlay} onClick={handleClose}></div>}
+      <div className={cn(
+        styles.cartSidebar, 
+        isOpenInternal && styles.open,
+        alwaysOpen && styles.alwaysOpen
+      )}>
         <div className={styles.header}>
           <h2>Tu Carrito</h2>
-          <button onClick={handleClose} className={styles.closeButton} aria-label="Cerrar carrito">
-            &times;
-          </button>
+          {!alwaysOpen && (
+            <button onClick={handleClose} className={styles.closeButton} aria-label="Cerrar carrito">
+              &times;
+            </button>
+          )}
         </div>
         
         <div className={styles.cartContent}>
           {items.length === 0 ? (
             <div className={styles.emptyCart}>
               <p>Tu carrito está vacío</p>
-              <button onClick={handleClose} className={styles.continueShoppingButton}>
-                Seguir Comprando
-              </button>
+              {!alwaysOpen && (
+                <button onClick={handleClose} className={styles.continueShoppingButton}>
+                  Seguir Comprando
+                </button>
+              )}
             </div>
           ) : (
             <>

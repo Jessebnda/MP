@@ -24,16 +24,18 @@ export default function Home() {
 
     const displayMode = urlParams.get('displayMode') || 'full';
     const initialStep = urlParams.has('initialStep') ? parseInt(urlParams.get('initialStep'), 10) : undefined;
+    const cartIconColor = urlParams.get('cartIconColor') || '#333333'; // Agregar esto
 
     setParams({
       hideTitle,
       initialProductId,
       publicKey,
-      successUrl: "https://alturadivina.com/confirmacion-de-compra",
-      pendingUrl: "https://alturadivina.com/proceso-de-compra",
-      failureUrl: "https://alturadivina.com/error-de-compra",
+      successUrl: finalSuccessUrl,
+      pendingUrl: finalPendingUrl,
+      failureUrl: finalFailureUrl,
       displayMode,
       initialStep,
+      cartIconColor, // Agregar esto
       apiBaseUrl: process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000'
     });
   }, []);
@@ -48,11 +50,28 @@ export default function Home() {
 
     return (
       <div style={{ padding: '20px' }}>
-        <CartIcon onClick={() => setIsCartOpen(true)} />
+        <CartIcon onClick={() => setIsCartOpen(true)} color={params.cartIconColor} /> {/* Añadir color aquí */}
         <CartSidebar
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
           checkoutUrl={checkoutUrl}
+        />
+      </div>
+    );
+  }
+
+  // También agregar manejo para sidebarOnly:
+  if (params.displayMode === 'sidebarOnly') {
+    const checkoutBase = params.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+    const checkoutUrl = checkoutBase ? `${checkoutBase.replace(/\/$/, '')}/checkout` : '/checkout';
+
+    return (
+      <div style={{ padding: '20px' }}>
+        <CartSidebar
+          isOpen={true}
+          onClose={() => {}}
+          checkoutUrl={checkoutUrl}
+          alwaysOpen={true}
         />
       </div>
     );
@@ -81,7 +100,13 @@ export default function Home() {
   return (
     <div>
       <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando componente de pago...</div>}>
-        <PaymentFlow {...paymentFlowProps} />
+        <PaymentFlow
+          {...paymentFlowProps}
+          initialProductId={params.initialProductId}
+          initialStep={params.initialStep}
+          displayMode={params.displayMode}
+          cartIconColor={params.cartIconColor} // Añadir esto
+        />
       </Suspense>
     </div>
   );
