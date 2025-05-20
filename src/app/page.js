@@ -42,7 +42,9 @@ export default function Home() {
     return <div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración...</div>;
   }
 
-  if (params.displayMode === 'cartIconOnly') {
+  const normalizedDisplayMode = (params.displayMode || 'full').trim().toLowerCase();
+
+  if (normalizedDisplayMode === 'carticononly') {
     const checkoutBase = params.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
     const checkoutUrl = checkoutBase ? `${checkoutBase.replace(/\/$/, '')}/checkout` : '/checkout';
 
@@ -81,7 +83,7 @@ export default function Home() {
   return (
     <div>
       <Suspense fallback={<div style={{ textAlign: 'center', padding: '20px' }}>Cargando componente de pago...</div>}>
-        <PaymentFlow {...paymentFlowProps} />
+        <PaymentFlow {...paymentFlowProps} displayMode={normalizedDisplayMode} />
       </Suspense>
     </div>
   );
