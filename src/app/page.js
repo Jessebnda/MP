@@ -3,11 +3,11 @@
 import { Suspense, useState, useEffect } from 'react'
 import PaymentFlow from '../components/PaymentFlow'
 import MercadoPagoProvider from '../components/MercadoPagoProvider'
-import CartIcon from '../components/CartIcon'; // Added
-import CartSidebar from '../components/CartSidebar'; // Added
+import CartIcon from '../components/CartIcon'
+import CartSidebar from '../components/CartSidebar'
 
 export default function Home() {
-  const [params, setParams] = useState({});
+  const [params, setParams] = useState(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
@@ -16,11 +16,6 @@ export default function Home() {
     const hideTitle = urlParams.get('hideTitle') === 'true';
     const initialProductId = urlParams.get('initialProductId') || null;
     const publicKey = urlParams.get('publicKey') || process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY;
-
-    // URLs FIJAS DE ALTURA DIVINA
-    const finalSuccessUrl = "https://alturadivina.com/confirmacion-de-compra";
-    const finalPendingUrl = "https://alturadivina.com/proceso-de-compra";
-    const finalFailureUrl = "https://alturadivina.com/error-de-compra";
 
     const displayMode = urlParams.get('displayMode') || 'full';
     const initialStep = urlParams.has('initialStep') ? parseInt(urlParams.get('initialStep'), 10) : undefined;
@@ -38,7 +33,7 @@ export default function Home() {
     });
   }, []);
 
-  if (Object.keys(params).length === 0) {
+  if (!params) {
     return <div style={{ textAlign: 'center', padding: '20px' }}>Cargando configuración...</div>;
   }
 
@@ -67,12 +62,11 @@ export default function Home() {
     PaymentProviderComponent: (props) => (
       <MercadoPagoProvider
         {...props}
-        // No customStyles
       />
     ),
-    successUrl: params.successUrl,      // <--- Cambia esto
-    pendingUrl: params.pendingUrl,      // <--- Cambia esto
-    failureUrl: params.failureUrl,      // <--- Cambia esto
+    successUrl: params.successUrl,
+    pendingUrl: params.pendingUrl,
+    failureUrl: params.failureUrl,
     onSuccess: (data) => console.log('Pago exitoso (Home Page):', data),
     onError: (error) => console.error('Error en el pago (Home Page):', error),
     hideTitle: params.hideTitle,
