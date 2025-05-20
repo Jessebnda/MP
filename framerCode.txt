@@ -9,16 +9,12 @@ interface MercadoPagoEmbedProps {
     pendingUrl: string
     failureUrl: string
     hideTitle: boolean
-    buttonColor: string
-    circleColor: string
-    primaryButtonColor: string
-    secondaryButtonColor: string
     width: number | string
     height: number | string
     onRedirect?: (event: any) => void
     sessionIdOverride?: string
-    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly" // New prop
-    initialStep?: number // New prop
+    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly"
+    initialStep?: number
 }
 
 export function MercadoPagoEmbed(
@@ -31,10 +27,6 @@ export function MercadoPagoEmbed(
         pendingUrl,
         failureUrl,
         hideTitle,
-        buttonColor,
-        circleColor,
-        primaryButtonColor,
-        secondaryButtonColor,
         width,
         height,
         onRedirect,
@@ -150,12 +142,8 @@ export function MercadoPagoEmbed(
         pendingUrl: pendingUrl || "",
         failureUrl: failureUrl || "",
         hideTitle: hideTitle ? "true" : "false",
-        buttonColor: buttonColor || "#F26F32",
-        circleColor: circleColor || "#F26F32",
-        primaryButtonColor: primaryButtonColor || "#F26F32",
-        secondaryButtonColor: secondaryButtonColor || "#E5E5E5",
         isInIframe: "true",
-        sessionId: sessionId, // Usar el sessionId consistente
+        sessionId: sessionId,
     }
 
     if (displayMode) {
@@ -215,26 +203,6 @@ addPropertyControls(MercadoPagoEmbed, {
         type: ControlType.Boolean,
         defaultValue: false,
     },
-    buttonColor: {
-        title: "MP Button Color",
-        type: ControlType.Color,
-        defaultValue: "#F26F32",
-    },
-    circleColor: {
-        title: "MP Circle Color",
-        type: ControlType.Color,
-        defaultValue: "#F26F32",  // Cambiado de #009EE3 a #F26F32
-    },
-    primaryButtonColor: {
-        title: "Primary Button Color",
-        type: ControlType.Color,
-        defaultValue: "#F26F32",
-    },
-    secondaryButtonColor: {
-        title: "Secondary Button Color",
-        type: ControlType.Color,
-        defaultValue: "#E5E5E5",
-    },
     width: {
         title: "Width",
         type: ControlType.Number,
@@ -287,12 +255,8 @@ MercadoPagoEmbed.defaultProps = {
     pendingUrl: "https://alturadivina.com/proceso-de-compra",
     failureUrl: "https://alturadivina.com/error-de-compra",
     hideTitle: false,
-    buttonColor: "#F26F32",
-    circleColor: "#F26F32",  // Cambiado de #009EE3 a #F26F32
-    primaryButtonColor: "#F26F32",
-    secondaryButtonColor: "#E5E5E5",
     width: 300,
     height: 500,
-    displayMode: "full",
+    displayMode: "full" as const,
     initialStep: 1,
 }

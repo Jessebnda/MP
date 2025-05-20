@@ -26,7 +26,6 @@ export default function MercadoPagoProvider({
   className = '',
   containerStyles = {},
   hideTitle = false,
-  customStyles = {}, // Added customStyles prop
 }) {
   const hostUrl = process.env.NEXT_PUBLIC_HOST_URL || 'http://localhost:3000';
 
@@ -65,7 +64,6 @@ export default function MercadoPagoProvider({
 
   const [displayError, setDisplayError] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
-  const [paymentCustomization, setPaymentCustomization] = useState(null);
 
   useEffect(() => {
     if (sdkError) setDisplayError(sdkError);
@@ -81,88 +79,28 @@ export default function MercadoPagoProvider({
     else setStatusMsg('');
   }, [submitStatusMsg, isLoadingPreference, isProcessing]);
 
-  useEffect(() => {
-    console.log("Aplicando estilos personalizados:", customStyles);
-    
-    // Set CSS variables for custom colors
-    if (customStyles?.buttonColor) {
-      const buttonColor = customStyles.buttonColor.startsWith('#') 
-        ? customStyles.buttonColor 
-        : `#${customStyles.buttonColor}`;
-      document.documentElement.style.setProperty('--mp-button-color', buttonColor);
-      console.log("Aplicando color de botón MercadoPago:", buttonColor);
-    } else {
-      // Valor predeterminado naranja si no se proporciona
-      document.documentElement.style.setProperty('--mp-button-color', '#F26F32');
-    }
-    
-    if (customStyles?.circleColor) {
-      const circleColor = customStyles.circleColor.startsWith('#') 
-        ? customStyles.circleColor 
-        : `#${customStyles.circleColor}`;
-      document.documentElement.style.setProperty('--mp-circle-color', circleColor);
-      console.log("Aplicando color de círculo MercadoPago:", circleColor);
-    } else {
-      // Valor predeterminado naranja si no se proporciona
-      document.documentElement.style.setProperty('--mp-circle-color', '#F26F32'); 
-    }
-    
-    if (customStyles?.primaryButtonColor) {
-      const primaryColor = customStyles.primaryButtonColor.startsWith('#') 
-        ? customStyles.primaryButtonColor 
-        : `#${customStyles.primaryButtonColor}`;
-      document.documentElement.style.setProperty('--mp-primary-button-color', primaryColor);
-      console.log("Aplicando color de botón primario:", primaryColor);
-    } else {
-      document.documentElement.style.setProperty('--mp-primary-button-color', '#F26F32');
-    }
-    
-    if (customStyles?.secondaryButtonColor) {
-      const secondaryColor = customStyles.secondaryButtonColor.startsWith('#') 
-        ? customStyles.secondaryButtonColor 
-        : `#${customStyles.secondaryButtonColor}`;
-      document.documentElement.style.setProperty('--mp-secondary-button-color', secondaryColor);
-      console.log("Aplicando color de botón secundario:", secondaryColor);
-    } else {
-      document.documentElement.style.setProperty('--mp-secondary-button-color', '#E5E5E5');
-    }
-    
-    // También actualizar la configuración para el componente Payment
-    setPaymentCustomization({
-      visual: { 
-        hideFormTitle: hideTitle, 
-        hidePaymentButton: false,
-        style: {
-          theme: 'default',
-          colors: {
-            primary: customStyles?.buttonColor || '#F26F32',
-            secondary: customStyles?.circleColor || '#F26F32', // Cambiado de azul a naranja
-            error: '#e74c3c',
-            background: '#FFFFFF',
-            text: '#333333'
-          }
-        }
-      },
-      paymentMethods: { 
-        creditCard: 'all', 
-        debitCard: 'all' 
+  // Usa colores fijos en la configuración visual
+  const paymentCustomization = {
+    visual: {
+      hideFormTitle: hideTitle,
+      hidePaymentButton: false,
+      style: {
+        theme: 'default',
+        colors: {
+          primary: '#F26F32',
+          secondary: '#E5E5E5',
+          error: '#e74c3c',
+          background: '#FFFFFF',
+          text: '#333333'
+        },
+        borderRadius: '4px'
       }
-    });
-    
-    // Cleanup when component unmounts
-    return () => {
-      document.documentElement.style.removeProperty('--mp-button-color');
-      document.documentElement.style.removeProperty('--mp-circle-color');
-      document.documentElement.style.removeProperty('--mp-primary-button-color');
-      document.documentElement.style.removeProperty('--mp-secondary-button-color');
-    };
-  }, [
-    customStyles?.buttonColor, 
-    customStyles?.circleColor, 
-    customStyles?.primaryButtonColor, 
-    customStyles?.secondaryButtonColor,
-    hideTitle
-  ]);
+    },
+    paymentMethods: {
+      creditCard: 'all',
+      debitCard: 'all'
+    }
+  };
 
   // Forzar la aplicación de colores después del renderizado del componente Payment
   useEffect(() => {
@@ -282,27 +220,7 @@ export default function MercadoPagoProvider({
             preferenceId: preferenceId,
             mercadoPago: mercadoPagoSdkInstance // Asegúrate de usar la instancia, no la clave
           }}
-          customization={{
-            visual: { 
-              hideFormTitle: hideTitle, 
-              hidePaymentButton: false,
-              style: {
-                theme: 'default',
-                colors: {
-                  primary: customStyles?.buttonColor || '#F26F32',
-                  secondary: customStyles?.circleColor || '#F26F32', // Cambio de #009EE3 a #F26F32
-                  error: '#e74c3c',
-                  background: '#FFFFFF',
-                  text: '#333333'
-                },
-                borderRadius: '4px'
-              }
-            },
-            paymentMethods: { 
-              creditCard: 'all', 
-              debitCard: 'all' 
-            }
-          }}
+          customization={paymentCustomization}
           onSubmit={processPayment}
           onReady={handleReady}
           onError={handleError}
