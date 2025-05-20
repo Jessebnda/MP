@@ -35,6 +35,7 @@ export default function PaymentFlow({
   initialProductId = null,
   
   initialStep = 1, // New prop to set the initial step
+  displayMode = "full", // <--- agrega esto con default
 }) {
   if (!apiBaseUrl) {
     logError("PaymentFlow Error: 'apiBaseUrl' prop is required.");
@@ -404,7 +405,10 @@ export default function PaymentFlow({
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
         <div className={styles['mp-header']}>
           {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona un Producto</h2>}
-          <CartIcon onClick={() => setIsCartOpen(true)} />
+          {/* Solo muestra el CartIcon si NO es paymentFlowOnly */}
+          {displayMode !== "paymentFlowOnly" && (
+            <CartIcon onClick={() => setIsCartOpen(true)} />
+          )}
         </div>
         
         <CartSidebar 
