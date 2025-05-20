@@ -102,45 +102,6 @@ export default function MercadoPagoProvider({
     }
   };
 
-  // Forzar la aplicación de colores después del renderizado del componente Payment
-  useEffect(() => {
-    if (!preferenceId || !sdkReady) return;
-    
-    // Aplicar colores con un pequeño retraso para asegurar que el componente Payment esté listo
-    const colorTimer = setTimeout(() => {
-      console.log("Reforzando aplicación de colores...");
-      
-      if (customStyles?.buttonColor) {
-        const buttonColor = customStyles.buttonColor.startsWith('#') 
-          ? customStyles.buttonColor 
-          : `#${customStyles.buttonColor}`;
-        document.documentElement.style.setProperty('--mp-button-color', buttonColor);
-        
-        // Aplicar directamente a elementos que podrían estar en el DOM
-        document.querySelectorAll('.mercadopago-button, button[type="submit"]').forEach(btn => {
-          if (btn.closest('.mp-checkout-container')) {
-            btn.style.backgroundColor = buttonColor;
-            btn.style.borderColor = buttonColor;
-          }
-        });
-      }
-      
-      if (customStyles?.circleColor) {
-        const circleColor = customStyles.circleColor.startsWith('#') 
-          ? customStyles.circleColor 
-          : `#${customStyles.circleColor}`;
-        document.documentElement.style.setProperty('--mp-circle-color', circleColor);
-        
-        // Aplicar directamente a elementos que podrían estar en el DOM
-        document.querySelectorAll('.mp-circle-logo, .mercadopago-circle').forEach(circle => {
-          circle.style.backgroundColor = circleColor;
-        });
-      }
-    }, 500);
-    
-    return () => clearTimeout(colorTimer);
-  }, [preferenceId, sdkReady, customStyles]);
-
   useEffect(() => {
     // Send ready message to parent when loaded
     if (window.parent !== window) {

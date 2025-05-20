@@ -33,7 +33,7 @@ export default function PaymentFlow({
   hideTitle = false,
   className = '',
   initialProductId = null,
-  customStyles = {},
+  
   initialStep = 1, // New prop to set the initial step
 }) {
   if (!apiBaseUrl) {
@@ -355,7 +355,7 @@ export default function PaymentFlow({
           price: product.product.price,
           total: product.product.price * product.quantity
         }))}
-        customStyles={customStyles} // Pass custom styles
+      
       />
     );
   };
