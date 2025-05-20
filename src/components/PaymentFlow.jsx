@@ -406,13 +406,13 @@ export default function PaymentFlow({
         <div className={styles['mp-header']}>
           {!hideTitle && <h2 className={styles['mp-page-title']}>Selecciona un Producto</h2>}
           {/* Solo muestra el CartIcon si NO es paymentFlowOnly */}
-          {(normalizedDisplayMode === "full" || normalizedDisplayMode === "carticononly") && (
+          {(displayMode === "full" || displayMode === "cartIconOnly") && (
             <CartIcon onClick={() => setIsCartOpen(true)} />
           )}
         </div>
         
         {/* Solo muestra el CartSidebar si NO es paymentFlowOnly */}
-        {(normalizedDisplayMode === "full" || normalizedDisplayMode === "carticononly") && (
+        {(displayMode === "full" || displayMode === "cartIconOnly") && (
           <CartSidebar 
             isOpen={isCartOpen} 
             onClose={() => setIsCartOpen(false)} 
