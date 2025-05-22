@@ -198,6 +198,22 @@ export default function MercadoPagoProvider({
           )}
         </div>
       )}
+
+      {isProcessing && (
+        <div className={styles.redirectMessage}>
+          <p>
+            Si no eres redirigido automáticamente después del pago,{' '}
+            <a 
+              href={successUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className={styles.redirectLink}
+            >
+              haz clic aquí
+            </a>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -76,7 +76,7 @@ export function MercadoPagoEmbed(
             
             if (event.data.type === 'MP_PAYMENT_SUCCESS') {
                 console.log('Pago exitoso, redirigiendo a:', event.data.redirectUrl);
-                // Llamar al callback de redirección si existe
+                
                 if (onRedirect) {
                     onRedirect({
                         status: 'success',
@@ -85,13 +85,14 @@ export function MercadoPagoEmbed(
                     });
                 }
                 
-                // Redireccionar la página completa
+                // Abrir en nueva pestaña en lugar de redireccionar
                 if (event.data.redirectUrl) {
-                    window.top.location.href = event.data.redirectUrl;
+                    window.open(event.data.redirectUrl, '_blank');
                 }
             } 
             else if (event.data.type === 'MP_PAYMENT_PENDING') {
                 console.log('Pago pendiente, redirigiendo a:', event.data.redirectUrl);
+                
                 if (onRedirect) {
                     onRedirect({
                         status: 'pending',
@@ -100,12 +101,14 @@ export function MercadoPagoEmbed(
                     });
                 }
                 
+                // Abrir en nueva pestaña
                 if (event.data.redirectUrl) {
-                    window.top.location.href = event.data.redirectUrl;
+                    window.open(event.data.redirectUrl, '_blank');
                 }
             }
             else if (event.data.type === 'MP_PAYMENT_FAILED') {
                 console.log('Pago fallido, redirigiendo a:', event.data.redirectUrl);
+                
                 if (onRedirect) {
                     onRedirect({
                         status: 'failed',
@@ -114,8 +117,9 @@ export function MercadoPagoEmbed(
                     });
                 }
                 
+                // Abrir en nueva pestaña
                 if (event.data.redirectUrl) {
-                    window.top.location.href = event.data.redirectUrl;
+                    window.open(event.data.redirectUrl, '_blank');
                 }
             }
             else if (event.data.type === 'CART_UPDATE') {
@@ -139,7 +143,7 @@ export function MercadoPagoEmbed(
                     });
                 }
                 
-                // Abrir en una nueva ventana (permitido por los navegadores)
+                // Siempre usar window.open en lugar de redirección directa
                 window.open(event.data.url, '_blank');
             }
         };
