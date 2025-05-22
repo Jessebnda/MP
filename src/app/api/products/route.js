@@ -33,26 +33,17 @@ export async function GET() {
     console.log('Looping through staticProducts to fetch from KV...');
     for (const sp of staticProducts) {
       console.log(`Loop: staticProduct ID: ${sp.id}, staticPrice: ${sp.price}`);
-      const kvProduct = await kv.get(`product:${sp.id}`);
-      console.log(`Loop: kv.get(\`product:${sp.id}\`) result:`, JSON.stringify(kvProduct, null, 2));
-      if (kvProduct) {
-        // Get latest stock from KV
-        const stock = await getProductStock(sp.id);
-        
-        productsFromKV.push({
-          ...kvProduct, // Spread other details from KV product (like name, description, category if they can change)
-          price: sp.price, // ALWAYS use the price from staticProducts
-          stockAvailable: stock
-        });
-        console.log(`Loop: Pushed product ${sp.id}. Price used (from staticProducts): ${sp.price}. KV price was: ${kvProduct.price}`);
-      } else {
-        // If product not in KV at all, use static product entirely
-        console.log(`Loop: Product ${sp.id} NOT found in KV. Using static data including stock.`);
-        productsFromKV.push({
-          ...sp, // Use all data from static product
-          // stockAvailable is already part of sp if defined in products.js
-        });
-      }
+      
+      // Obtener solo el stock de KV
+      const stock = await getProductStock(sp.id);
+      
+      // Usar siempre el producto estático como base
+      productsFromKV.push({
+        ...sp, // Todos los datos del producto estático
+        stockAvailable: stock // Solo actualizar el stock desde KV
+      });
+      
+      console.log(`Loop: Pushed product ${sp.id}. Price used: ${sp.price}, Stock: ${stock}`);
     }
     
     // Only fall back to static if we couldn't get anything from KV

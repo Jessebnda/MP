@@ -69,12 +69,12 @@ export async function saveProduct(product) {
   }
 
   try {
-    // Save product data
+    // Save product data WITHOUT price
     await kv.set(`product:${product.id}`, {
       id: product.id,
       name: product.name,
       description: product.description || '',
-      price: product.price,
+      // ELIMINAR price: product.price, - No guardar precio en KV
       category: product.category || 'general'
     });
 

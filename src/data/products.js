@@ -6,7 +6,7 @@ const products = [
     id: '1',
     name: 'Reposado',
     description: 'Envejecido 9 meses en roble blanco, ofrece suavidad y sabores de caramelo, vainilla, miel y agave. Perfecto solo o en cocteles.',
-    price: 1,
+    price: 10,
     category: 'ejemplos',
     stockAvailable: 5
   },

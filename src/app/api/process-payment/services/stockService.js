@@ -7,26 +7,25 @@ import { products as defaultProducts } from '../../../../data/products';
  */
 export async function getProductById(productId) {
   try {
-    // First try to get from KV
-    const product = await kv.get(`product:${productId}`);
-    
-    if (product) {
-      // Get the current stock from KV
-      const stock = await getProductStock(productId);
-      return { ...product, stockAvailable: stock };
-    }
-    
-    // Fallback to static data
+    // Siempre usar el producto estático para los datos base (incluido precio)
     const staticProduct = defaultProducts.find(p => p.id === productId);
-    if (staticProduct) {
-      return staticProduct;
+    
+    if (!staticProduct) {
+      return null;
     }
     
-    return null;
+    // Obtener solo el stock de KV
+    const stock = await getProductStock(productId);
+    
+    // Combinar datos estáticos con stock dinámico
+    return { 
+      ...staticProduct, 
+      stockAvailable: stock 
+    };
   } catch (error) {
     logError(`Error fetching product ${productId}:`, error);
     
-    // Fallback to static data on error
+    // Fallback a datos estáticos en caso de error
     const staticProduct = defaultProducts.find(p => p.id === productId);
     return staticProduct || null;
   }
