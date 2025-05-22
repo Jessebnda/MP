@@ -112,6 +112,23 @@ export async function POST(req) {
       ...(validatedPayer ? { payer: validatedPayer } : {})
     };
 
+    // Agregar envíos a preferenceData si se proporcionan
+    if (body.shipments && body.shipments.receiver_address) {
+      preferenceData.shipments = {
+        mode: body.shipments.mode || "custom",
+        cost: body.shipments.cost || 0,
+        local_pickup: body.shipments.local_pickup || false,
+        receiver_address: {
+          zip_code: body.shipments.receiver_address.zip_code,
+          street_name: body.shipments.receiver_address.street_name,
+          street_number: body.shipments.receiver_address.street_number,
+          city_name: body.shipments.receiver_address.city_name,
+          state_name: body.shipments.receiver_address.state_name || "",
+          country_name: body.shipments.receiver_address.country_name || "México"
+        }
+      };
+    }
+
     logInfo("Datos de preferencia:", JSON.stringify(preferenceData));
 
     try {

@@ -73,7 +73,9 @@ export default function PaymentFlow({
       street_name: '',
       street_number: '',
       zip_code: '',
-      city: ''
+      city: '',
+      state: '',
+      country: '' // Valor predeterminado
     }
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -228,9 +230,8 @@ export default function PaymentFlow({
   };
 
   const calculateTotalPrice = () => {
-    return selectedProducts.reduce((total, item) => {
-      return total + (item.product?.price || 0) * item.quantity;
-    }, 0);
+    // Use the cart totalAmount directly instead of calculating from selectedProducts
+    return totalAmount;
   };
 
   const handleContinueToConfirmation = () => {
@@ -242,45 +243,64 @@ export default function PaymentFlow({
   };
 
   const handleContinueToOrderConfirmation = () => {
-    // Check all required fields
-    if (!userData.email || !userData.first_name || !userData.last_name || 
-        !userData.phone || 
-        !userData.address?.street_name || !userData.address?.street_number || 
-        !userData.address?.zip_code || !userData.address?.city) {
+    // Procesamiento del país personalizado
+    const processedUserData = {...userData};
+    
+    if (processedUserData.address?.country === 'Otro') {
+      if (!processedUserData.address?.customCountry) {
+        alert('Por favor especifique el país');
+        return;
+      }
+      // Usar el país personalizado en lugar de "Otro"
+      processedUserData.address.country = processedUserData.address.customCountry;
+    }
+    
+    // Check all required fields (mantén la validación existente)
+    if (!processedUserData.email || !processedUserData.first_name || !processedUserData.last_name || 
+        !processedUserData.phone || 
+        !processedUserData.address?.street_name || !processedUserData.address?.street_number || 
+        !processedUserData.address?.zip_code || !processedUserData.address?.city || 
+        !processedUserData.address?.state || !processedUserData.address?.country) {
       
       alert('Por favor completa todos los campos, necesitamos estos datos para enviar tu producto');
       return;
     }
     
-    // Asegúrate de que el teléfono sea una cadena limpia pero NO lo conviertas a número
-    const processedUserData = {...userData};
+    // Asegúrate de que el teléfono sea una cadena limpia (mantén esto igual)
     if (processedUserData.phone) {
-      // Limpia pero mantén como string
       processedUserData.phone = String(processedUserData.phone).replace(/[^\d+]/g, '');
     }
     
-    // Actualiza los datos de usuario y avanza al siguiente paso
     setUserData(processedUserData);
     setCurrentStep(3);
   };
 
   const handleConfirmOrder = () => {
-    const totalPrice = calculateTotalPrice();
     logInfo('====== ORDEN CONFIRMADA ======');
-    logInfo('Productos confirmados:');
-    selectedProducts.forEach((prod, i) => {
-      logInfo(`${i+1}. ${prod.product.name} (ID: ${prod.productId})`);
-      logInfo(`   Cantidad: ${prod.quantity}`);
-      logInfo(`   Precio unitario: $${formatPrice(prod.product.price)}`);
-      logInfo(`   Subtotal: $${formatPrice(prod.product.price * prod.quantity)}`);
+    logInfo('Productos confirmados del carrito:');
+    
+    // Use cart items instead of selectedProducts
+    items.forEach((item, i) => {
+      logInfo(`${i+1}. ${item.name} (ID: ${item.productId})`);
+      logInfo(`   Cantidad: ${item.quantity}`);
+      logInfo(`   Precio unitario: $${formatPrice(item.price)}`);
+      logInfo(`   Subtotal: $${formatPrice(item.price * item.quantity)}`);
     });
-    logInfo('TOTAL A PAGAR: $' + formatPrice(totalPrice));
+    
+    logInfo('TOTAL A PAGAR: $' + formatPrice(totalAmount));
     logInfo('============================');
+    
     setConfirmedOrder({
-      products: selectedProducts,
-      totalPrice: totalPrice,
+      // Use cart items instead of selectedProducts
+      products: items.map(item => ({
+        productId: item.productId,
+        product: item,
+        quantity: item.quantity
+      })),
+      totalPrice: totalAmount,
       userData: userData
     });
+    
     setCurrentStep(4);
   };
 
@@ -335,14 +355,11 @@ export default function PaymentFlow({
   };
 
   const renderPaymentProvider = () => {
-    if (!confirmedOrder || selectedProducts.length === 0 || !mercadoPagoPublicKey) return null;
+    if (!confirmedOrder || items.length === 0 || !mercadoPagoPublicKey) return null;
 
-    const firstProduct = selectedProducts[0];
-    const totalAmount = calculateTotalPrice();
-    
     return (
       <PaymentProviderComponent
-        productId={firstProduct.productId}
+        productId={items[0].productId}
         quantity={1}
         totalAmount={totalAmount}
         publicKey={mercadoPagoPublicKey}
@@ -353,13 +370,14 @@ export default function PaymentFlow({
         onSuccess={handlePaymentSuccess}
         onError={handlePaymentError}
         hideTitle={true}
-        userData={confirmedOrder.userData} // Pass the user data
-        orderSummary={selectedProducts.map(product => ({
-          productId: product.productId,
-          name: product.product.name,
-          quantity: product.quantity,
-          price: product.product.price,
-          total: product.product.price * product.quantity
+        userData={confirmedOrder.userData}
+        // Use cart items for the order summary
+        orderSummary={items.map(item => ({
+          productId: item.productId,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
         }))}
       
       />
@@ -759,6 +777,69 @@ export default function PaymentFlow({
                 className={styles['mp-text-input']}
               />
             </div>
+
+            {/* Nuevo campo para estado/provincia */}
+            <div className={styles['mp-form-group']}>
+              <label htmlFor="mp-state">ESTADO/PROVINCIA: <span className={styles['required']}>*</span></label>
+              <input
+                id="mp-state"
+                type="text"
+                value={userData.address?.state || ''}
+                onChange={(e) => setUserData({
+                  ...userData, 
+                  address: {...(userData.address || {}), state: e.target.value}
+                })}
+                className={styles['mp-text-input']}
+              />
+            </div>
+
+            {/* Nuevo campo para país */}
+            <div className={styles['mp-form-group']}>
+              <label htmlFor="mp-country">PAÍS: <span className={styles['required']}>*</span></label>
+              <select
+                id="mp-country"
+                value={userData.address?.country || 'Mexico'}
+                onChange={(e) => {
+                  const countryValue = e.target.value;
+                  setUserData({
+                    ...userData, 
+                    address: {
+                      ...(userData.address || {}), 
+                      country: countryValue,
+                      // Si se selecciona "Otro", limpiar el campo personalizado
+                      customCountry: countryValue === 'Otro' ? '' : userData.address?.customCountry
+                    }
+                  });
+                }}
+                className={styles['mp-select-input']}
+              >
+                <option value="Mexico">México</option>
+                <option value="USA">Estados Unidos</option>
+                <option value="Colombia">Colombia</option>
+                <option value="Argentina">Argentina</option>
+                <option value="Chile">Chile</option>
+                <option value="Peru">Perú</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+
+            {/* Campo adicional que aparece cuando se selecciona "Otro" */}
+            {userData.address?.country === 'Otro' && (
+              <div className={styles['mp-form-group']}>
+                <label htmlFor="mp-custom-country">ESPECIFIQUE PAÍS: <span className={styles['required']}>*</span></label>
+                <input
+                  id="mp-custom-country"
+                  type="text"
+                  value={userData.address?.customCountry || ''}
+                  onChange={(e) => setUserData({
+                    ...userData, 
+                    address: {...(userData.address || {}), customCountry: e.target.value}
+                  })}
+                  className={styles['mp-text-input']}
+                  placeholder="Escriba el nombre del país"
+                />
+              </div>
+            )}
           </div>
           
           <div className={styles['mp-form-actions']}>
@@ -786,25 +867,25 @@ export default function PaymentFlow({
         {!hideTitle && <h2 className={styles['mp-page-title']}>Confirmar Pedido</h2>}
         <div className={styles['mp-confirmation-container']}>
           <div className={styles['mp-summary']}>
-            {selectedProducts.map((product, index) => (
+            {items.map((item, index) => (
               <div key={index} className={styles['mp-product-card']}>
                 <div className={styles['mp-product-card-header']}>
-                  <h4>{product.product.name}</h4>
+                  <h4>{item.name}</h4>
                 </div>
                 <div className={styles['mp-product-card-body']}>
-                  <p className={styles['mp-product-description']}>{product.product.description}</p>
+                  <p className={styles['mp-product-description']}>{item.description}</p>
                   <div className={styles['mp-product-card-row']}>
                     <span className={styles['mp-product-card-label']}>Precio Unitario:</span>
-                    <span className={styles['mp-product-card-value']}>${formatPrice(product.product.price)}</span>
+                    <span className={styles['mp-product-card-value']}>${formatPrice(item.price)}</span>
                   </div>
                   <div className={styles['mp-product-card-row']}>
                     <span className={styles['mp-product-card-label']}>Cantidad:</span>
-                    <span className={styles['mp-product-card-value']}>{product.quantity}</span>
+                    <span className={styles['mp-product-card-value']}>{item.quantity}</span>
                   </div>
                 </div>
                 <div className={styles['mp-product-card-footer']}>
                   <span>Total producto:</span>
-                  <span className={styles['mp-product-card-total']}>${formatPrice(product.product.price * product.quantity)}</span>
+                  <span className={styles['mp-product-card-total']}>${formatPrice(item.price * item.quantity)}</span>
                 </div>
               </div>
             ))}
@@ -877,13 +958,25 @@ export default function PaymentFlow({
                         <span className={styles['mp-buyer-info-value']}>{userData.address.city}</span>
                       </div>
                     )}
+                    {userData.address?.state && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Estado/Provincia:</span>
+                        <span className={styles['mp-buyer-info-value']}>{userData.address.state}</span>
+                      </div>
+                    )}
+                    {userData.address?.country && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>País:</span>
+                        <span className={styles['mp-buyer-info-value']}>{userData.address.country}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
              <div className={styles['mp-grand-total']}>
               <span className={styles['mp-grand-total-label']}>Total a Pagar:</span>
-              <span className={styles['mp-grand-total-value']}>${formatPrice(calculateTotalPrice())}</span>
+              <span className={styles['mp-grand-total-value']}>${formatPrice(totalAmount)}</span>
             </div>
           </div>
           
@@ -1002,6 +1095,18 @@ export default function PaymentFlow({
                       <div className={styles['mp-buyer-info-row']}>
                         <span className={styles['mp-buyer-info-label']}>Ciudad:</span>
                         <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.address.city}</span>
+                      </div>
+                    )}
+                    {confirmedOrder.userData.address.state && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>Estado/Provincia:</span>
+                        <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.address.state}</span>
+                      </div>
+                    )}
+                    {confirmedOrder.userData.address.country && (
+                      <div className={styles['mp-buyer-info-row']}>
+                        <span className={styles['mp-buyer-info-label']}>País:</span>
+                        <span className={styles['mp-buyer-info-value']}>{confirmedOrder.userData.address.country}</span>
                       </div>
                     )}
                   </div>

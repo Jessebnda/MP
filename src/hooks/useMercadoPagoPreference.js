@@ -122,6 +122,20 @@ export function useMercadoPagoPreference({
           successUrl: finalSuccessUrl,
           pendingUrl: finalPendingUrl,
           failureUrl: finalFailureUrl,
+          // Add shipments information here
+          shipments: payerData && payerData.address ? {
+            mode: "custom",
+            cost: 0, // Set to actual shipping cost if you're charging for shipping
+            local_pickup: false,
+            receiver_address: {
+              zip_code: payerData.address.zip_code || "",
+              street_name: payerData.address.street_name || "",
+              street_number: payerData.address.street_number || "",
+              city_name: payerData.address.city || "",      // Mapeo correcto de city a city_name
+              state_name: payerData.address.state || "",    // Mapeo correcto de state a state_name
+              country_name: payerData.address.country // Usar país del frontend o default
+            }
+          } : undefined
         }),
         credentials: 'include',
       });
