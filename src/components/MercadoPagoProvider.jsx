@@ -178,8 +178,8 @@ export default function MercadoPagoProvider({
           key={`payment-${preferenceId}`}
           initialization={{
             amount: finalTotalAmount,
-            preferenceId: preferenceId,
-            mercadoPago: mercadoPagoSdkInstance // Asegúrate de usar la instancia, no la clave
+            preferenceId: preferenceId || '',  // Asegurarte que nunca sea undefined
+            mercadoPago: sdkInstance // Referencia a la instancia de SDK inicializada
           }}
           customization={paymentCustomization}
           onSubmit={processPayment}

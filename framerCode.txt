@@ -127,6 +127,21 @@ export function MercadoPagoEmbed(
                     window.dispatchEvent(updateEvent);
                 }
             }
+            // En el componente Framer, añadir listener para mensajes de redirección
+            else if (event.data.type === 'MP_REDIRECT') {
+                console.log('Redirección solicitada a:', event.data.url);
+                
+                // Notificar a Framer si hay un callback
+                if (onRedirect) {
+                    onRedirect({
+                        status: event.data.status,
+                        url: event.data.url
+                    });
+                }
+                
+                // Abrir en una nueva ventana (permitido por los navegadores)
+                window.open(event.data.url, '_blank');
+            }
         };
         
         window.addEventListener('message', handleMessage);
