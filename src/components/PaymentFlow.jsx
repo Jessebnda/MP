@@ -242,8 +242,13 @@ export default function PaymentFlow({
   };
 
   const handleContinueToOrderConfirmation = () => {
-    if (!userData.email || !userData.first_name || !userData.last_name) {
-      alert('Por favor completa los campos obligatorios');
+    // Check all required fields
+    if (!userData.email || !userData.first_name || !userData.last_name || 
+        !userData.phone || 
+        !userData.address?.street_name || !userData.address?.street_number || 
+        !userData.address?.zip_code || !userData.address?.city) {
+      
+      alert('Por favor completa todos los campos, necesitamos estos datos para enviar tu producto');
       return;
     }
     
@@ -631,7 +636,7 @@ export default function PaymentFlow({
             </div>
             
             <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-phone">TELÉFONO:</label>
+              <label htmlFor="mp-phone">TELÉFONO: <span className={styles['required']}>*</span></label>
               {typeof window !== 'undefined' && (
                 <PhoneInput
                   country={'mx'} // Default para México
@@ -692,9 +697,10 @@ export default function PaymentFlow({
           
           <div className={styles['mp-form-section']}>
             <h3 className={styles['mp-form-section-title']}>Dirección</h3>
+            <p className={styles['mp-form-section-subtitle']}>Todos los campos son obligatorios para envío del producto</p>
             
             <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-street">CALLE:</label>
+              <label htmlFor="mp-street">CALLE: <span className={styles['required']}>*</span></label>
               <input
                 id="mp-street"
                 type="text"
@@ -709,7 +715,7 @@ export default function PaymentFlow({
             
             <div className={styles['mp-form-row']}>
               <div className={styles['mp-form-group']}>
-                <label htmlFor="mp-street-number">NÚMERO:</label>
+                <label htmlFor="mp-street-number">NÚMERO: <span className={styles['required']}>*</span></label>
                 <input
                   id="mp-street-number"
                   type="text"
@@ -726,7 +732,7 @@ export default function PaymentFlow({
               </div>
               
               <div className={styles['mp-form-group']}>
-                <label htmlFor="mp-zip">CÓDIGO POSTAL:</label>
+                <label htmlFor="mp-zip">CÓDIGO POSTAL: <span className={styles['required']}>*</span></label>
                 <input
                   id="mp-zip"
                   type="text"
@@ -741,7 +747,7 @@ export default function PaymentFlow({
             </div>
             
             <div className={styles['mp-form-group']}>
-              <label htmlFor="mp-city">CIUDAD:</label>
+              <label htmlFor="mp-city">CIUDAD: <span className={styles['required']}>*</span></label>
               <input
                 id="mp-city"
                 type="text"

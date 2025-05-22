@@ -171,7 +171,8 @@ export function MercadoPagoEmbed(
                 borderRadius: "8px",
                 overflow: "hidden",
             }}
-            allow="payment; allow-top-navigation-by-user-activation" // <-- Cambia aquí
+            sandbox="allow-scripts allow-forms allow-same-origin allow-top-navigation allow-popups"
+            allow="payment"
         />
     )
 }
