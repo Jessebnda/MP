@@ -58,13 +58,6 @@ async function processMercadoPagoPayment({
     // Ensure amount meets minimum requirements (use transaction_amount if provided or calculated amount)
     let finalAmount = parseFloat(transaction_amount) || calculatedAmount;
 
-    // If amount is too low, increase it for testing purposes (remove in production)
-    const minTestAmount = 100; // MercadoPago typically requires minimum ~100 MXN for card testing
-    if (finalAmount < minTestAmount) {
-      logInfo(`Amount too low (${finalAmount}), increasing to minimum ${minTestAmount} for card testing`);
-      finalAmount = minTestAmount;
-    }
-
     // Process phone for preference
     let phoneFormatted;
     if (payerData?.phone) {
