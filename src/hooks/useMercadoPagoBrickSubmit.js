@@ -102,6 +102,29 @@ export function useMercadoPagoBrickSubmit({
       const data = await response.json();
       logInfo("Respuesta de /api/process-payment:", data);
 
+      if (!response.ok) {
+        // Manejo de error específico según el código de estado
+        if (response.status === 400) {
+          // Bad Request - posiblemente datos de pago incompletos
+          throw new Error(data.message || 'Solicitud incorrecta. Verifique los datos enviados.');
+        } else if (response.status === 401) {
+          // Unauthorized - posible problema de autenticación
+          throw new Error('No autorizado. Por favor, inicie sesión nuevamente.');
+        } else if (response.status === 403) {
+          // Forbidden - el servidor entendió la solicitud, pero se niega a autorizarla
+          throw new Error('Acceso denegado. No tiene permiso para realizar esta acción.');
+        } else if (response.status === 404) {
+          // Not Found - la URL solicitada no fue encontrada en el servidor
+          throw new Error('No encontrado. La URL solicitada no existe en el servidor.');
+        } else if (response.status === 500) {
+          // Internal Server Error - error genérico del servidor
+          throw new Error('Error interno del servidor. Inténtelo de nuevo más tarde.');
+        } else {
+          // Otros códigos de error
+          throw new Error(data.message || 'Error desconocido. Código de estado: ' + response.status);
+        }
+      }
+
       // Handle different payment statuses
       if (data.status === 'approved') {
         setProcessingError(null);
@@ -168,13 +191,20 @@ export function useMercadoPagoBrickSubmit({
 
     } catch (error) {
       logError("Error procesando el pago en hook:", error);
-      const errMsg = `Error: ${error.name === 'AbortError' ? 'Tiempo de espera excedido' : error.message || 'Error desconocido al procesar pago'}`;
+      
+      // Improved error messaging with more details
+      let errMsg;
+      if (error.name === 'AbortError') {
+        errMsg = 'El tiempo de espera para el pago se ha excedido. Inténtelo de nuevo.';
+      } else if (error.message.includes('Cannot read properties')) {
+        errMsg = 'Error de configuración en el servidor. Por favor contacte al administrador.';
+      } else {
+        errMsg = `Error: ${error.message || 'Error desconocido al procesar pago'}`;
+      }
+      
       setProcessingError(errMsg);
       setStatusMsg('');
       if (onError) onError(error);
-      
-      // Optional: redirect to failure on critical error after a delay
-      // setTimeout(() => { window.location.href = failureUrl || `${hostUrl}/error-de-compra`; }, 1500);
     } finally {
       setIsProcessing(false);
     }

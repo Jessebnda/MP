@@ -141,6 +141,42 @@ export default function MercadoPagoProvider({
   const handleReady = () => {
     logInfo('Payment está listo.');
   };
+
+  // Success handler for Payment component
+  const handleSuccess = (data) => {
+    logInfo("Pago exitoso:", data);
+    
+    // Según la documentación de Mercado Pago SDK v1.x.x
+    if (data && data.status === "approved") {
+      logInfo("Pago aprobado:", data.id);
+      
+      // Redirigir a la URL de éxito configurada
+      if (typeof window !== 'undefined') {
+        window.location.href = successUrl;
+      }
+    } else if (data && data.status) {
+      // Manejar otros estados (pending, rejected, etc)
+      logInfo(`Pago con estado: ${data.status}`);
+      
+      // Determinar URL basado en estado
+      const redirectUrl = data.status === 'pending' ? pendingUrl : 
+                          data.status === 'rejected' ? failureUrl : 
+                          successUrl;
+      
+      if (typeof window !== 'undefined') {
+        window.location.href = redirectUrl;
+      }
+    } else {
+      // Fallback para casos no manejados
+      if (typeof window !== 'undefined') {
+        window.location.href = successUrl;
+      }
+    }
+    
+    if (onSuccessCallback) {
+      onSuccessCallback(data);
+    }
+  };
   
   // Overall loading state
   const isLoading = !sdkReady || isLoadingPreference;
@@ -178,13 +214,14 @@ export default function MercadoPagoProvider({
           key={`payment-${preferenceId}`}
           initialization={{
             amount: finalTotalAmount,
-            preferenceId: preferenceId,  // Asegurarte que nunca sea undefined
-            mercadoPago: mercadoPagoSdkInstance // Referencia a la instancia de SDK inicializada
+            preferenceId: preferenceId,
+            mercadoPago: mercadoPagoSdkInstance || window.MercadoPago
           }}
           customization={paymentCustomization}
           onSubmit={processPayment}
           onReady={handleReady}
           onError={handleError}
+          onSuccess={handleSuccess}
         />
       ) : (
         <div className={styles.loadingPreference}>
