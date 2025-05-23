@@ -57,10 +57,9 @@ export async function POST(req) {
   const secret = process.env.MERCADOPAGO_ACCESS_TOKEN; 
 
   // 1. Validar la firma del webhook ANTES de leer el JSON
-  const isValid = await isValidSignature(req, secret);
-  if (!isValid) {
-    logError('Invalid webhook signature. Rejecting request.');
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
+  if (!await isValidSignature(req, secret)) {
+    logSecurityEvent('invalid_webhook_signature', {}, 'error');
+    return Response.json({ error: 'Signature validation failed' }, { status: 401 });
   }
 
   // Ahora que la firma es válida, podemos procesar el cuerpo JSON

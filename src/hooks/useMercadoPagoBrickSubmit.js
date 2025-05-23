@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { logInfo, logError, logWarning } from '../utils/logger'; // Assuming logger utility
 import { sanitizeInput } from '../utils/sanitize'; // Assuming sanitize utility
+import { v4 as uuidv4 } from 'uuid'; // Importar uuid para generar claves de idempotencia
 
 // Helper to get CSRF token (can be moved to a shared utility)
 async function getCsrfToken() {
@@ -15,6 +16,13 @@ async function getCsrfToken() {
     logError("Error fetching CSRF token:", error);
     throw error;
   }
+}
+
+// Placeholder for user session token - implement actual logic to retrieve user session token
+async function getUserSessionToken() {
+  // Implementar la lógica para obtener el token de sesión del usuario
+  // Esto puede implicar llamar a una API o acceder a un almacenamiento local, según su aplicación
+  return 'user-session-token-placeholder'; // Reemplazar con el valor real
 }
 
 export function useMercadoPagoBrickSubmit({
@@ -76,6 +84,8 @@ export function useMercadoPagoBrickSubmit({
           : { productId: sanitizeInput(productId, 'productId'), quantity: sanitizeInput(quantity, 'quantity'), isMultipleOrder: false }),
         totalAmount: finalAmount,
         userData: userData, // Send full user data if available
+        sessionToken: await getUserSessionToken(), // Obtener el token de sesión del usuario
+        idempotencyKey: uuidv4(), // Generar una clave de idempotencia única
       };
 
       logInfo("Payload enviado a /api/process-payment:", backendPayload);
