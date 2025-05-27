@@ -71,3 +71,18 @@ small {
   border-color: #007bff !important;
   box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
 }
+
+.mp-saving-notice {
+  background: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.mp-saving-notice p {
+  margin: 0;
+  color: #1976d2;
+  font-weight: 500;
+}

@@ -11,6 +11,7 @@ import '../styles/mercadopago-globals.css';
 import { useCart } from '../hooks/useCart';
 import CartIcon from './CartIcon';
 import CartSidebar from './CartSidebar';
+import { useCustomerSave } from '../hooks/useCustomerSave';
 
 const formatPrice = (price) => {
   return Number(price).toLocaleString('es-MX', {
@@ -79,7 +80,8 @@ export default function PaymentFlow({
     }
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
-  
+  const { saveCustomer, saving: savingCustomer } = useCustomerSave();
+
   // Obtener datos del carrito
   const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart();
 
@@ -275,7 +277,7 @@ export default function PaymentFlow({
     setCurrentStep(3);
   };
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
     logInfo('====== ORDEN CONFIRMADA ======');
     logInfo('Productos confirmados del carrito:');
     
@@ -289,7 +291,31 @@ export default function PaymentFlow({
     
     logInfo('TOTAL A PAGAR: $' + formatPrice(totalAmount));
     logInfo('============================');
-    
+
+    // Guardar datos del cliente antes de proceder al pago
+    try {
+      const orderData = {
+        totalAmount,
+        items: items.map(item => ({
+          productId: item.productId,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.price * item.quantity
+        })),
+        orderId: `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        paymentStatus: 'pending'
+      };
+
+      // Guardar cliente en Google Sheets
+      const customerResult = await saveCustomer(userData, orderData);
+      logInfo('Cliente guardado con ID:', customerResult.customerId);
+
+    } catch (error) {
+      logError('Error guardando cliente, pero continuando con el pago:', error);
+      // No bloquear el flujo de pago por errores de guardado
+    }
+
     setConfirmedOrder({
       // Use cart items instead of selectedProducts
       products: items.map(item => ({
@@ -865,6 +891,11 @@ export default function PaymentFlow({
     return (
       <div className={cn(styles['mp-container'], className)} style={containerStyles}>
         {!hideTitle && <h2 className={styles['mp-page-title']}>Confirmar Pedido</h2>}
+        {savingCustomer && (
+          <div className={styles['mp-saving-notice']}>
+            <p>Guardando información del cliente...</p>
+          </div>
+        )}
         <div className={styles['mp-confirmation-container']}>
           <div className={styles['mp-summary']}>
             {items.map((item, index) => (
@@ -983,14 +1014,14 @@ export default function PaymentFlow({
           <div className={styles['mp-confirmation-actions']}>
             <p className={styles['mp-confirmation-note']}>
               Al confirmar esta orden, procederás al proceso de pago.
-              Los datos mostrados quedarán bloqueados.
+              Los datos mostrados quedarán bloqueados y se guardarán para el envío.
             </p>
             <div className={styles['mp-button-container']}>
               <button className={cn(styles['mp-button'], styles['mp-secondary'])} onClick={handleBack}>
                 Volver
               </button>
-              <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleConfirmOrder}>
-                Confirmar y Proceder al Pago
+              <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleConfirmOrder} disabled={savingCustomer}>
+                {savingCustomer ? 'Guardando...' : 'Confirmar y Proceder al Pago'}
               </button>
             </div>
           </div>

@@ -1,28 +1,21 @@
 import { NextResponse } from 'next/server';
-import { kv, getProductStock } from '../../../../lib/kv';
-import { products as staticProducts } from '../../../../data/products';
+import { getProductById } from '../../../../lib/productService';
+import { logInfo, logError } from '../../../../utils/logger';
 
 export async function GET(request, { params }) {
+  const { id } = params;
+  logInfo(`--- HIT /api/products/${id} ---`);
+  
   try {
-    const { id } = params;
+    const product = await getProductById(id);
     
-    // Siempre obtener el producto estático primero para tener el precio correcto
-    const staticProduct = staticProducts.find(p => p.id === id);
-    
-    if (!staticProduct) {
-      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    if (!product) {
+      return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
     
-    // Obtener stock de KV
-    const stock = await getProductStock(id);
-    
-    // Retornar el producto estático con el stock de KV
-    return NextResponse.json({
-      ...staticProduct,
-      stockAvailable: stock
-    });
+    return NextResponse.json(product);
   } catch (error) {
-    console.error(`Error getting product ${params.id}:`, error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    logError(`Error al obtener producto ${id}:`, error);
+    return NextResponse.json({ error: 'Error al obtener producto' }, { status: 500 });
   }
 }
