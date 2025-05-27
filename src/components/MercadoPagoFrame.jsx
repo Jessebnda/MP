@@ -38,6 +38,20 @@ export function MercadoPagoFrame({
     return () => window.removeEventListener("message", handleMessage);
   }, [onRedirect, allowedOrigin]);
 
+  // Usar un origen específico en lugar de '*'
+  const targetOrigin = process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:3000' 
+    : 'https://alturadivina.com';
+
+  if (window.parent !== window) {
+    logInfo("Notificando al contenedor sobre redirección exitosa");
+    window.parent.postMessage({
+      type: 'MP_PAYMENT_SUCCESS',
+      redirectUrl: successUrl,
+      paymentData: data
+    }, targetOrigin);
+  }
+
   return (
     <Frame
       src={src}

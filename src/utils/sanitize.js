@@ -9,10 +9,10 @@
 export function sanitizeString(input) {
   if (typeof input !== 'string') return '';
   
-  // Convert to string and replace potentially dangerous characters
+  // Sanitizar usando solo textContent, que es más seguro
   const div = document.createElement('div');
   div.textContent = input;
-  return div.innerHTML; // This converts special characters to HTML entities
+  return div.textContent; // Usar textContent en lugar de innerHTML
 }
 
 /**
