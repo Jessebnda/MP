@@ -27,7 +27,6 @@
     "dotenv": "^16.5.0",
     "google-auth-library": "^9.15.1",
     "google-spreadsheet": "^4.1.4",
-    "googleapis": "^149.0.0",
     "mercadopago": "^2.4.0",
     "next": "^14.0.4",
     "nodemailer": "^7.0.3",
