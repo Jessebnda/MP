@@ -8,7 +8,8 @@ export async function generateReceiptPDF(order, customer) {
   try {
     // Crear un nuevo documento PDF
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    // Cambiar const page a let page para permitir reasignación
+    let page = pdfDoc.addPage([595.28, 841.89]); // A4
     
     // Obtener fuentes
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
