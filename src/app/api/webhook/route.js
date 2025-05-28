@@ -98,6 +98,31 @@ function isSuccessfulPayment(status) {
   return ['approved', 'success', 'succeeded', 'approved_payment'].includes(normalizedStatus);
 }
 
+// Función para registrar eventos de webhook
+async function recordWebhookEvent(notification, signatureIsValid, requestId) {
+  try {
+    // Guardar el evento en la tabla webhook_events
+    const { error } = await supabase
+      .from('webhook_events')
+      .insert({
+        request_id: requestId,
+        type: notification.type,
+        data: notification.data,
+        raw_notification: notification,
+        is_valid: signatureIsValid,
+        timestamp: new Date()
+      });
+    
+    if (error) {
+      logError(`Error al registrar evento webhook: ${error.message}`);
+    } else {
+      logInfo(`✅ [${requestId}] Evento webhook registrado`);
+    }
+  } catch (err) {
+    logError(`Error al registrar evento webhook: ${err.message}`);
+  }
+}
+
 export async function POST(req) {
   const requestId = `req_${Date.now().toString(36)}`;
   logInfo(`📥 [${requestId}] Webhook recibido desde MercadoPago`);
@@ -129,49 +154,59 @@ export async function POST(req) {
   const reqClone = req.clone();
   const signatureIsValid = await isValidSignature(reqClone, secret);
   
-  if (!signatureIsValid) {
-    logError(`❌ [${requestId}] Validación de firma fallida`);
-    logSecurityEvent('invalid_webhook_signature', { requestId }, 'error');
-    return NextResponse.json({ error: 'Signature validation failed' }, { status: 401 });
-  }
-  
-  logInfo(`✅ [${requestId}] Validación de firma exitosa`);
-
   try {
     // 2. Obtener el cuerpo de la notificación
     logInfo(`📂 [${requestId}] Leyendo cuerpo JSON del webhook...`);
     const notification = await req.json();
     
-    logInfo(`📣 [${requestId}] Webhook procesado: tipo=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
-    logInfo(`🔍 [${requestId}] Datos completos de notificación:`, notification);
-
-    // 3. Manejar diferentes tipos de notificaciones
-    logInfo(`⚙️ [${requestId}] Procesando notificación tipo: ${notification.type}`);
-    switch(notification.type) {
-      case 'payment':
-        logInfo(`💰 [${requestId}] Procesando notificación de pago`);
-        await handlePaymentNotification(notification, mpClient, requestId);
-        break;
-      case 'chargebacks':
-        logInfo(`🔙 [${requestId}] Procesando notificación de contracargo`);
-        await handleChargebackNotification(notification, mpClient, requestId);
-        break;
-      case 'claim':
-        logInfo(`⚠️ [${requestId}] Procesando notificación de reclamo`);
-        await handleClaimNotification(notification, mpClient, requestId);
-        break;
-      default:
-        logInfo(`❓ [${requestId}] Tipo de notificación no manejado: ${notification.type}`);
+    // Registrar el evento (añadir esta línea)
+    await recordWebhookEvent(notification, signatureIsValid, requestId);
+    
+    // Si la firma no es válida, responder con error 401
+    if (!signatureIsValid) {
+      logError(`❌ [${requestId}] Validación de firma fallida`);
+      logSecurityEvent('invalid_webhook_signature', { requestId }, 'error');
+      return NextResponse.json({ error: 'Signature validation failed' }, { status: 401 });
     }
+    
+    logInfo(`✅ [${requestId}] Validación de firma exitosa`);
 
-    // 4. Responder con éxito a MercadoPago
-    logInfo(`✅ [${requestId}] Webhook procesado exitosamente, respondiendo con 200 OK`);
-    return NextResponse.json({ received: true, requestId }, { status: 200 });
+    try {
+      // 3. Manejar diferentes tipos de notificaciones
+      logInfo(`⚙️ [${requestId}] Procesando notificación tipo: ${notification.type}`);
+      switch(notification.type) {
+        case 'payment':
+          logInfo(`💰 [${requestId}] Procesando notificación de pago`);
+          await handlePaymentNotification(notification, mpClient, requestId);
+          break;
+        case 'chargebacks':
+          logInfo(`🔙 [${requestId}] Procesando notificación de contracargo`);
+          await handleChargebackNotification(notification, mpClient, requestId);
+          break;
+        case 'claim':
+          logInfo(`⚠️ [${requestId}] Procesando notificación de reclamo`);
+          await handleClaimNotification(notification, mpClient, requestId);
+          break;
+        default:
+          logInfo(`❓ [${requestId}] Tipo de notificación no manejado: ${notification.type}`);
+      }
 
+      // 4. Responder con éxito a MercadoPago
+      logInfo(`✅ [${requestId}] Webhook procesado exitosamente, respondiendo con 200 OK`);
+      return NextResponse.json({ received: true, requestId }, { status: 200 });
+
+    } catch (error) {
+      logError(`❌ [${requestId}] Error procesando webhook:`, error);
+      return NextResponse.json({ 
+        error: 'Webhook processing failed', 
+        message: error.message,
+        requestId 
+      }, { status: 500 });
+    }
   } catch (error) {
-    logError(`❌ [${requestId}] Error procesando webhook:`, error);
+    logError(`❌ [${requestId}] Error general en el manejo del webhook:`, error);
     return NextResponse.json({ 
-      error: 'Webhook processing failed', 
+      error: 'Webhook handling error', 
       message: error.message,
       requestId 
     }, { status: 500 });
