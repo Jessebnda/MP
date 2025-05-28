@@ -42,7 +42,7 @@ export default function SyncPage() {
       <h1>Sincronización Manual con Google Sheets</h1>
       <p className={styles.info}>
         Esta página permite desencadenar manualmente la sincronización entre Supabase y Google Sheets.
-        La sincronización automática ocurre cada 10 minutos.
+        La sincronización automática ha sido desactivada.
       </p>
       
       <div className={styles.form}>
