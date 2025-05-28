@@ -3,11 +3,12 @@
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import styles from './webhook-tester.module.css';
 
-export default function WebhookTester() {
+// Creamos un componente interno que usa useSearchParams
+function WebhookTesterContent() {
   const [amount, setAmount] = useState('10.00');
   const [loading, setLoading] = useState(false);
   const [creatingPayment, setCreatingPayment] = useState(false);
@@ -211,5 +212,14 @@ export default function WebhookTester() {
         </ul>
       </div>
     </div>
+  );
+}
+
+// Componente principal que envuelve al contenido con Suspense
+export default function WebhookTester() {
+  return (
+    <Suspense fallback={<div className={styles.loading}>Cargando webhook tester...</div>}>
+      <WebhookTesterContent />
+    </Suspense>
   );
 }
