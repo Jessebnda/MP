@@ -145,34 +145,113 @@ export default function MercadoPagoProvider({
   // Success handler for Payment component
   const handleSuccess = (data) => {
     logInfo("Pago exitoso:", data);
-    
-    // Según la documentación de Mercado Pago SDK v1.x.x
-    if (data && data.status === "approved") {
-      logInfo("Pago aprobado:", data.id);
+
+    // Mapear status_detail a mensaje y URL
+    const statusDetail = data.status_detail || '';
+    const status = data.status || '';
+    let redirectUrl = failureUrl; // Default a failure por seguridad
+    let userMessage = 'Resultado del pago: ';
+
+    // Decisión basada en status y status_detail
+    if (status === 'approved') {
+      redirectUrl = successUrl;
+      userMessage = 'Pago aprobado y acreditado.';
+    }
+    else if (status === 'pending' || status === 'in_process') {
+      redirectUrl = pendingUrl; 
+      userMessage = 'Pago en proceso de validación.';
+    }
+    else {
+      // Si llegamos aquí, el pago fue rechazado o tuvo algún problema
+      redirectUrl = failureUrl;
       
-      // Redirigir a la URL de éxito configurada
-      if (typeof window !== 'undefined') {
-        window.location.href = successUrl;
-      }
-    } else if (data && data.status) {
-      // Manejar otros estados (pending, rejected, etc)
-      logInfo(`Pago con estado: ${data.status}`);
-      
-      // Determinar URL basado en estado
-      const redirectUrl = data.status === 'pending' ? pendingUrl : 
-                          data.status === 'rejected' ? failureUrl : 
-                          successUrl;
-      
-      if (typeof window !== 'undefined') {
-        window.location.href = redirectUrl;
-      }
-    } else {
-      // Fallback para casos no manejados
-      if (typeof window !== 'undefined') {
-        window.location.href = successUrl;
+      // Determinar mensaje específico según status_detail
+      switch (statusDetail) {
+        // CASOS DE TARJETAS DE CRÉDITO/DÉBITO RECHAZADAS
+        case 'cc_rejected_bad_filled_card_number':
+          userMessage += 'Número de tarjeta mal ingresado.';
+          break;
+        case 'cc_rejected_bad_filled_date':
+          userMessage += 'Fecha de vencimiento incorrecta.';
+          break;
+        case 'cc_rejected_bad_filled_security_code':
+          userMessage += 'Código de seguridad incorrecto.';
+          break;
+        case 'cc_rejected_bad_filled_other':
+          userMessage += 'Error en los datos ingresados.';
+          break;
+        case 'cc_rejected_high_risk':
+          userMessage += 'Pago rechazado por seguridad.';
+          break;
+        case 'cc_rejected_blacklist':
+          userMessage += 'La tarjeta se encuentra bloqueada.';
+          break;
+        case 'cc_rejected_insufficient_amount':
+          userMessage += 'Fondos insuficientes.';
+          break;
+        case 'cc_rejected_max_attempts':
+          userMessage += 'Excedió el límite de intentos permitidos.';
+          break;
+        case 'cc_rejected_call_for_authorize':
+          userMessage += 'Debe autorizar el pago con su banco.';
+          break;
+        case 'cc_rejected_duplicated_payment':
+          userMessage += 'Pago duplicado detectado.';
+          break;
+        case 'cc_rejected_card_disabled':
+          userMessage += 'Tarjeta deshabilitada temporalmente.';
+          break;
+          
+        // CASOS ESPECÍFICOS DE PAGOS PENDIENTES
+        case 'pending_contingency':
+          redirectUrl = pendingUrl;
+          userMessage = 'El pago está en proceso de revisión.';
+          break;
+        case 'pending_review_manual':
+          redirectUrl = pendingUrl;
+          userMessage = 'El pago está siendo revisado manualmente.';
+          break;
+        case 'pending_waiting_payment':
+          redirectUrl = pendingUrl;
+          userMessage = 'Esperando que realice el pago.';
+          break;
+          
+        // OTROS ESTADOS
+        case 'accredited':
+          redirectUrl = successUrl;
+          userMessage = 'Pago acreditado.';
+          break;
+        case 'authorized':
+          redirectUrl = successUrl;
+          userMessage = 'Pago autorizado.';
+          break;
+        case 'in_mediation':
+          userMessage = 'El pago está en mediación o disputa.';
+          break;
+        case 'cancelled':
+          userMessage = 'El pago fue cancelado.';
+          break;
+        case 'refunded':
+          userMessage = 'El pago fue devuelto.';
+          break;
+        case 'charged_back':
+          userMessage = 'El pago tuvo un contracargo.';
+          break;
+          
+        default:
+          userMessage = `El pago no pudo completarse (${statusDetail || status}).`;
+          break;
       }
     }
-    
+
+    // Mostrar mensaje (puedes usar un toast, modal, etc)
+    alert(userMessage);
+
+    // Redirigir
+    if (typeof window !== 'undefined') {
+      window.location.href = redirectUrl;
+    }
+
     if (onSuccessCallback) {
       onSuccessCallback(data);
     }

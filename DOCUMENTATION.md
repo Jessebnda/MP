@@ -1,9 +1,10 @@
 # Mercado Pago Component: Technical Documentation
 
-Este documento describe la arquitectura, API, seguridad y personalización del componente de pago Mercado Pago para React/Next.js.
+Este documento describe la arquitectura, API, seguridad y personalización del componente de pago Mercado Pago para React/Next.js, ahora con backend en Supabase y control de stock seguro.
 
 ## Tabla de Contenidos
 - Arquitectura de Componentes
+- Flujo de Datos y Backend
 - Modos de Visualización
 - Referencia de API
 - Hooks y Contextos
@@ -25,6 +26,14 @@ Este documento describe la arquitectura, API, seguridad y personalización del c
 - `useMercadoPagoSdk.js`: Inicializa el SDK de Mercado Pago
 - `useMercadoPagoPreference.js`: Crea preferencias de pago
 - `useMercadoPagoBrickSubmit.js`: Envía el pago
+- `useCustomerSave.js`: Guarda datos de cliente y compra en Supabase
+
+## Flujo de Datos y Backend
+- **Todos los datos críticos (productos, stock, órdenes, clientes) se gestionan en Supabase.**
+- El frontend nunca confía en datos locales: siempre consulta y valida contra el backend (Supabase).
+- El stock se verifica y actualiza en Supabase tras cada compra exitosa.
+- Los endpoints de la carpeta `/api` actúan como capa de seguridad y lógica de negocio.
+- Integración con Google Sheets para respaldo y sincronización de pedidos/clientes.
 
 ## Modos de Visualización (`displayMode`)
 - `full`: Selección de producto, ícono y sidebar de carrito, y flujo de pago
@@ -85,14 +94,16 @@ Este documento describe la arquitectura, API, seguridad y personalización del c
 | auto_return            | String | No        | Auto-redirect ("approved")           |
 | payer                  | Object | No        | Info del cliente                     |
 | statement_descriptor   | String | No        | Texto en estado de cuenta            |
-| external_reference     | String | No        | ID de orden personalizado            |
+| external_reference     | String | No        | ID de orden personalizada            |
 | notification_url       | String | No        | Webhook para notificaciones          |
 
 ## Seguridad
 - **CSRF:** Token por sesión, validado en endpoints y peticiones de pago
 - **Sanitización:** Previene XSS, SQLi y manipulación de datos
-- **Validación server-side:** Precios, stock y orden
+- **Validación server-side:** Precios, stock y orden (siempre en Supabase)
 - **CSP:** Headers estrictos en `next.config.mjs`
+- **Stock seguro:** El stock solo se descuenta en Supabase tras pago exitoso, nunca en frontend.
+- **Datos sensibles:** Nunca expuestos al cliente, solo gestionados en backend/API.
 
 ## Logging
 - Utilidad centralizada (`lib/logger.js`)
@@ -107,9 +118,11 @@ Este documento describe la arquitectura, API, seguridad y personalización del c
 - **URLs absolutas:** Todas las `back_urls` deben ser absolutas
 - **Hooks:** Exporta/importa correctamente
 - **Carrito:** Estado global, reflejado en todos los componentes
+- **Stock:** Si el stock no se actualiza, revisa la conexión con Supabase y los endpoints
 - **Errores comunes:**
   - `auto_return invalid. back_url.success must be defined`: Verifica URLs y hooks
   - `useMercadoPagoSdk is not a function`: Revisa export/import de hooks
+  - `Module not found: Can't resolve 'classnames'`: Instala la dependencia con `npm install classnames`
 
 ---
 

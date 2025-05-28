@@ -4,6 +4,20 @@ import { v4 as uuidv4 } from 'uuid';
 import { logInfo, logError, logSecurityEvent } from '../../../utils/logger';
 import { extractPaymentInstrumentData, validatePaymentRequestBody } from '../../../utils/requestHelper';
 import { getProductById, verifyStockForOrder, updateStockAfterOrder } from './services/stockService';
+import { createClient } from '@supabase/supabase-js';
+
+// Inicializar el cliente de Supabase
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Agregar esta verificación después de inicializar el cliente de Supabase
+if (!supabaseUrl || !supabaseKey) {
+  logError('Variables de entorno de Supabase no encontradas:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseKey
+  });
+}
 
 // Crear cliente con la sintaxis de la nueva versión
 const client = new MercadoPagoConfig({
@@ -304,24 +318,32 @@ export async function POST(req) {
         idempotencyKey, // Pasar la clave de idempotencia
       });
 
-      if (paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'authorized')) {
-        logSecurityEvent('payment_success', {
-          id: paymentResponse.id,
-          amount: totalAmount,
-          status: paymentResponse.status,
-          idempotencyKey,
-        });
-        // Only update stock for approved payments
-        await updateStockAfterOrder(itemsForPayment);
-        
+      if (paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process')) {
+        // Guardar la orden en Supabase aquí
+        await supabase
+          .from('orders')
+          .insert([{
+            id: idempotencyKey,
+            customer_id: userData?.email || null,
+            total_amount: totalAmount,
+            payment_status: paymentResponse.status,
+            payment_detail: paymentResponse.status_detail,
+            created_at: new Date(),
+            updated_at: new Date(),
+            // ...otros campos necesarios
+          }]);
+
+        // Actualizar stock solo si es approved
+        if (paymentResponse.status === 'approved') {
+          await updateStockAfterOrder(itemsForPayment);
+        }
+
         return NextResponse.json({
           status: paymentResponse.status,
+          status_detail: paymentResponse.status_detail,
           id: paymentResponse.id,
-          preference_id: paymentResponse.preference_id, // Include preference ID
-          init_point: paymentResponse.init_point,      // Include init_point
+          preference_id: paymentResponse.preference_id,
           amount: totalAmount,
-          formattedAmount: Number(totalAmount).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }),
-          paymentDetails: paymentResponse.status_detail,
           message: 'Pago procesado exitosamente.',
           idempotencyKey,
         });

@@ -2,100 +2,58 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-Un componente seguro y personalizable para integrar Mercado Pago en aplicaciones Next.js/React. Incluye un flujo multi-paso con selección de producto, confirmación de pedido y checkout usando el Payment Brick de Mercado Pago.
+Componente seguro y personalizable para integrar Mercado Pago en aplicaciones Next.js/React. Incluye flujo multi-paso, carrito, control de stock en Supabase y sincronización con Google Sheets.
 
 ## Características
 
 - **Flujo Multi-Paso:** Desde selección de producto hasta pago finalizado
 - **Carrito Integrado:** Sidebar de carrito con control de cantidad y resumen
-- **Modos de Visualización:**
-  - `full`: flujo completo con carrito y selección
-  - `cartIconOnly`: solo ícono y sidebar de carrito
-  - `paymentFlowOnly`: solo el flujo de pago, sin carrito
-- **Procesamiento Seguro:** Validación server-side y protección CSRF
-- **Integración Mercado Pago:** Uso del Payment Brick y SDK oficial
-- **Responsive:** Experiencia optimizada para móvil
-- **Redirecciones Configurables:** URLs para éxito, pendiente y error
-- **Logging Mejorado:** Logs solo en desarrollo, sin datos sensibles
-- **Listo para Vercel y Framer**
-- **Arquitectura Modular:** Hooks y contextos para integración flexible
+- **Control de Stock Seguro:** El stock se valida y descuenta en Supabase solo tras pago exitoso
+- **Backend-First:** El frontend nunca confía en datos locales, siempre consulta y valida contra el backend/API
+- **Integración MercadoPago:** Checkout seguro con Payment Brick y callbacks
+- **Sincronización Google Sheets:** Pedidos y clientes se respaldan automáticamente
+- **Despliegue en Vercel:** Listo para serverless y crons de sincronización
+- **Personalización:** Estilos, colores y modos de visualización flexibles
 
-## Quick Start
+## Arquitectura
 
-### Instala dependencias
+- **Frontend:** React/Next.js, componentes desacoplados, hooks y contextos para carrito y pagos
+- **Backend:** Endpoints `/api` en Next.js, lógica de negocio y seguridad, conexión directa a Supabase
+- **Base de datos:** Supabase (PostgreSQL) para productos, stock, clientes, órdenes y direcciones
+- **Integraciones:** MercadoPago SDK, Google Sheets API
 
-```bash
-npm install @mercadopago/sdk-react clsx tailwind-merge
-```
-
-### Configura variables de entorno
-
-```env
-NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=your_public_key
-MERCADOPAGO_ACCESS_TOKEN=your_access_token
-NEXT_PUBLIC_HOST_URL=https://your-deployment-url.com
-```
-
-### Importa y usa el componente principal
-
-```tsx
-import PaymentFlow from '../components/PaymentFlow';
-
-export default function Checkout() {
-  return (
-    <PaymentFlow
-      apiBaseUrl={process.env.NEXT_PUBLIC_HOST_URL}
-      mercadoPagoPublicKey={process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY}
-      successUrl="/success"
-      pendingUrl="/pending"
-      failureUrl="/failure"
-      displayMode="full" // "full", "cartIconOnly" o "paymentFlowOnly"
-    />
-  );
-}
-```
-
-### Modos de Visualización (`displayMode`)
-- `full`: Muestra selección de producto, carrito (ícono y sidebar) y flujo de pago.
-- `cartIconOnly`: Solo ícono de carrito y sidebar, sin selección de producto.
-- `paymentFlowOnly`: Solo el flujo de pago, sin carrito ni selección.
-
-### Hooks y Contextos
-- `useCart.js`: Maneja el estado global del carrito (agregar, quitar, limpiar, total, etc.)
-- `useMercadoPagoSdk.js`: Inicializa el SDK de Mercado Pago
-- `useMercadoPagoPreference.js`: Crea preferencias de pago
-- `useMercadoPagoBrickSubmit.js`: Envía el pago
-
-### Componentes Clave
-- `PaymentFlow.jsx`: Orquesta el flujo y renderiza según el paso y modo
-- `CartIcon.jsx`: Ícono de carrito con contador dinámico
-- `CartSidebar.jsx`: Sidebar con resumen, acciones y checkout
-- `MercadoPagoProvider.jsx`: Renderiza el Payment Brick y maneja callbacks
-
-### Props principales de `PaymentFlow`
-- `apiBaseUrl` (string, requerido)
-- `mercadoPagoPublicKey` (string, requerido)
-- `successUrl`, `pendingUrl`, `failureUrl` (string, requerido)
-- `displayMode` (string, opcional, default: "full")
-- `onSuccess`, `onError` (función, opcional)
-- `initialProductId` (string, opcional)
-
-### Notas Importantes
-- **URLs absolutas:** Todas las `back_urls` deben ser absolutas
-- **Hooks:** Asegúrate de exportar/importar correctamente los hooks
-- **Carrito:** El estado del carrito es global vía contexto y se refleja en todos los componentes
-- **Estilos:** Personaliza usando los módulos CSS incluidos o sobrescribe en `globals.css`
-
-## Documentación Completa
-Consulta [DOCUMENTATION.md](./DOCUMENTATION.md) para detalles avanzados, referencia de API, seguridad, personalización y solución de problemas.
+## Flujo de Compra
+1. El usuario selecciona productos y cantidades (stock siempre consultado en Supabase)
+2. Al confirmar, se crea la preferencia de pago y se inicia el Payment Brick
+3. Tras pago exitoso, el stock se descuenta en Supabase y se registra la orden y el cliente
+4. Los datos se sincronizan con Google Sheets para respaldo
 
 ## Seguridad
-- Protección CSRF
-- Sanitización de entradas
-- Validación de precios y stock en backend
-- Manejo seguro de variables de entorno
-- Content Security Policy headers
+- Validación de stock, precios y datos solo en backend
+- CSRF y sanitización en endpoints
+- Nunca se expone lógica crítica ni datos sensibles al frontend
 
-## Licencia
+## Instalación y Uso
 
-Publicado bajo la [MIT License](https://opensource.org/licenses/MIT)
+```bash
+npm install
+npm run dev
+```
+
+Configura tus variables de entorno en `.env.local` para Supabase, MercadoPago y Google Sheets.
+
+## Despliegue
+- Listo para Vercel (incluye `vercel.json` para crons de sincronización)
+- Compatible con serverless y edge functions
+
+## Personalización
+- Modos: `full`, `cartIconOnly`, `paymentFlowOnly`
+- Estilos CSS y módulos personalizables
+- Hooks para integración avanzada
+
+## Documentación Técnica
+Consulta `DOCUMENTATION.md` para detalles de arquitectura, API, seguridad y solución de problemas.
+
+---
+
+¿Dudas o sugerencias? Revisa los comentarios en el código fuente o abre un issue.

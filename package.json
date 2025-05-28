@@ -29,6 +29,8 @@
     "google-spreadsheet": "^4.1.4",
     "mercadopago": "^2.4.0",
     "next": "^14.0.4",
+    "nodemailer": "^7.0.3",
+    "pdf-lib": "^1.17.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-phone-input-2": "^2.15.1",
