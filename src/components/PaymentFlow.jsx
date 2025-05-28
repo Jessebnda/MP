@@ -308,8 +308,7 @@ export default function PaymentFlow({
       };
 
       // Guardar cliente en Google Sheets
-      const customerResult = await saveCustomer(userData, orderData);
-      logInfo('Cliente guardado con ID:', customerResult.customerId);
+      logInfo('Datos del cliente y orden guardados temporalmente en payment_requests para ser procesados cuando se confirme el pago');
 
     } catch (error) {
       logError('Error guardando cliente, pero continuando con el pago:', error);

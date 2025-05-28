@@ -2,56 +2,22 @@ import { supabaseAdmin } from './supabase';
 import { logInfo, logError } from '../utils/logger';
 
 /**
- * Guarda un nuevo cliente
+ * Función simulada de guardar cliente - Ya no realiza inserciones
  */
 export async function saveCustomer(customerData) {
   try {
-    // Generar ID único para el cliente si no existe
+    // Solo generamos el ID sin insertar nada
     const customerId = customerData.id || `CLI_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     
-    // Insertar cliente
-    const { error: customerError } = await supabaseAdmin
-      .from('customers')
-      .upsert({
-        id: customerId,
-        first_name: customerData.first_name,
-        last_name: customerData.last_name,
-        email: customerData.email,
-        phone: customerData.phone || '',
-        identification_type: customerData.identification_type || '',
-        identification_number: customerData.identification_number || '',
-        updated_at: new Date()
-      });
-    
-    if (customerError) throw customerError;
-    
-    // Insertar dirección si existe
-    if (customerData.street_name || customerData.address?.street_name) {
-      const address = customerData.address || customerData;
-      
-      const { error: addressError } = await supabaseAdmin
-        .from('customer_addresses')
-        .upsert({
-          customer_id: customerId,
-          street_name: address.street_name || '',
-          street_number: address.street_number || '',
-          zip_code: address.zip_code || '',
-          city: address.city || '',
-          state: address.state || '',
-          country: address.country || '',
-          updated_at: new Date()
-        });
-      
-      if (addressError) throw addressError;
-    }
+    // Log informativo
+    logInfo('Cliente no guardado (desactivado):', { email: customerData.email });
     
     return {
       success: true,
-      customerId: customerId,
-      message: 'Cliente guardado exitosamente'
+      customerId
     };
   } catch (error) {
-    logError('Error guardando cliente:', error);
+    logError('Error en función saveCustomer:', error);
     return {
       success: false,
       error: error.message
@@ -60,50 +26,26 @@ export async function saveCustomer(customerData) {
 }
 
 /**
- * Crea un nuevo pedido
+ * Función simulada de crear pedido - Ya no realiza inserciones
  */
 export async function createOrder(orderData, customerData) {
   try {
-    // Guardar cliente primero
+    // Llamar a saveCustomer que ahora solo genera un ID
     const customerResult = await saveCustomer(customerData);
     
     if (!customerResult.success) {
-      throw new Error(customerResult.error || 'Error al guardar cliente');
+      throw new Error(customerResult.error || 'Error en función saveCustomer');
     }
     
     const customerId = customerResult.customerId;
-    const orderId = orderData.orderId || `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const orderId = orderData.orderId || orderData.id || `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     
-    // Insertar pedido
-    const { error: orderError } = await supabaseAdmin
-      .from('orders')
-      .insert({
-        id: orderId,
-        customer_id: customerId,
-        total_amount: orderData.totalAmount || orderData.order_total || 0,
-        payment_status: orderData.paymentStatus || orderData.payment_status || 'pending',
-        shipment_status: 'pending',
-        version: 1
-      });
-    
-    if (orderError) throw orderError;
-    
-    // Insertar items del pedido
-    const orderItems = orderData.items || JSON.parse(orderData.order_items || '[]');
-    
-    for (const item of orderItems) {
-      const { error: itemError } = await supabaseAdmin
-        .from('order_items')
-        .insert({
-          order_id: orderId,
-          product_id: item.productId,
-          quantity: item.quantity,
-          price: item.price,
-          subtotal: item.price * item.quantity
-        });
-      
-      if (itemError) throw itemError;
-    }
+    // Log informativo
+    logInfo('Orden no guardada (desactivado):', { 
+      orderId, 
+      customerId,
+      items: (orderData.items || []).length
+    });
     
     return {
       success: true,
@@ -111,7 +53,7 @@ export async function createOrder(orderData, customerData) {
       customerId: customerId
     };
   } catch (error) {
-    logError('Error creando pedido:', error);
+    logError('Error en función createOrder:', error);
     return {
       success: false,
       error: error.message
@@ -147,7 +89,7 @@ export async function updateOrderStatus(orderId, status, notes, expectedVersion)
 }
 
 /**
- * Obtiene pedidos con filtros opcionales
+ * Obtiene pedidos with filtros opcionales
  */
 export async function getOrders(filters = {}) {
   try {

@@ -143,12 +143,60 @@ export async function verifyStockForOrder(orderItems) {
  * Actualiza el stock después de una orden
  */
 export async function updateStockAfterOrder(orderItems) {
+  if (!Array.isArray(orderItems) || orderItems.length === 0) {
+    logError('orderItems inválido en updateStockAfterOrder:', orderItems);
+    return false;
+  }
+  
+  logInfo(`Actualizando stock para ${orderItems.length} productos`);
+  
   for (const item of orderItems) {
-    // Reducir stock
-    const updated = await updateProductStock(item.productId, -item.quantity);
+    // Asegurar que los datos necesarios están presentes
+    const productId = item.productId || item.product_id;
+    const quantity = parseInt(item.quantity);
     
-    if (!updated) {
-      logError(`Error actualizando stock para producto ${item.productId}`);
+    if (!productId || !quantity || isNaN(quantity)) {
+      logError('Item inválido en updateStockAfterOrder:', item);
+      continue;
+    }
+    
+    logInfo(`Reduciendo stock para ${productId} en ${quantity} unidades`);
+    
+    try {
+      // Obtener el stock actual para verificar
+      const { data: product, error: getError } = await supabaseAdmin
+        .from('products')
+        .select('stock_available')
+        .eq('id', productId)
+        .single();
+        
+      if (getError || !product) {
+        logError(`Error obteniendo producto ${productId}:`, getError);
+        continue;
+      }
+      
+      // Calcular nuevo stock
+      const currentStock = parseInt(product.stock_available) || 0;
+      const newStock = Math.max(0, currentStock - quantity);
+      
+      logInfo(`Stock para ${productId}: actual ${currentStock} -> nuevo ${newStock}`);
+      
+      // Actualizar stock
+      const { error } = await supabaseAdmin
+        .from('products')
+        .update({ 
+          stock_available: newStock,
+          updated_at: new Date()
+        })
+        .eq('id', productId);
+      
+      if (error) {
+        logError(`Error actualizando stock para producto ${productId}:`, error);
+      } else {
+        logInfo(`✅ Stock reducido exitosamente para producto ${productId}`);
+      }
+    } catch (error) {
+      logError(`Error inesperado actualizando stock para ${productId}:`, error);
     }
   }
   

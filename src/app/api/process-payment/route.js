@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { logInfo, logError, logSecurityEvent } from '../../../utils/logger';
 import { extractPaymentInstrumentData, validatePaymentRequestBody } from '../../../utils/requestHelper';
-import { getProductById, verifyStockForOrder, updateStockAfterOrder } from './services/stockService';
+import { getProductById, verifyStockForOrder } from '../../../lib/productService';
 import { createClient } from '@supabase/supabase-js';
 
 // Inicializar el cliente de Supabase
@@ -268,15 +268,24 @@ export async function POST(req) {
       let secureTotal = 0;
 
       if (isMultipleOrder) {
+        // Cambiar la importación
+        // import { getProductById, verifyStockForOrder } from '../../../lib/productService';
+        // Eliminar importación de stockService si existe
+
+        // Asegurar que la validación de stock está funcionando
         // Construir array con datos seguros (solo IDs y cantidades del frontend)
         const secureOrderItems = await Promise.all(orderSummary.map(async item => {
           const dbProduct = await getProductById(item.productId);
           if (!dbProduct) {
             throw new Error(`Producto no encontrado: ${item.productId}`);
           }
-          // Verificar stock
-          if (dbProduct.stockAvailable < item.quantity) {
-            throw new Error(`Stock insuficiente para ${dbProduct.name}`);
+          
+          // Modificar esta validación para mostrar un mensaje más claro
+          if (dbProduct.stock_available < item.quantity) {
+            // Mensaje de error más específico
+            const errorMessage = `Stock insuficiente para ${dbProduct.name}. Disponible: ${dbProduct.stock_available}, solicitado: ${item.quantity}`;
+            logError(errorMessage);
+            throw new Error(errorMessage);
           }
           
           // Calcular de manera segura
@@ -319,30 +328,28 @@ export async function POST(req) {
       });
 
       if (paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process')) {
-        // Guardar la orden en Supabase aquí
+        // Almacenar la información del pago en payment_requests en lugar de crear una orden
         await supabase
-          .from('orders')
+          .from('payment_requests')
           .insert([{
             id: idempotencyKey,
-            customer_id: userData?.email || null,
+            payment_id: paymentResponse.id,
+            customer_data: userData,
+            order_items: itemsForPayment,
             total_amount: totalAmount,
             payment_status: paymentResponse.status,
             payment_detail: paymentResponse.status_detail,
             created_at: new Date(),
             updated_at: new Date(),
-            // ...otros campos necesarios
           }]);
 
-        // Actualizar stock solo si es approved
-        if (paymentResponse.status === 'approved') {
-          await updateStockAfterOrder(itemsForPayment);
-        }
-
+        // Devolver la respuesta sin crear la orden
         return NextResponse.json({
           status: paymentResponse.status,
           status_detail: paymentResponse.status_detail,
           id: paymentResponse.id,
-          preference_id: paymentResponse.preference_id,
+          preference_id: paymentResponse.preference_id || null,
+          init_point: paymentResponse.init_point || null,
           amount: totalAmount,
           message: 'Pago procesado exitosamente.',
           idempotencyKey,

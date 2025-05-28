@@ -6,6 +6,8 @@ import { logInfo, logError, logWarn } from '../../../lib/logger';
 import { createClient } from '@supabase/supabase-js';
 import { generateReceiptPDF } from '../../../lib/pdfService';
 import { sendReceiptEmail } from '../../../lib/emailService';
+import { createOrder } from '../../../lib/orderService';
+import { updateStockAfterOrder } from '../../../lib/productService'; // Cambiar la importación
 
 // Inicializar el cliente de Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -115,139 +117,66 @@ async function handlePaymentNotification(notification, mpClient) {
     const paymentInfo = await paymentClient.get({ id: paymentId });
     logInfo(`Pago ${paymentId}: ${paymentInfo.status} (${paymentInfo.status_detail})`);
     
-    // Identificar la orden por payment_id o external_reference
+    // Identificar la solicitud de pago por external_reference (idempotencyKey)
     const externalReference = paymentInfo.external_reference;
-    const orderId = externalReference || paymentInfo.metadata?.order_id;
     
-    if (!orderId) {
-      logWarn(`Pago ${paymentId} sin referencia externa para identificar la orden`);
+    if (!externalReference) {
+      logWarn(`Pago ${paymentId} sin referencia externa para identificar la solicitud`);
       return;
     }
     
-    // Buscar la orden en Supabase - Modificar para incluir la información completa
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        items:order_items(*)
-      `)
-      .eq('id', orderId)
+    // Buscar la solicitud de pago en la tabla payment_requests
+    const { data: paymentRequestData, error: paymentRequestError } = await supabase
+      .from('payment_requests')
+      .select('*')
+      .eq('id', externalReference)
       .single();
-      
-    if (orderError || !orderData) {
-      logError(`No se encontró la orden ${orderId} para el pago ${paymentId}:`, orderError);
+    
+    if (paymentRequestError || !paymentRequestData) {
+      logError(`No se encontró la solicitud de pago ${externalReference}:`, paymentRequestError);
       return;
     }
 
-    // Registrar el estado anterior para logs
-    const previousStatus = orderData.payment_status;
-    
-    // Actualizar el estado del pago en Supabase
-    const { error: updateError } = await supabase
-      .from('orders')
+    // Actualizar el estado del pago en payment_requests
+    await supabase
+      .from('payment_requests')
       .update({
         payment_status: paymentInfo.status,
         payment_detail: paymentInfo.status_detail,
-        payment_id: paymentId,
         updated_at: new Date()
       })
-      .eq('id', orderId);
+      .eq('id', externalReference);
       
-    if (updateError) {
-      logError(`Error actualizando orden ${orderId}:`, updateError);
-      return;
+    // Si el pago fue aprobado, actualizar el stock
+    if (paymentInfo.status === 'approved') {
+      try {
+        // Obtener los items del pedido
+        let orderItems = paymentRequestData.order_items;
+        
+        // Asegurarnos de que orderItems es un array
+        if (typeof orderItems === 'string') {
+          try {
+            orderItems = JSON.parse(orderItems);
+          } catch (e) {
+            logError('Error parseando order_items:', e);
+          }
+        }
+        
+        if (Array.isArray(orderItems) && orderItems.length > 0) {
+          // Actualizar el stock en la base de datos
+          await updateStockAfterOrder(orderItems);
+          logInfo(`✅ Stock actualizado correctamente para pago ${paymentId}`);
+        } else {
+          logError(`No se encontraron items para actualizar stock en pago ${paymentId}`);
+        }
+      } catch (error) {
+        logError(`Error actualizando stock para pago ${paymentId}:`, error);
+      }
     }
+
+    // REMOVIDO: La lógica de envío de emails ya no va aquí
+    // Los emails se envían desde process-payment inmediatamente
     
-    // Logs específicos para cambios de estado
-    if (previousStatus !== paymentInfo.status) {
-      logInfo(`Orden ${orderId}: Estado cambiado de ${previousStatus || 'sin estado'} a ${paymentInfo.status}`);
-      
-      // Acciones adicionales para cambios específicos de estado
-      if (isSuccessfulPayment(paymentInfo.status)) {
-        logInfo(`🎉 Pago aprobado para orden ${orderId}`);
-        
-        // Actualizar stock si es necesario
-        if (orderData.items && Array.isArray(orderData.items)) {
-          await updateStockForItems(orderData.items);
-        }
-        
-        // NUEVO: Generar y enviar recibo PDF
-        try {
-          // Obtener datos completos del cliente
-          const { data: customerData } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('email', orderData.customer_id)
-            .single();
-            
-          if (customerData) {
-            try {
-              // Generar PDF
-              const pdfBuffer = await generateReceiptPDF(orderData, customerData);
-              
-              // Enviar email con recibo - con manejo mejorado de errores
-              const emailResult = await sendReceiptEmail({
-                pdfBuffer,
-                customerEmail: customerData.email,
-                orderId: orderId,
-                isApproved: isSuccessfulPayment(paymentInfo.status),
-                orderData: {
-                  ...orderData,
-                  userData: customerData
-                }
-              });
-              
-              if (emailResult.success) {
-                logInfo(`✉️ Recibo enviado por email para la orden ${orderId}`);
-              } else {
-                logWarn(`⚠️ Problema al enviar email para orden ${orderId}: ${emailResult.error}`);
-              }
-            } catch (pdfError) {
-              logError(`Error generando PDF para orden ${orderId}:`, pdfError);
-              // No detener el flujo por un error en la generación del PDF o envío de email
-            }
-          } else {
-            logWarn(`No se encontraron datos del cliente para la orden ${orderId}`);
-          }
-        } catch (dataError) {
-          logError(`Error obteniendo datos del cliente para orden ${orderId}:`, dataError);
-          // No detener el flujo principal por problemas con la parte de emails
-        }
-      }
-      
-      // También podemos enviar recibo cuando el estado es pendiente, pero con mensaje diferente
-      else if (paymentInfo.status === 'pending' || paymentInfo.status === 'in_process') {
-        try {
-          // Obtener datos completos del cliente
-          const { data: customerData } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('email', orderData.customer_id)
-            .single();
-            
-          if (customerData) {
-            // Generar PDF
-            const pdfBuffer = await generateReceiptPDF(orderData, customerData);
-            
-            // Enviar email con recibo (indicando que está pendiente)
-            await sendReceiptEmail({
-              pdfBuffer,
-              customerEmail: customerData.email,
-              orderId: orderId,
-              isApproved: false, // Especificar que NO está aprobado
-              orderData: {
-                ...orderData,
-                userData: customerData
-              }
-            });
-            
-            logInfo(`✉️ Recibo de pedido pendiente enviado por email para la orden ${orderId}`);
-          }
-        } catch (emailError) {
-          logError(`Error enviando recibo por email para orden pendiente ${orderId}:`, emailError);
-        }
-      }
-    }
   } catch (error) {
     logError(`Error procesando notificación de pago ${paymentId}:`, error);
   }
@@ -373,3 +302,5 @@ async function updateStockForItems(items) {
     }
   }
 }
+
+// Recuperar los datos del payment_request y crear la orden definitiva
