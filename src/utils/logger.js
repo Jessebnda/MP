@@ -165,3 +165,12 @@ export const logSecurityEvent = (eventName, details, severity = 'info') => {
   
   return event;
 };
+
+// Añadir la función logWarn que está faltando
+export function logWarn(message, data = {}) {
+  const formattedMessage = formatLogMessage('WARN', message, data);
+  if (canLog('warn')) {
+    console.warn('%c' + formattedMessage, LOG_STYLES.warn);
+  }
+  return formattedMessage;
+}
