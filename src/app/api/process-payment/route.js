@@ -28,6 +28,19 @@ const client = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN
 });
 
+// Verificar importaciones críticas
+logInfo('🔧 Verificando importaciones críticas:', {
+  hasGenerateReceiptPDF: typeof generateReceiptPDF === 'function',
+  hasSendReceiptEmail: typeof sendReceiptEmail === 'function',
+  hasUpdateStockAfterOrder: typeof updateStockAfterOrder === 'function',
+  hasVerifyStockForOrder: typeof verifyStockForOrder === 'function'
+});
+
+// NUEVO: Test directo del logger
+console.log('🧪 CONSOLE TEST: Logger test al iniciar el archivo');
+logInfo('🧪 LOGGER TEST: Logger test al iniciar el archivo');
+console.log('🧪 CONSOLE TEST: Nivel de log actual:', process.env.NEXT_PUBLIC_LOG_LEVEL);
+
 async function processMercadoPagoPayment({
   transaction_amount,
   token,
@@ -336,7 +349,21 @@ export async function POST(req) {
         payerData: userData,
         orderItems: itemsForPayment,
         isMultipleOrder,
-        idempotencyKey, // Pasar la clave de idempotencia
+        idempotencyKey,
+      });
+
+      // NUEVO: Console.log directo que SIEMPRE aparece
+      console.log(`🔍 CONSOLE DEBUG [${idempotencyKey}] Payment response:`, {
+        status: paymentResponse.status,
+        id: paymentResponse.id,
+        status_detail: paymentResponse.status_detail
+      });
+
+      // NUEVO: Log inmediato del payment response (el que ya tienes)
+      logInfo(`🔍 [${idempotencyKey}] Payment response recibido:`, {
+        status: paymentResponse.status,
+        id: paymentResponse.id,
+        status_detail: paymentResponse.status_detail
       });
 
       // ✅ 2. NUEVO: Si MP aprobó, actualizar stock YA (UBICACIÓN CORRECTA)
@@ -350,7 +377,28 @@ export async function POST(req) {
         }
       }
 
+      // En la línea 365 (diagnóstico pre-email):
+      logInfo(`🔍 [${idempotencyKey}] Diagnóstico pre-email:`, {
+        hasPaymentId: !!paymentResponse.id,
+        paymentStatus: paymentResponse.status,
+        condition1: !!paymentResponse.id,
+        condition2: paymentResponse.status === 'approved',
+        condition3: paymentResponse.status === 'in_process',
+        overallCondition: paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process')
+      });
+      
+      // NUEVO: Console.log directo
+      console.log(`🔍 CONSOLE DEBUG [${idempotencyKey}] Diagnóstico pre-email:`, {
+        hasPaymentId: !!paymentResponse.id,
+        paymentStatus: paymentResponse.status,
+        overallCondition: paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process')
+      });
+      
       if (paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process')) {
+        console.log(`🟢 CONSOLE DEBUG [${idempotencyKey}] ENTRANDO al bloque principal`);
+        
+        logInfo(`🟢 [${idempotencyKey}] ENTRANDO al bloque principal de payment request`);
+        
         // Almacenar la información del pago en payment_requests
         const paymentRequestData = {
           id: idempotencyKey,
@@ -371,8 +419,22 @@ export async function POST(req) {
         logInfo(`✅ Payment request creado: ${idempotencyKey}`);
 
         // 🚀 NUEVO: Enviar emails inmediatamente después de crear el payment request
+        logInfo(`🔵 [${idempotencyKey}] CHECKPOINT: Llegué al bloque de emails`);
+        logInfo(`🔵 [${idempotencyKey}] Payment status: ${paymentResponse.status}`);
+        logInfo(`🔵 [${idempotencyKey}] Payment ID exists: ${!!paymentResponse.id}`);
+
         try {
-          logInfo(`📧 Iniciando proceso de envío de emails para payment request: ${idempotencyKey}`);
+          console.log(`📧 CONSOLE DEBUG [${idempotencyKey}] Iniciando emails...`);
+          logInfo(`📧 [${idempotencyKey}] Iniciando proceso de envío de emails para payment request`);
+          
+          // Verificar que todas las dependencias están disponibles
+          logInfo(`🔧 [${idempotencyKey}] Verificando dependencias de email:`, {
+            hasGenerateReceiptPDF: typeof generateReceiptPDF === 'function',
+            hasSendReceiptEmail: typeof sendReceiptEmail === 'function',
+            userData: !!userData,
+            userDataEmail: userData?.email,
+            itemsForPayment: itemsForPayment?.length || 0
+          });
           
           // Preparar datos para el email en el formato esperado
           const orderDataForEmail = {
@@ -396,7 +458,14 @@ export async function POST(req) {
           });
 
           // Generar PDF del recibo
-          logInfo(`📄 Generando PDF para orden: ${idempotencyKey}`);
+          logInfo(`📄 [${idempotencyKey}] INICIANDO generación de PDF...`);
+          logInfo(`📄 [${idempotencyKey}] Datos para PDF:`, {
+            orderId: idempotencyKey,
+            hasCustomerData: !!userData,
+            itemsCount: orderDataForEmail.items?.length || 0,
+            totalAmount: totalAmount
+          });
+
           const pdfBuffer = await generateReceiptPDF({
             orderId: idempotencyKey,
             customerData: userData,
@@ -405,7 +474,8 @@ export async function POST(req) {
             paymentStatus: paymentResponse.status,
             paymentId: paymentResponse.id
           });
-          logInfo(`✅ PDF generado exitosamente, tamaño: ${pdfBuffer.length} bytes`);
+
+          logInfo(`✅ [${idempotencyKey}] PDF generado exitosamente, tamaño: ${pdfBuffer.length} bytes`);
 
           // Enviar emails
           logInfo(`📤 Enviando emails para orden: ${idempotencyKey}`);
@@ -425,6 +495,7 @@ export async function POST(req) {
 
         } catch (emailError) {
           // No bloquear el flujo de pago por errores de email
+          console.error(`❌ CONSOLE DEBUG [${idempotencyKey}] Error en emails:`, emailError.message);
           logError(`❌ Error en proceso de emails para payment request ${idempotencyKey}:`, {
             error: emailError.message,
             stack: emailError.stack
