@@ -1,10 +1,15 @@
-import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import { NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
-import { logInfo, logError, logSecurityEvent } from '../../../utils/logger';
-import { extractPaymentInstrumentData, validatePaymentRequestBody } from '../../../utils/requestHelper';
-import { getProductById, verifyStockForOrder } from '../../../lib/productService';
+import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import { createClient } from '@supabase/supabase-js';
+import { logInfo, logError, logWarn } from '../../../utils/logger';
+import { logSecurityEvent } from '../../../lib/security-logger';
+import { sanitizeInput } from '../../../utils/security';
+import { generateReceiptPDF } from '../../../lib/pdfService';
+import { sendReceiptEmail } from '../../../lib/emailService';
+import { v4 as uuidv4 } from 'uuid';
+import { getProductById } from '../../../lib/productService';
+// Corregir esta importación:
+import { validatePaymentRequestBody, extractPaymentInstrumentData } from '../../../lib/validation';
 
 // Inicializar el cliente de Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -328,56 +333,122 @@ export async function POST(req) {
       });
 
       if (paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process')) {
-        // Almacenar la información del pago en payment_requests en lugar de crear una orden
+        // Almacenar la información del pago en payment_requests
+        const paymentRequestData = {
+          id: idempotencyKey,
+          payment_id: paymentResponse.id,
+          customer_data: userData,
+          order_items: itemsForPayment,
+          total_amount: totalAmount,
+          payment_status: paymentResponse.status,
+          payment_detail: paymentResponse.status_detail,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
         await supabase
           .from('payment_requests')
-          .insert([{
-            id: idempotencyKey,
-            payment_id: paymentResponse.id,
-            customer_data: userData,
-            order_items: itemsForPayment,
+          .insert([paymentRequestData]);
+
+        logInfo(`✅ Payment request creado: ${idempotencyKey}`);
+
+        // 🚀 NUEVO: Enviar emails inmediatamente después de crear el payment request
+        try {
+          logInfo(`📧 Iniciando proceso de envío de emails para payment request: ${idempotencyKey}`);
+          
+          // Preparar datos para el email en el formato esperado
+          const orderDataForEmail = {
+            userData: userData,
+            items: itemsForPayment.map(item => ({
+              name: item.name || `Producto #${item.product_id}`,
+              quantity: item.quantity,
+              price: item.price,
+              product_id: item.product_id
+            })),
             total_amount: totalAmount,
-            payment_status: paymentResponse.status,
-            payment_detail: paymentResponse.status_detail,
-            created_at: new Date(),
-            updated_at: new Date(),
-          }]);
+            payment_id: paymentResponse.id,
+            payment_status: paymentResponse.status
+          };
+
+          logInfo(`📋 Datos preparados para email:`, {
+            customerEmail: userData.email,
+            orderId: idempotencyKey,
+            isApproved: paymentResponse.status === 'approved',
+            itemsCount: orderDataForEmail.items.length
+          });
+
+          // Generar PDF del recibo
+          logInfo(`📄 Generando PDF para orden: ${idempotencyKey}`);
+          const pdfBuffer = await generateReceiptPDF({
+            orderId: idempotencyKey,
+            customerData: userData,
+            items: orderDataForEmail.items,
+            totalAmount: totalAmount,
+            paymentStatus: paymentResponse.status,
+            paymentId: paymentResponse.id
+          });
+          logInfo(`✅ PDF generado exitosamente, tamaño: ${pdfBuffer.length} bytes`);
+
+          // Enviar emails
+          logInfo(`📤 Enviando emails para orden: ${idempotencyKey}`);
+          const emailResult = await sendReceiptEmail({
+            pdfBuffer,
+            customerEmail: userData.email,
+            orderId: idempotencyKey,
+            isApproved: paymentResponse.status === 'approved',
+            orderData: orderDataForEmail
+          });
+
+          if (emailResult.success) {
+            logInfo(`✅ Emails enviados exitosamente para orden: ${idempotencyKey}`);
+          } else {
+            logError(`❌ Error enviando emails para orden: ${idempotencyKey}`, emailResult.error);
+          }
+
+        } catch (emailError) {
+          // No bloquear el flujo de pago por errores de email
+          logError(`❌ Error en proceso de emails para payment request ${idempotencyKey}:`, {
+            error: emailError.message,
+            stack: emailError.stack
+          });
+        }
+
+        // En línea 404 aproximadamente, donde se usa userMessage sin definir:
+        const userMessage = paymentResponse.status === 'approved'
+          ? 'Pago procesado correctamente.'
+          : `El estado del pago es: ${paymentResponse.status}. Detalle: ${paymentResponse.status_detail || 'N/A'}.`;
 
         // Devolver la respuesta sin crear la orden
         return NextResponse.json({
           status: paymentResponse.status,
           status_detail: paymentResponse.status_detail,
           id: paymentResponse.id,
-          preference_id: paymentResponse.preference_id || null,
-          init_point: paymentResponse.init_point || null,
-          amount: totalAmount,
-          message: 'Pago procesado exitosamente.',
-          idempotencyKey,
-        });
-      } else {
-        logSecurityEvent('payment_non_approved', {
-          id: paymentResponse.id,
-          status: paymentResponse.status,
-          status_detail: paymentResponse.status_detail,
-          amount: totalAmount,
-          idempotencyKey,
-          mp_response: paymentResponse 
-        }, 'warn');
-        
-        const userMessage = paymentResponse.status === 'rejected' 
-          ? `El pago fue rechazado. Motivo: ${paymentResponse.status_detail || 'Desconocido'}. Por favor, intente con otro medio de pago o verifique sus datos.`
-          : `El estado del pago es: ${paymentResponse.status}. Detalle: ${paymentResponse.status_detail || 'N/A'}.`;
-
-        return NextResponse.json({
-          status: paymentResponse.status,
-          id: paymentResponse.id,
-          error: userMessage,
-          paymentDetails: paymentResponse.status_detail,
           message: userMessage,
-          idempotencyKey, // Incluir en respuesta
-        }, { status: paymentResponse.status === 'rejected' ? 400 : 200 });
+          idempotencyKey,
+        }, { status: 200 });
       }
 
+      logSecurityEvent('payment_non_approved', {
+        id: paymentResponse.id,
+        status: paymentResponse.status,
+        status_detail: paymentResponse.status_detail,
+        amount: totalAmount,
+        idempotencyKey,
+        mp_response: paymentResponse 
+      }, 'warn');
+      
+      const userMessage = paymentResponse.status === 'rejected' 
+        ? `El pago fue rechazado. Motivo: ${paymentResponse.status_detail || 'Desconocido'}. Por favor, intente con otro medio de pago o verifique sus datos.`
+        : `El estado del pago es: ${paymentResponse.status}. Detalle: ${paymentResponse.status_detail || 'N/A'}.`;
+
+      return NextResponse.json({
+        status: paymentResponse.status,
+        id: paymentResponse.id,
+        error: userMessage,
+        paymentDetails: paymentResponse.status_detail,
+        message: userMessage,
+        idempotencyKey, // Incluir en respuesta
+      }, { status: paymentResponse.status === 'rejected' ? 400 : 200 });
     } catch (error) {
       logError("Error general en POST /api/process-payment:", { 
         message: error.message, 
