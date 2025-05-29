@@ -162,6 +162,7 @@ async function processMercadoPagoPayment({
     const paymentClient = new Payment(client);
     
     // Crear pago con el cliente usando paymentItems y vinculándolo a la preferencia
+    // ✅ CRÍTICO: Asegurar que external_reference se establece correctamente
     const paymentResponse = await paymentClient.create({
       body: {
         token: token,
@@ -172,6 +173,7 @@ async function processMercadoPagoPayment({
         installments: parseInt(installments),
         payment_method_id: payment_method_id,
         issuer_id: issuer_id,
+        external_reference: idempotencyKey, // ✅ ESTO ES CRÍTICO para el webhook
         payer: {
           email: payerEmail,
           identification: payerData?.identification || {}
@@ -181,36 +183,20 @@ async function processMercadoPagoPayment({
           payer: {
             first_name: payerData?.first_name,
             last_name: payerData?.last_name,
-            phone: phoneFormatted  // Usar la misma variable formateada para consistencia
+            phone: phoneFormatted
           },
-          shipments: payerData?.address ? {
-            receiver_address: {
-              zip_code: payerData.address.zip_code || '',
-              street_name: payerData.address.street_name || '',
-              street_number: payerData.address.street_number || ''
-            }
-          } : undefined
-        },
-        metadata: {
-          preference_id: preferenceResponse.id,
-          external_reference: idempotencyKey
+          external_reference: idempotencyKey // ✅ También aquí por redundancia
         }
-      },
-      requestOptions: {
-        idempotencyKey: idempotencyKey  // Add idempotency key to prevent duplicate transactions
       }
     });
 
     // Return all the data the frontend might need
     return {
+      id: paymentResponse.id,
       status: paymentResponse.status,
       status_detail: paymentResponse.status_detail,
-      id: paymentResponse.id,
-      preference_id: preferenceResponse.id,
-      init_point: preferenceResponse.init_point,
-      external_reference: idempotencyKey,
-      amount: finalAmount,
-      original_amount: transaction_amount || calculatedAmount
+      external_reference: idempotencyKey, // ✅ Devolver para verificación
+      // ...other fields...
     };
   } catch (error) {
     logError('Error en processMercadoPagoPayment:', error);

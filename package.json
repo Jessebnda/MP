@@ -9,7 +9,10 @@
     "dev": "next dev",
     "start": "next start",
     "migrate": "node scripts/migrate-kv-to-supabase.js",
-    "verify-payments": "node src/scripts/run-verification.js"
+    "verify-payments": "node src/scripts/run-verification.js",
+    "test:webhook": "node src/scripts/test-webhook.js",
+    "test:webhook:prod": "node src/scripts/test-webhook-prod.js",
+    "test:webhook:api": "curl -X POST -H 'Content-Type: application/json' -d '{\"paymentId\":\"123456789\",\"status\":\"approved\"}' https://mercadopagoiframe.vercel.app/api/test-webhook"
   },
   "keywords": [
     "mercadopago",

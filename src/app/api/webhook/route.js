@@ -2,52 +2,48 @@ import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import crypto from 'crypto';
 import { logSecurityEvent } from '../../../lib/security-logger';
-import { logInfo, logError, logWarn } from '../../../lib/logger';
+import { logInfo, logError, logWarn } from '../../../utils/logger';
 import { createClient } from '@supabase/supabase-js';
 import { generateReceiptPDF } from '../../../lib/pdfService';
 import { sendReceiptEmail } from '../../../lib/emailService';
-import { createOrder } from '../../../lib/orderService';
-import { updateStockAfterOrder } from '../../../lib/productService'; // Cambiar la importación
+import { updateStockAfterOrder } from '../../../lib/productService';
 
 // Inicializar el cliente de Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- Implementación de Validación de Firma ---
+// --- Implementación CORRECTA de Validación de Firma ---
 async function isValidSignature(rawBody, secret, receivedSignature) {
-  if (!secret || !receivedSignature) {
-    logWarn('Missing webhook signature verification data', {
-      hasSecret: !!secret,
-      hasSignature: !!receivedSignature
-    });
-    return false;
-  }
-
   try {
-    // Compute HMAC signature
-    const hmac = crypto.createHmac('sha256', secret);
-    hmac.update(rawBody);
-    const computedSignature = hmac.digest('hex');
+    if (!receivedSignature || !secret) return false;
     
-    // Log for debugging
-    logInfo('Webhook signature verification', {
-      received: receivedSignature,
-      computed: computedSignature,
-      isValid: computedSignature === receivedSignature
-    });
-
-    return computedSignature === receivedSignature;
-  } catch (e) {
-    logError('Error verifying webhook signature:', e);
+    // Extraer timestamp y signature de x-signature header
+    const parts = receivedSignature.split(',').reduce((acc, part) => {
+      const [key, value] = part.split('=');
+      acc[key] = value;
+      return acc;
+    }, {});
+    
+    const timestamp = parts.ts;
+    const signature = parts.v1;
+    
+    if (!timestamp || !signature) return false;
+    
+    // Crear el string para firmar: ts + rawBody
+    const signatureString = `${timestamp}.${rawBody}`;
+    
+    // Calcular HMAC SHA256
+    const calculatedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(signatureString)
+      .digest('hex');
+    
+    return calculatedSignature === signature;
+  } catch (error) {
+    logError('Error validando firma webhook:', error);
     return false;
   }
-}
-
-// Función auxiliar para verificar estados de éxito
-function isSuccessfulPayment(status) {
-  const normalizedStatus = (status || '').toLowerCase();
-  return ['approved', 'success', 'succeeded', 'approved_payment'].includes(normalizedStatus);
 }
 
 export async function POST(req) {
@@ -63,9 +59,9 @@ export async function POST(req) {
     return new Response('Forbidden', { status: 403 });
   }
   
-  logInfo('Webhook recibido desde MercadoPago');
+  logInfo('🔔 Webhook recibido desde MercadoPago');
 
-  // Usar la WEBHOOK_KEY específica en lugar del access token
+  // Usar la WEBHOOK_KEY específica
   const secret = process.env.MERCADOPAGO_WEBHOOK_KEY || process.env.MERCADOPAGO_ACCESS_TOKEN;
   
   // Acceso a la API de MercadoPago
@@ -77,7 +73,7 @@ export async function POST(req) {
     // 1. Obtener el cuerpo como texto para validar firma
     const rawBody = await req.text();
     
-    // 2. Obtener firma desde headers (soporta ambos formatos)
+    // 2. Obtener firma desde headers
     const receivedSignature = 
       req.headers.get('x-signature') ||
       req.headers.get('x-mp-signature') || '';
@@ -91,11 +87,15 @@ export async function POST(req) {
     // 4. Parsear el JSON después de validar
     const notification = JSON.parse(rawBody);
     
-    logInfo(`Webhook recibido: tipo=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
+    logInfo(`🔔 Webhook válido recibido: tipo=${notification.type || notification.action}, data.id=${notification.data?.id || 'N/A'}`);
 
     // 5. Manejar diferentes tipos de notificaciones
-    switch(notification.type) {
+    const eventType = notification.type || notification.action;
+    
+    switch(eventType) {
       case 'payment':
+      case 'payment.created':
+      case 'payment.updated':
         await handlePaymentNotification(notification, mpClient);
         break;
       case 'chargebacks':
@@ -105,22 +105,22 @@ export async function POST(req) {
         await handleClaimNotification(notification, mpClient);
         break;
       default:
-        logInfo(`Tipo de notificación no manejado: ${notification.type}`);
+        logInfo(`ℹ️ Tipo de notificación no manejado: ${eventType}`);
     }
 
     // 6. Responder con éxito a MercadoPago
     return NextResponse.json({ received: true }, { status: 200 });
 
   } catch (error) {
-    logError('Error procesando webhook:', error);
+    logError('❌ Error procesando webhook:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }
 
-// Maneja notificaciones de pago
+// Maneja notificaciones de pago con IDEMPOTENCIA
 async function handlePaymentNotification(notification, mpClient) {
   if (!notification.data?.id) {
-    logWarn('Notificación de pago sin ID');
+    logWarn('⚠️ Notificación de pago sin ID');
     return;
   }
 
@@ -128,15 +128,18 @@ async function handlePaymentNotification(notification, mpClient) {
   const paymentClient = new Payment(mpClient);
   
   try {
+    logInfo(`🔍 Obteniendo detalles del pago ${paymentId} desde MercadoPago API...`);
+    
     // Obtener detalles del pago desde la API de MercadoPago
     const paymentInfo = await paymentClient.get({ id: paymentId });
-    logInfo(`Pago ${paymentId}: ${paymentInfo.status} (${paymentInfo.status_detail})`);
-    
-    // Identificar la solicitud de pago por external_reference (idempotencyKey)
+    const currentStatus = paymentInfo.status;
+    const statusDetail = paymentInfo.status_detail;
     const externalReference = paymentInfo.external_reference;
     
+    logInfo(`💰 Pago ${paymentId}: status=${currentStatus}, detail=${statusDetail}, external_ref=${externalReference}`);
+    
     if (!externalReference) {
-      logWarn(`Pago ${paymentId} sin referencia externa para identificar la solicitud`);
+      logWarn(`⚠️ Pago ${paymentId} sin referencia externa para identificar la solicitud`);
       return;
     }
     
@@ -148,52 +151,159 @@ async function handlePaymentNotification(notification, mpClient) {
       .single();
     
     if (paymentRequestError || !paymentRequestData) {
-      logError(`No se encontró la solicitud de pago ${externalReference}:`, paymentRequestError);
+      logError(`❌ No se encontró la solicitud de pago ${externalReference}:`, paymentRequestError);
+      return;
+    }
+
+    const previousStatus = paymentRequestData.payment_status;
+    logInfo(`📊 Estado anterior en BD: ${previousStatus} → Estado actual MP: ${currentStatus}`);
+
+    // ✅ LÓGICA PRINCIPAL: Solo procesar si hay cambio de estado
+    if (previousStatus === currentStatus) {
+      logInfo(`✅ El pago ${paymentId} ya tiene el estado ${currentStatus} en BD. Ignorando duplicado.`);
       return;
     }
 
     // Actualizar el estado del pago en payment_requests
-    await supabase
+    const { error: updateError } = await supabase
       .from('payment_requests')
       .update({
-        payment_status: paymentInfo.status,
-        payment_detail: paymentInfo.status_detail,
+        payment_status: currentStatus,
+        payment_detail: statusDetail,
         updated_at: new Date()
       })
       .eq('id', externalReference);
       
-    // Si el pago fue aprobado, actualizar el stock
-    if (paymentInfo.status === 'approved') {
+    if (updateError) {
+      logError(`❌ Error actualizando payment_request ${externalReference}:`, updateError);
+      return;
+    }
+
+    logInfo(`✅ Payment request ${externalReference} actualizado: ${previousStatus} → ${currentStatus}`);
+      
+    // 🎯 ACCIONES ESPECÍFICAS SEGÚN EL NUEVO ESTADO
+    if (currentStatus === 'approved' && previousStatus !== 'approved') {
+      logInfo(`🎉 PAGO APROBADO: Ejecutando acciones post-aprobación para ${paymentId}`);
+      
       try {
-        // Obtener los items del pedido
+        // 1. Actualizar stock si hay items del pedido
         let orderItems = paymentRequestData.order_items;
         
-        // Asegurarnos de que orderItems es un array
         if (typeof orderItems === 'string') {
           try {
             orderItems = JSON.parse(orderItems);
           } catch (e) {
-            logError('Error parseando order_items:', e);
+            logError('❌ Error parseando order_items:', e);
           }
         }
         
         if (Array.isArray(orderItems) && orderItems.length > 0) {
-          // Actualizar el stock en la base de datos
           await updateStockAfterOrder(orderItems);
-          logInfo(`✅ Stock actualizado correctamente para pago ${paymentId}`);
+          logInfo(`📦 Stock actualizado correctamente para pago ${paymentId}`);
         } else {
-          logError(`No se encontraron items para actualizar stock en pago ${paymentId}`);
+          logWarn(`⚠️ No se encontraron items para actualizar stock en pago ${paymentId}`);
         }
-      } catch (error) {
-        logError(`Error actualizando stock para pago ${paymentId}:`, error);
-      }
-    }
 
-    // REMOVIDO: La lógica de envío de emails ya no va aquí
-    // Los emails se envían desde process-payment inmediatamente
+        // 2. Enviar email de confirmación
+        await sendConfirmationEmailForApprovedPayment(paymentRequestData, paymentInfo);
+        
+        // 3. Crear orden definitiva (opcional)
+        await createOrderFromPaymentRequest(paymentRequestData, paymentInfo);
+        
+      } catch (error) {
+        logError(`❌ Error en acciones post-aprobación para pago ${paymentId}:`, error);
+        // No bloquear el flujo principal por errores en acciones secundarias
+      }
+    } else if (currentStatus === 'rejected' && previousStatus !== 'rejected') {
+      logInfo(`❌ PAGO RECHAZADO: ${paymentId} cambió a rechazado`);
+      // Aquí podrías enviar un email de rechazo, liberar stock, etc.
+    } else if (currentStatus === 'pending' && previousStatus !== 'pending') {
+      logInfo(`⏳ PAGO PENDIENTE: ${paymentId} está en proceso`);
+      // Acciones para pagos pendientes si las necesitas
+    }
     
   } catch (error) {
-    logError(`Error procesando notificación de pago ${paymentId}:`, error);
+    logError(`❌ Error procesando notificación de pago ${paymentId}:`, error);
+  }
+}
+
+// Nueva función para enviar email de confirmación cuando se aprueba un pago
+async function sendConfirmationEmailForApprovedPayment(paymentRequestData, paymentInfo) {
+  try {
+    logInfo(`📧 Enviando email de confirmación para pago aprobado: ${paymentInfo.id}`);
+    
+    const customerData = paymentRequestData.customer_data;
+    const orderItems = typeof paymentRequestData.order_items === 'string' 
+      ? JSON.parse(paymentRequestData.order_items) 
+      : paymentRequestData.order_items;
+
+    if (!customerData?.email) {
+      logWarn(`⚠️ No se encontró email del cliente para pago ${paymentInfo.id}`);
+      return;
+    }
+
+    // Generar PDF del recibo
+    const receiptPDF = await generateReceiptPDF({
+      paymentId: paymentInfo.id,
+      amount: paymentRequestData.total_amount,
+      items: orderItems,
+      customer: customerData,
+      paymentDate: new Date(),
+      status: 'approved'
+    });
+
+    // Enviar email con el recibo
+    const emailResult = await sendReceiptEmail({
+      to: customerData.email,
+      customerName: `${customerData.first_name || ''} ${customerData.last_name || ''}`.trim(),
+      orderId: paymentRequestData.id,
+      paymentId: paymentInfo.id,
+      amount: paymentRequestData.total_amount,
+      items: orderItems,
+      pdfAttachment: receiptPDF
+    });
+
+    if (emailResult.success) {
+      logInfo(`✅ Email de confirmación enviado exitosamente a ${customerData.email}`);
+    } else {
+      logError(`❌ Error enviando email de confirmación:`, emailResult.error);
+    }
+
+  } catch (error) {
+    logError(`❌ Error en sendConfirmationEmailForApprovedPayment:`, error);
+  }
+}
+
+// Nueva función para crear orden definitiva desde payment_request
+async function createOrderFromPaymentRequest(paymentRequestData, paymentInfo) {
+  try {
+    logInfo(`📝 Creando orden definitiva para pago ${paymentInfo.id}`);
+    
+    const orderData = {
+      id: `ORDER_${paymentRequestData.id}`,
+      payment_id: paymentInfo.id,
+      payment_request_id: paymentRequestData.id,
+      customer_data: paymentRequestData.customer_data,
+      order_items: paymentRequestData.order_items,
+      total_amount: paymentRequestData.total_amount,
+      payment_status: 'approved',
+      payment_detail: paymentInfo.status_detail,
+      created_at: new Date(),
+      updated_at: new Date()
+    };
+
+    const { error } = await supabase
+      .from('orders')
+      .insert([orderData]);
+      
+    if (error) {
+      logError(`❌ Error creando orden definitiva:`, error);
+    } else {
+      logInfo(`✅ Orden definitiva creada: ORDER_${paymentRequestData.id}`);
+    }
+    
+  } catch (error) {
+    logError(`❌ Error en createOrderFromPaymentRequest:`, error);
   }
 }
 
@@ -202,17 +312,9 @@ async function handleChargebackNotification(notification, mpClient) {
   if (!notification.data?.id) return;
   
   const chargebackId = notification.data.id;
-  logInfo(`Procesando contracargo: ${chargebackId}`);
+  logInfo(`💳 Procesando contracargo: ${chargebackId}`);
   
   try {
-    // Aquí implementarías la lógica específica para contracargos
-    // Necesitarías usar mpClient.get para obtener los detalles del contracargo
-    
-    // Por ahora, solo registramos el evento
-    logInfo(`Contracargo recibido: ${chargebackId}`);
-    
-    // Actualiza la orden relacionada con un estado especial de contracargo
-    // Primero necesitas identificar qué pago está relacionado con este contracargo
     const paymentId = notification.data.payment_id;
     
     if (paymentId) {
@@ -233,11 +335,11 @@ async function handleChargebackNotification(notification, mpClient) {
           })
           .eq('id', orderData.id);
           
-        logInfo(`Orden ${orderData.id} actualizada con contracargo`);
+        logInfo(`✅ Orden ${orderData.id} actualizada con contracargo`);
       }
     }
   } catch (error) {
-    logError(`Error procesando contracargo ${chargebackId}:`, error);
+    logError(`❌ Error procesando contracargo ${chargebackId}:`, error);
   }
 }
 
@@ -246,19 +348,12 @@ async function handleClaimNotification(notification, mpClient) {
   if (!notification.data?.id) return;
   
   const claimId = notification.data.id;
-  logInfo(`Procesando reclamo: ${claimId}`);
+  logInfo(`📋 Procesando reclamo: ${claimId}`);
   
   try {
-    // Código para obtener los detalles del reclamo desde MercadoPago
-    
-    // Por ahora, solo registramos el evento
-    logInfo(`Reclamo recibido: ${claimId}`);
-    
-    // Similar al contracargo, necesitas identificar la orden y actualizarla
     const paymentId = notification.data.payment_id;
     
     if (paymentId) {
-      // Buscar la orden por payment_id
       const { data: orderData } = await supabase
         .from('orders')
         .select('id')
@@ -275,47 +370,10 @@ async function handleClaimNotification(notification, mpClient) {
           })
           .eq('id', orderData.id);
           
-        logInfo(`Orden ${orderData.id} actualizada con reclamo`);
+        logInfo(`✅ Orden ${orderData.id} actualizada con reclamo`);
       }
     }
   } catch (error) {
-    logError(`Error procesando reclamo ${claimId}:`, error);
+    logError(`❌ Error procesando reclamo ${claimId}:`, error);
   }
 }
-
-// Función auxiliar para actualizar stock
-async function updateStockForItems(items) {
-  for (const item of items) {
-    try {
-      const { productId, quantity } = item;
-      if (!productId || !quantity) continue;
-      
-      // Obtener producto actual
-      const { data: product } = await supabase
-        .from('products')
-        .select('stock_available')
-        .eq('id', productId)
-        .single();
-        
-      if (!product) continue;
-      
-      // Calcular nuevo stock
-      const newStock = Math.max(0, product.stock_available - quantity);
-      
-      // Actualizar stock
-      await supabase
-        .from('products')
-        .update({ 
-          stock_available: newStock,
-          updated_at: new Date()
-        })
-        .eq('id', productId);
-        
-      logInfo(`Stock actualizado para producto ${productId}: ${newStock}`);
-    } catch (error) {
-      logError('Error actualizando stock:', error);
-    }
-  }
-}
-
-// Recuperar los datos del payment_request y crear la orden definitiva
