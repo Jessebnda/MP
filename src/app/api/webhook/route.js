@@ -51,6 +51,18 @@ function isSuccessfulPayment(status) {
 }
 
 export async function POST(req) {
+  // Verificar origen
+  const origin = req.headers.get('origin');
+  const allowedOrigins = [
+    'https://api.mercadopago.com', 
+    'https://webhook.mercadopago.com'
+  ];
+  
+  if (origin && !allowedOrigins.includes(origin)) {
+    logSecurityEvent('webhook_invalid_origin', { origin });
+    return new Response('Forbidden', { status: 403 });
+  }
+  
   logInfo('Webhook recibido desde MercadoPago');
 
   // Usar la WEBHOOK_KEY específica en lugar del access token

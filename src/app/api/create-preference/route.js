@@ -5,6 +5,27 @@ import { validateCsrfToken } from '../../../utils/csrf';
 
 export async function POST(req) {
   try {
+    // Validar origen
+    const origin = req.headers.get('origin') || '';
+    const referer = req.headers.get('referer') || '';
+    
+    const allowedOrigins = [
+      'https://alturadivina.com',
+      'https://www.alturadivina.com',
+      'https://framer.com',
+      'https://mercadopagoiframe.vercel.app',
+      'http://localhost:3000'
+    ];
+    
+    const isAllowedOrigin = allowedOrigins.some(allowed => 
+      origin.includes(allowed) || referer.includes(allowed)
+    );
+    
+    if (!isAllowedOrigin && process.env.NODE_ENV === 'production') {
+      logSecurityEvent('invalid_preference_origin', { origin, referer });
+      return NextResponse.json({ error: 'Origen no permitido' }, { status: 403 });
+    }
+    
     const body = await req.json();
     const { orderSummary, successUrl, pendingUrl, failureUrl, payer } = body;
 

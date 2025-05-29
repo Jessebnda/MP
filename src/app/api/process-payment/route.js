@@ -243,8 +243,33 @@ export async function POST(req) {
     logInfo(`Process-payment request received. IdempotencyKey: ${idempotencyKey}`);
 
     try {
-      // Always bypass CSRF for critical payment processing
-      logInfo("Bypassing CSRF validation for process-payment endpoint");
+      // NUEVO: Validación CSRF mejorada
+      // Obtener token CSRF (si existe)
+      const csrfToken = req.headers.get('X-CSRF-Token');
+      const expectedToken = req.cookies.get('csrf_token')?.value;
+      
+      // Flag para detectar si estamos en un iframe de Framer o en producción
+      const isFramerOrProduction = req.headers.get('referer')?.includes('framer.com') || 
+        process.env.NODE_ENV === 'production';
+      
+      // Solo validar si no estamos en Framer y tenemos un token esperado
+      if (!isFramerOrProduction && expectedToken && csrfToken !== expectedToken) {
+        logSecurityEvent('csrf_validation_failed', { 
+          got: csrfToken, 
+          expected: expectedToken?.substring(0, 5) + '...' 
+        }, 'warn');
+        
+        return NextResponse.json(
+          { error: 'Validación de seguridad fallida' },
+          { status: 403 }
+        );
+      }
+      
+      // Si llegamos aquí, la validación CSRF pasó (o se ignoró por ser Framer/producción)
+      logInfo(`CSRF validation ${isFramerOrProduction ? 'bypassed' : 'passed'} for ${idempotencyKey}`, {
+        isFramer: req.headers.get('referer')?.includes('framer.com'),
+        isProduction: process.env.NODE_ENV === 'production'
+      });
 
       const body = await req.json();
       logInfo("Request body en /api/process-payment:", { body, idempotencyKey }); // Incluir idempotencyKey en logs
