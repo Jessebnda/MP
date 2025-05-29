@@ -15,35 +15,31 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- Implementación de Validación de Firma ---
-async function isValidSignature(request, secret) {
+async function isValidSignature(rawBody, secret, receivedSignature) {
+  if (!secret || !receivedSignature) {
+    logWarn('Missing webhook signature verification data', {
+      hasSecret: !!secret,
+      hasSignature: !!receivedSignature
+    });
+    return false;
+  }
+
   try {
-    // Obtener la firma del encabezado
-    const receivedSignature = request.headers.get('x-signature') || '';
-    
-    // Obtener el cuerpo como texto para firmar
-    const body = await request.text();
-    
-    // Calcular la firma esperada usando HMAC SHA-256
+    // Compute HMAC signature
     const hmac = crypto.createHmac('sha256', secret);
-    hmac.update(body);
-    const calculatedSignature = hmac.digest('hex');
+    hmac.update(rawBody);
+    const computedSignature = hmac.digest('hex');
     
-    // Usar constantes de tiempo para comparar (evitar timing attacks)
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(calculatedSignature, 'hex'),
-      Buffer.from(receivedSignature, 'hex')
-    );
-    
-    // Registrar el resultado
-    logSecurityEvent(
-      isValid ? 'webhook_signature_valid' : 'webhook_signature_invalid',
-      { receivedSignature: receivedSignature.substring(0, 10) + '...' },
-      isValid ? 'info' : 'warn'
-    );
-    
-    return isValid;
-  } catch (error) {
-    logSecurityEvent('webhook_signature_error', { error: error.message }, 'error');
+    // Log for debugging
+    logInfo('Webhook signature verification', {
+      received: receivedSignature,
+      computed: computedSignature,
+      isValid: computedSignature === receivedSignature
+    });
+
+    return computedSignature === receivedSignature;
+  } catch (e) {
+    logError('Error verifying webhook signature:', e);
     return false;
   }
 }
@@ -65,20 +61,27 @@ export async function POST(req) {
     accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN 
   });
 
-  // 1. Validar la firma del webhook ANTES de leer el JSON
-  const reqClone = req.clone();
-  if (!await isValidSignature(reqClone, secret)) {
-    logSecurityEvent('invalid_webhook_signature', {}, 'error');
-    return NextResponse.json({ error: 'Signature validation failed' }, { status: 401 });
-  }
-
   try {
-    // 2. Obtener el cuerpo de la notificación
-    const notification = await req.json();
+    // 1. Obtener el cuerpo como texto para validar firma
+    const rawBody = await req.text();
+    
+    // 2. Obtener firma desde headers (soporta ambos formatos)
+    const receivedSignature = 
+      req.headers.get('x-signature') ||
+      req.headers.get('x-mp-signature') || '';
+    
+    // 3. Validar firma
+    if (!await isValidSignature(rawBody, secret, receivedSignature)) {
+      logSecurityEvent('invalid_webhook_signature', {}, 'error');
+      return NextResponse.json({ error: 'Signature validation failed' }, { status: 401 });
+    }
+
+    // 4. Parsear el JSON después de validar
+    const notification = JSON.parse(rawBody);
     
     logInfo(`Webhook recibido: tipo=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
 
-    // 3. Manejar diferentes tipos de notificaciones
+    // 5. Manejar diferentes tipos de notificaciones
     switch(notification.type) {
       case 'payment':
         await handlePaymentNotification(notification, mpClient);
@@ -93,7 +96,7 @@ export async function POST(req) {
         logInfo(`Tipo de notificación no manejado: ${notification.type}`);
     }
 
-    // 4. Responder con éxito a MercadoPago
+    // 6. Responder con éxito a MercadoPago
     return NextResponse.json({ received: true }, { status: 200 });
 
   } catch (error) {

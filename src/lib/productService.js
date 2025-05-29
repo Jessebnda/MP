@@ -1,5 +1,10 @@
-import { supabaseAdmin } from './supabase';
+import { createClient } from '@supabase/supabase-js';
 import { logInfo, logError } from '../utils/logger';
+
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 /**
  * Obtiene un producto por su ID
@@ -123,19 +128,40 @@ export async function saveProduct(product) {
  * Verifica disponibilidad de stock para un pedido
  */
 export async function verifyStockForOrder(orderItems) {
+  if (!Array.isArray(orderItems) || orderItems.length === 0) {
+    logError('orderItems inválido en verifyStockForOrder:', orderItems);
+    throw new Error('No hay items para verificar');
+  }
+  
+  logInfo(`Verificando stock para ${orderItems.length} productos`);
+  
   for (const item of orderItems) {
-    const product = await getProductById(item.productId);
+    // Asegurar que los datos necesarios están presentes
+    const productId = item.productId || item.product_id;
+    const quantity = parseInt(item.quantity);
     
-    if (!product) {
-      throw new Error(`Producto no encontrado: ${item.productId}`);
+    if (!productId || !quantity || isNaN(quantity)) {
+      logError('Item inválido en verifyStockForOrder:', item);
+      throw new Error('Datos de producto inválidos');
     }
     
-    if (product.stock_available < item.quantity) {
-      throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stock_available}`);
+    // Obtener el producto de la base de datos
+    const product = await getProductById(productId);
+    
+    if (!product) {
+      logError(`Producto no encontrado: ${productId}`);
+      throw new Error(`Producto no encontrado: ${productId}`);
+    }
+    
+    // Verificar stock
+    const stockAvailable = parseInt(product.stock_available) || 0;
+    if (stockAvailable < quantity) {
+      logError(`Stock insuficiente para ${product.name || productId}: disponible ${stockAvailable}, solicitado ${quantity}`);
+      throw new Error(`Stock insuficiente para ${product.name || productId}. Disponible: ${stockAvailable}, solicitado: ${quantity}`);
     }
   }
   
-  logInfo(`Stock verificado para ${orderItems.length} productos`);
+  logInfo('✅ Stock verificado correctamente para todos los productos');
   return true;
 }
 
@@ -150,57 +176,30 @@ export async function updateStockAfterOrder(orderItems) {
   
   logInfo(`Actualizando stock para ${orderItems.length} productos`);
   
-  for (const item of orderItems) {
-    // Asegurar que los datos necesarios están presentes
-    const productId = item.productId || item.product_id;
-    const quantity = parseInt(item.quantity);
+  try {
+    // Preparar los items para la RPC batch
+    const items = orderItems.map(item => ({
+      product_id: item.productId || item.product_id,
+      quantity: parseInt(item.quantity)
+    }));
     
-    if (!productId || !quantity || isNaN(quantity)) {
-      logError('Item inválido en updateStockAfterOrder:', item);
-      continue;
+    // Llamar al RPC batch
+    const { error } = await supabaseAdmin.rpc(
+      'update_stock_safely_batch',
+      { items: items }
+    );
+    
+    if (error) {
+      logError('Error actualizando stock en batch:', error);
+      throw error;
     }
     
-    logInfo(`Reduciendo stock para ${productId} en ${quantity} unidades`);
-    
-    try {
-      // Obtener el stock actual para verificar
-      const { data: product, error: getError } = await supabaseAdmin
-        .from('products')
-        .select('stock_available')
-        .eq('id', productId)
-        .single();
-        
-      if (getError || !product) {
-        logError(`Error obteniendo producto ${productId}:`, getError);
-        continue;
-      }
-      
-      // Calcular nuevo stock
-      const currentStock = parseInt(product.stock_available) || 0;
-      const newStock = Math.max(0, currentStock - quantity);
-      
-      logInfo(`Stock para ${productId}: actual ${currentStock} -> nuevo ${newStock}`);
-      
-      // Actualizar stock
-      const { error } = await supabaseAdmin
-        .from('products')
-        .update({ 
-          stock_available: newStock,
-          updated_at: new Date()
-        })
-        .eq('id', productId);
-      
-      if (error) {
-        logError(`Error actualizando stock para producto ${productId}:`, error);
-      } else {
-        logInfo(`✅ Stock reducido exitosamente para producto ${productId}`);
-      }
-    } catch (error) {
-      logError(`Error inesperado actualizando stock para ${productId}:`, error);
-    }
+    logInfo('✅ Stock actualizado correctamente para todos los productos');
+    return true;
+  } catch (error) {
+    logError('Error actualizando stock:', error);
+    throw error;
   }
-  
-  return true;
 }
 
 /**

@@ -7,8 +7,7 @@ import { sanitizeInput } from '../../../utils/security';
 import { generateReceiptPDF } from '../../../lib/pdfService';
 import { sendReceiptEmail } from '../../../lib/emailService';
 import { v4 as uuidv4 } from 'uuid';
-import { getProductById } from '../../../lib/productService';
-// Corregir esta importación:
+import { getProductById, verifyStockForOrder, updateStockAfterOrder } from '../../../lib/productService';
 import { validatePaymentRequestBody, extractPaymentInstrumentData } from '../../../lib/validation';
 
 // Inicializar el cliente de Supabase
@@ -207,7 +206,7 @@ async function processMercadoPagoPayment({
 }
 
 export async function POST(req) {
-  const idempotencyKey = uuidv4();
+  const idempotencyKey = req.headers.get('X-Idempotency-Key') || uuidv4();
   
   try {
     // Add additional security headers check
@@ -273,11 +272,6 @@ export async function POST(req) {
       let secureTotal = 0;
 
       if (isMultipleOrder) {
-        // Cambiar la importación
-        // import { getProductById, verifyStockForOrder } from '../../../lib/productService';
-        // Eliminar importación de stockService si existe
-
-        // Asegurar que la validación de stock está funcionando
         // Construir array con datos seguros (solo IDs y cantidades del frontend)
         const secureOrderItems = await Promise.all(orderSummary.map(async item => {
           const dbProduct = await getProductById(item.productId);
@@ -319,6 +313,19 @@ export async function POST(req) {
         // Procesar pedidos simples de manera similar
       }
 
+      // ✅ 1. Verificar stock ANTES de hablar con MP
+      try {
+        if (orderSummary && orderSummary.length > 0) {
+          await verifyStockForOrder(orderSummary);
+        }
+      } catch (err) {
+        logInfo('stock_insufficient', { message: err.message, idempotencyKey });
+        return NextResponse.json(
+          { code: 'stock_insufficient', message: err.message, idempotencyKey },
+          { status: 409 }
+        );
+      }
+
       const paymentResponse = await processMercadoPagoPayment({
         transaction_amount: totalAmount,
         token,
@@ -331,6 +338,17 @@ export async function POST(req) {
         isMultipleOrder,
         idempotencyKey, // Pasar la clave de idempotencia
       });
+
+      // ✅ 2. NUEVO: Si MP aprobó, actualizar stock YA (UBICACIÓN CORRECTA)
+      if (paymentResponse.status === 'approved') {
+        try {
+          await updateStockAfterOrder(itemsForPayment || orderSummary);
+          logInfo(`✅ [${idempotencyKey}] Stock actualizado correctamente`);
+        } catch (stockError) {
+          logError(`❌ [${idempotencyKey}] Error actualizando stock:`, stockError);
+          // No bloquear el flujo por errores de stock
+        }
+      }
 
       if (paymentResponse.id && (paymentResponse.status === 'approved' || paymentResponse.status === 'in_process')) {
         // Almacenar la información del pago en payment_requests
