@@ -54,26 +54,21 @@ async function processMercadoPagoPayment({
   idempotencyKey
 }) {
   try {
-    // Log for debugging
-    logInfo('Processing payment with data:', { 
-      amount: transaction_amount,
-      payment_method: payment_method_id,
-      items_count: orderItems.length,
-      idempotencyKey
-    });
-    
-    // 1. NUNCA confíes en los precios del frontend
-    const preferenceItems = await Promise.all(orderItems.map(async item => {
-      // Obtener siempre el precio real desde el backend
-      const dbProduct = await getProductById(item.productId || item.id);
+    logInfo(`🔍 [${idempotencyKey}] Iniciando procesamiento de pago con MercadoPago`);
+
+    // 1. Validar y obtener productos desde la BD
+    const preferenceItems = await Promise.all(orderItems.map(async (item) => {
+      const dbProduct = await getProductById(item.id);
       if (!dbProduct) {
-        throw new Error(`Producto no encontrado: ${item.productId || item.id}`);
+        throw new Error(`Producto ${item.id} no encontrado`);
       }
       
       return {
-        id: item.productId || item.id,
-        title: dbProduct.name || 'Producto',
+        id: dbProduct.id,
+        title: dbProduct.name,
         description: dbProduct.description || '',
+        picture_url: dbProduct.image_url,
+        category_id: dbProduct.category || 'fashion',
         quantity: parseInt(item.quantity),
         unit_price: parseFloat(dbProduct.price), // ✅ Usar SIEMPRE precio de BD
         currency_id: "MXN"
@@ -129,14 +124,13 @@ async function processMercadoPagoPayment({
         shipments: payerData?.address ? {
           mode: "custom",
           cost: 0, // O el costo real de envío si lo cobras
-          local_pickup: false,
           receiver_address: {
-            zip_code: payerData.address.zip_code || '',
             street_name: payerData.address.street_name || '',
             street_number: payerData.address.street_number ? String(payerData.address.street_number) : '',
-            city_name: payerData.address.city || '',
-            state_name: payerData.address.state || '',
-            country_name: payerData.address.country || 'México'
+            zip_code: payerData.address.zip_code || '',
+            city_name: payerData.address.city_name || '',
+            state_name: payerData.address.state_name || '',
+            country_name: payerData.address.country_name || 'México'
           }
         } : undefined,
         back_urls: {
@@ -161,8 +155,7 @@ async function processMercadoPagoPayment({
     // Crear el cliente de pagos
     const paymentClient = new Payment(client);
     
-    // Crear pago con el cliente usando paymentItems y vinculándolo a la preferencia
-    // ✅ CRÍTICO: Asegurar que external_reference se establece correctamente
+    // ✅ CRÍTICO: Asegurar que external_reference se establece correctamente EN LA RAÍZ
     const paymentResponse = await paymentClient.create({
       body: {
         token: token,
@@ -173,19 +166,20 @@ async function processMercadoPagoPayment({
         installments: parseInt(installments),
         payment_method_id: payment_method_id,
         issuer_id: issuer_id,
-        external_reference: idempotencyKey, // ✅ ESTO ES CRÍTICO para el webhook
+        external_reference: idempotencyKey, // ✅ ESTO ES CRÍTICO para el webhook - EN LA RAÍZ
         payer: {
           email: payerEmail,
           identification: payerData?.identification || {}
         },
         additional_info: {
           items: paymentItems,
+          // ❌ NO poner external_reference aquí - eso causa el error 400
           payer: {
             first_name: payerData?.first_name,
             last_name: payerData?.last_name,
             phone: phoneFormatted
-          },
-          external_reference: idempotencyKey // ✅ También aquí por redundancia
+          }
+          // external_reference: idempotencyKey // ❌ NO aquí - causaba el error
         }
       }
     });

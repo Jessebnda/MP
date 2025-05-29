@@ -1,24 +1,25 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import crypto from 'crypto';
-import { logSecurityEvent } from '../../../lib/security-logger';
 import { logInfo, logError, logWarn } from '../../../utils/logger';
 import { createClient } from '@supabase/supabase-js';
+import { updateStockAfterOrder } from '../../../lib/productService';
 import { generateReceiptPDF } from '../../../lib/pdfService';
 import { sendReceiptEmail } from '../../../lib/emailService';
-import { updateStockAfterOrder } from '../../../lib/productService';
 
-// Inicializar el cliente de Supabase
+// Inicializar Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- Implementación CORRECTA de Validación de Firma ---
+// Validación de firma webhook mejorada
 async function isValidSignature(rawBody, secret, receivedSignature) {
   try {
-    if (!receivedSignature || !secret) return false;
+    if (!receivedSignature || !secret) {
+      logWarn('❌ Webhook: Firma o secret faltante');
+      return false;
+    }
     
-    // Extraer timestamp y signature de x-signature header
     const parts = receivedSignature.split(',').reduce((acc, part) => {
       const [key, value] = part.split('=');
       acc[key] = value;
@@ -28,352 +29,288 @@ async function isValidSignature(rawBody, secret, receivedSignature) {
     const timestamp = parts.ts;
     const signature = parts.v1;
     
-    if (!timestamp || !signature) return false;
+    if (!timestamp || !signature) {
+      logWarn('❌ Webhook: Timestamp o signature faltante en header');
+      return false;
+    }
     
-    // Crear el string para firmar: ts + rawBody
     const signatureString = `${timestamp}.${rawBody}`;
-    
-    // Calcular HMAC SHA256
     const calculatedSignature = crypto
       .createHmac('sha256', secret)
       .update(signatureString)
       .digest('hex');
     
-    return calculatedSignature === signature;
+    const isValid = calculatedSignature === signature;
+    logInfo(`🔐 Webhook: Validación de firma ${isValid ? 'exitosa' : 'fallida'}`);
+    return isValid;
+    
   } catch (error) {
-    logError('Error validando firma webhook:', error);
+    logError('❌ Webhook: Error validando firma:', error);
     return false;
   }
 }
 
 export async function POST(req) {
-  // Verificar origen
-  const origin = req.headers.get('origin');
-  const allowedOrigins = [
-    'https://api.mercadopago.com', 
-    'https://webhook.mercadopago.com'
-  ];
-  
-  if (origin && !allowedOrigins.includes(origin)) {
-    logSecurityEvent('webhook_invalid_origin', { origin });
-    return new Response('Forbidden', { status: 403 });
-  }
-  
-  logInfo('🔔 Webhook recibido desde MercadoPago');
-
-  // Usar la WEBHOOK_KEY específica
-  const secret = process.env.MERCADOPAGO_WEBHOOK_KEY || process.env.MERCADOPAGO_ACCESS_TOKEN;
-  
-  // Acceso a la API de MercadoPago
-  const mpClient = new MercadoPagoConfig({ 
-    accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN 
-  });
+  const startTime = Date.now();
+  logInfo('🔔 Webhook: Iniciando procesamiento');
 
   try {
-    // 1. Obtener el cuerpo como texto para validar firma
+    // 1. Obtener el cuerpo como texto
     const rawBody = await req.text();
     
-    // 2. Obtener firma desde headers
-    const receivedSignature = 
-      req.headers.get('x-signature') ||
-      req.headers.get('x-mp-signature') || '';
-    
-    // 3. Validar firma
-    if (!await isValidSignature(rawBody, secret, receivedSignature)) {
-      logSecurityEvent('invalid_webhook_signature', {}, 'error');
-      return NextResponse.json({ error: 'Signature validation failed' }, { status: 401 });
+    if (!rawBody) {
+      logError('❌ Webhook: Cuerpo vacío recibido');
+      return NextResponse.json({ error: 'Empty body' }, { status: 400 });
     }
 
-    // 4. Parsear el JSON después de validar
-    const notification = JSON.parse(rawBody);
+    // 2. Validar firma (opcional en desarrollo)
+    const secret = process.env.MERCADOPAGO_WEBHOOK_KEY;
+    const receivedSignature = req.headers.get('x-signature') || '';
     
-    logInfo(`🔔 Webhook válido recibido: tipo=${notification.type || notification.action}, data.id=${notification.data?.id || 'N/A'}`);
+    if (process.env.NODE_ENV === 'production') {
+      if (!await isValidSignature(rawBody, secret, receivedSignature)) {
+        logError('❌ Webhook: Firma inválida');
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
+    } else {
+      logInfo('🔧 Webhook: Modo desarrollo - saltando validación de firma');
+    }
 
-    // 5. Manejar diferentes tipos de notificaciones
+    // 3. Parsear notificación
+    let notification;
+    try {
+      notification = JSON.parse(rawBody);
+    } catch (parseError) {
+      logError('❌ Webhook: Error parseando JSON:', parseError);
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    // 4. Validar estructura básica
+    if (!notification.data?.id) {
+      logWarn('⚠️ Webhook: Notificación sin data.id');
+      return NextResponse.json({ received: true }, { status: 200 });
+    }
+
+    const paymentId = notification.data.id;
     const eventType = notification.type || notification.action;
     
-    switch(eventType) {
-      case 'payment':
-      case 'payment.created':
-      case 'payment.updated':
-        await handlePaymentNotification(notification, mpClient);
-        break;
-      case 'chargebacks':
-        await handleChargebackNotification(notification, mpClient);
-        break;
-      case 'claim':
-        await handleClaimNotification(notification, mpClient);
-        break;
-      default:
-        logInfo(`ℹ️ Tipo de notificación no manejado: ${eventType}`);
+    logInfo(`🔔 Webhook válido: tipo=${eventType}, payment_id=${paymentId}`);
+
+    // 5. Procesar solo notificaciones de pago
+    if (eventType === 'payment' || eventType === 'payment.updated' || eventType === 'payment.created') {
+      await handlePaymentNotification(paymentId);
+    } else {
+      logInfo(`ℹ️ Webhook: Tipo de evento no procesado: ${eventType}`);
     }
 
-    // 6. Responder con éxito a MercadoPago
+    const processingTime = Date.now() - startTime;
+    logInfo(`✅ Webhook procesado exitosamente en ${processingTime}ms`);
+    
     return NextResponse.json({ received: true }, { status: 200 });
 
   } catch (error) {
-    logError('❌ Error procesando webhook:', error);
-    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
+    const processingTime = Date.now() - startTime;
+    logError(`❌ Webhook: Error general tras ${processingTime}ms:`, {
+      message: error.message,
+      stack: error.stack
+    });
+    
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Maneja notificaciones de pago con IDEMPOTENCIA
-async function handlePaymentNotification(notification, mpClient) {
-  if (!notification.data?.id) {
-    logWarn('⚠️ Notificación de pago sin ID');
-    return;
-  }
-
-  const paymentId = notification.data.id;
-  const paymentClient = new Payment(mpClient);
-  
+// Función principal para manejar notificaciones de pago
+async function handlePaymentNotification(paymentId) {
   try {
-    logInfo(`🔍 Obteniendo detalles del pago ${paymentId} desde MercadoPago API...`);
+    logInfo(`🔍 Procesando pago: ${paymentId}`);
+
+    // 1. Obtener información del pago desde MercadoPago
+    const mpClient = new MercadoPagoConfig({ 
+      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN 
+    });
+    const paymentClient = new Payment(mpClient);
     
-    // Obtener detalles del pago desde la API de MercadoPago
     const paymentInfo = await paymentClient.get({ id: paymentId });
     const currentStatus = paymentInfo.status;
     const statusDetail = paymentInfo.status_detail;
     const externalReference = paymentInfo.external_reference;
-    
-    logInfo(`💰 Pago ${paymentId}: status=${currentStatus}, detail=${statusDetail}, external_ref=${externalReference}`);
-    
+
+    logInfo(`💰 Pago ${paymentId}: status=${currentStatus}, detail=${statusDetail}, ref=${externalReference}`);
+
     if (!externalReference) {
-      logWarn(`⚠️ Pago ${paymentId} sin referencia externa para identificar la solicitud`);
+      logWarn(`⚠️ Pago ${paymentId} sin external_reference - ignorando`);
       return;
     }
-    
-    // Buscar la solicitud de pago en la tabla payment_requests
-    const { data: paymentRequestData, error: paymentRequestError } = await supabase
+
+    // 2. Buscar el payment_request en nuestra BD
+    const { data: paymentRequest, error: fetchError } = await supabase
       .from('payment_requests')
       .select('*')
       .eq('id', externalReference)
       .single();
-    
-    if (paymentRequestError || !paymentRequestData) {
-      logError(`❌ No se encontró la solicitud de pago ${externalReference}:`, paymentRequestError);
+
+    if (fetchError || !paymentRequest) {
+      logError(`❌ Payment request ${externalReference} no encontrado:`, fetchError);
       return;
     }
 
-    const previousStatus = paymentRequestData.payment_status;
-    logInfo(`📊 Estado anterior en BD: ${previousStatus} → Estado actual MP: ${currentStatus}`);
+    const previousStatus = paymentRequest.payment_status;
+    logInfo(`📊 Estado: ${previousStatus} → ${currentStatus}`);
 
-    // ✅ LÓGICA PRINCIPAL: Solo procesar si hay cambio de estado
+    // 3. Verificar si ya fue procesado (idempotencia)
     if (previousStatus === currentStatus) {
-      logInfo(`✅ El pago ${paymentId} ya tiene el estado ${currentStatus} en BD. Ignorando duplicado.`);
+      logInfo(`✅ Pago ${paymentId} ya tiene estado ${currentStatus} - ignorando duplicado`);
       return;
     }
 
-    // Actualizar el estado del pago en payment_requests
+    // 4. Actualizar estado en payment_requests
     const { error: updateError } = await supabase
       .from('payment_requests')
       .update({
         payment_status: currentStatus,
         payment_detail: statusDetail,
-        updated_at: new Date()
+        payment_id: paymentId,
+        updated_at: new Date().toISOString()
       })
       .eq('id', externalReference);
-      
+
     if (updateError) {
       logError(`❌ Error actualizando payment_request ${externalReference}:`, updateError);
       return;
     }
 
-    logInfo(`✅ Payment request ${externalReference} actualizado: ${previousStatus} → ${currentStatus}`);
-      
-    // 🎯 ACCIONES ESPECÍFICAS SEGÚN EL NUEVO ESTADO
+    logInfo(`✅ Payment request ${externalReference} actualizado exitosamente`);
+
+    // 5. Ejecutar acciones según el nuevo estado
     if (currentStatus === 'approved' && previousStatus !== 'approved') {
-      logInfo(`🎉 PAGO APROBADO: Ejecutando acciones post-aprobación para ${paymentId}`);
-      
-      try {
-        // 1. Actualizar stock si hay items del pedido
-        let orderItems = paymentRequestData.order_items;
-        
-        if (typeof orderItems === 'string') {
-          try {
-            orderItems = JSON.parse(orderItems);
-          } catch (e) {
-            logError('❌ Error parseando order_items:', e);
-          }
-        }
-        
-        if (Array.isArray(orderItems) && orderItems.length > 0) {
-          await updateStockAfterOrder(orderItems);
-          logInfo(`📦 Stock actualizado correctamente para pago ${paymentId}`);
-        } else {
-          logWarn(`⚠️ No se encontraron items para actualizar stock en pago ${paymentId}`);
-        }
-
-        // 2. Enviar email de confirmación
-        await sendConfirmationEmailForApprovedPayment(paymentRequestData, paymentInfo);
-        
-        // 3. Crear orden definitiva (opcional)
-        await createOrderFromPaymentRequest(paymentRequestData, paymentInfo);
-        
-      } catch (error) {
-        logError(`❌ Error en acciones post-aprobación para pago ${paymentId}:`, error);
-        // No bloquear el flujo principal por errores en acciones secundarias
-      }
+      await handleApprovedPayment(paymentRequest, paymentInfo);
     } else if (currentStatus === 'rejected' && previousStatus !== 'rejected') {
-      logInfo(`❌ PAGO RECHAZADO: ${paymentId} cambió a rechazado`);
-      // Aquí podrías enviar un email de rechazo, liberar stock, etc.
+      logInfo(`❌ Pago ${paymentId} rechazado`);
+      // Aquí podrías agregar lógica para pagos rechazados
     } else if (currentStatus === 'pending' && previousStatus !== 'pending') {
-      logInfo(`⏳ PAGO PENDIENTE: ${paymentId} está en proceso`);
-      // Acciones para pagos pendientes si las necesitas
-    }
-    
-  } catch (error) {
-    logError(`❌ Error procesando notificación de pago ${paymentId}:`, error);
-  }
-}
-
-// Nueva función para enviar email de confirmación cuando se aprueba un pago
-async function sendConfirmationEmailForApprovedPayment(paymentRequestData, paymentInfo) {
-  try {
-    logInfo(`📧 Enviando email de confirmación para pago aprobado: ${paymentInfo.id}`);
-    
-    const customerData = paymentRequestData.customer_data;
-    const orderItems = typeof paymentRequestData.order_items === 'string' 
-      ? JSON.parse(paymentRequestData.order_items) 
-      : paymentRequestData.order_items;
-
-    if (!customerData?.email) {
-      logWarn(`⚠️ No se encontró email del cliente para pago ${paymentInfo.id}`);
-      return;
-    }
-
-    // Generar PDF del recibo
-    const receiptPDF = await generateReceiptPDF({
-      paymentId: paymentInfo.id,
-      amount: paymentRequestData.total_amount,
-      items: orderItems,
-      customer: customerData,
-      paymentDate: new Date(),
-      status: 'approved'
-    });
-
-    // Enviar email con el recibo
-    const emailResult = await sendReceiptEmail({
-      to: customerData.email,
-      customerName: `${customerData.first_name || ''} ${customerData.last_name || ''}`.trim(),
-      orderId: paymentRequestData.id,
-      paymentId: paymentInfo.id,
-      amount: paymentRequestData.total_amount,
-      items: orderItems,
-      pdfAttachment: receiptPDF
-    });
-
-    if (emailResult.success) {
-      logInfo(`✅ Email de confirmación enviado exitosamente a ${customerData.email}`);
-    } else {
-      logError(`❌ Error enviando email de confirmación:`, emailResult.error);
+      logInfo(`⏳ Pago ${paymentId} pendiente`);
+      // Aquí podrías agregar lógica para pagos pendientes
     }
 
   } catch (error) {
-    logError(`❌ Error en sendConfirmationEmailForApprovedPayment:`, error);
+    logError(`❌ Error procesando pago ${paymentId}:`, {
+      message: error.message,
+      stack: error.stack
+    });
   }
 }
 
-// Nueva función para crear orden definitiva desde payment_request
-async function createOrderFromPaymentRequest(paymentRequestData, paymentInfo) {
+// Manejar pagos aprobados
+async function handleApprovedPayment(paymentRequest, paymentInfo) {
+  const paymentId = paymentInfo.id;
+  
   try {
-    logInfo(`📝 Creando orden definitiva para pago ${paymentInfo.id}`);
+    logInfo(`🎉 Procesando pago aprobado: ${paymentId}`);
+
+    // 1. Actualizar stock
+    let orderItems = paymentRequest.order_items;
     
+    if (typeof orderItems === 'string') {
+      try {
+        orderItems = JSON.parse(orderItems);
+      } catch (e) {
+        logError('❌ Error parseando order_items:', e);
+        orderItems = [];
+      }
+    }
+
+    if (Array.isArray(orderItems) && orderItems.length > 0) {
+      await updateStockAfterOrder(orderItems);
+      logInfo(`📦 Stock actualizado para pago ${paymentId}`);
+    }
+
+    // 2. Crear orden definitiva
+    await createFinalOrder(paymentRequest, paymentInfo);
+
+    // 3. Enviar email de confirmación
+    await sendConfirmationEmail(paymentRequest, paymentInfo);
+
+    logInfo(`✅ Pago ${paymentId} procesado completamente`);
+
+  } catch (error) {
+    logError(`❌ Error en acciones post-aprobación para pago ${paymentId}:`, error);
+  }
+}
+
+// Crear orden definitiva
+async function createFinalOrder(paymentRequest, paymentInfo) {
+  try {
     const orderData = {
-      id: `ORDER_${paymentRequestData.id}`,
+      id: `ORDER_${paymentRequest.id}`,
       payment_id: paymentInfo.id,
-      payment_request_id: paymentRequestData.id,
-      customer_data: paymentRequestData.customer_data,
-      order_items: paymentRequestData.order_items,
-      total_amount: paymentRequestData.total_amount,
+      payment_request_id: paymentRequest.id,
+      customer_data: paymentRequest.customer_data,
+      order_items: paymentRequest.order_items,
+      total_amount: paymentRequest.total_amount,
       payment_status: 'approved',
       payment_detail: paymentInfo.status_detail,
-      created_at: new Date(),
-      updated_at: new Date()
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
 
     const { error } = await supabase
       .from('orders')
       .insert([orderData]);
-      
+
     if (error) {
       logError(`❌ Error creando orden definitiva:`, error);
     } else {
-      logInfo(`✅ Orden definitiva creada: ORDER_${paymentRequestData.id}`);
+      logInfo(`✅ Orden definitiva creada: ORDER_${paymentRequest.id}`);
     }
-    
+
   } catch (error) {
-    logError(`❌ Error en createOrderFromPaymentRequest:`, error);
+    logError(`❌ Error en createFinalOrder:`, error);
   }
 }
 
-// Maneja notificaciones de contracargos
-async function handleChargebackNotification(notification, mpClient) {
-  if (!notification.data?.id) return;
-  
-  const chargebackId = notification.data.id;
-  logInfo(`💳 Procesando contracargo: ${chargebackId}`);
-  
+// Enviar email de confirmación
+async function sendConfirmationEmail(paymentRequest, paymentInfo) {
   try {
-    const paymentId = notification.data.payment_id;
-    
-    if (paymentId) {
-      // Buscar la orden por payment_id
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('payment_id', paymentId)
-        .single();
-        
-      if (orderData) {
-        await supabase
-          .from('orders')
-          .update({
-            payment_status: 'charged_back',
-            payment_detail: `Contracargo: ${chargebackId}`,
-            updated_at: new Date()
-          })
-          .eq('id', orderData.id);
-          
-        logInfo(`✅ Orden ${orderData.id} actualizada con contracargo`);
-      }
-    }
-  } catch (error) {
-    logError(`❌ Error procesando contracargo ${chargebackId}:`, error);
-  }
-}
+    const customerData = paymentRequest.customer_data;
+    let orderItems = paymentRequest.order_items;
 
-// Maneja notificaciones de reclamos
-async function handleClaimNotification(notification, mpClient) {
-  if (!notification.data?.id) return;
-  
-  const claimId = notification.data.id;
-  logInfo(`📋 Procesando reclamo: ${claimId}`);
-  
-  try {
-    const paymentId = notification.data.payment_id;
-    
-    if (paymentId) {
-      const { data: orderData } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('payment_id', paymentId)
-        .single();
-        
-      if (orderData) {
-        await supabase
-          .from('orders')
-          .update({
-            payment_status: 'claimed',
-            payment_detail: `Reclamo: ${claimId}`,
-            updated_at: new Date()
-          })
-          .eq('id', orderData.id);
-          
-        logInfo(`✅ Orden ${orderData.id} actualizada con reclamo`);
-      }
+    if (typeof orderItems === 'string') {
+      orderItems = JSON.parse(orderItems);
     }
+
+    if (!customerData?.email) {
+      logWarn(`⚠️ No hay email para enviar confirmación del pago ${paymentInfo.id}`);
+      return;
+    }
+
+    // Generar PDF
+    const receiptPDF = await generateReceiptPDF({
+      orderId: paymentRequest.id,
+      customerData,
+      items: orderItems,
+      totalAmount: paymentRequest.total_amount,
+      paymentStatus: 'approved',
+      paymentId: paymentInfo.id
+    });
+
+    // Enviar email
+    const emailResult = await sendReceiptEmail({
+      to: customerData.email,
+      customerName: `${customerData.first_name || ''} ${customerData.last_name || ''}`.trim(),
+      orderId: paymentRequest.id,
+      paymentId: paymentInfo.id,
+      amount: paymentRequest.total_amount,
+      items: orderItems,
+      pdfAttachment: receiptPDF
+    });
+
+    if (emailResult.success) {
+      logInfo(`✅ Email enviado a ${customerData.email}`);
+    } else {
+      logError(`❌ Error enviando email:`, emailResult.error);
+    }
+
   } catch (error) {
-    logError(`❌ Error procesando reclamo ${claimId}:`, error);
+    logError(`❌ Error en sendConfirmationEmail:`, error);
   }
 }

@@ -12,7 +12,9 @@
     "verify-payments": "node src/scripts/run-verification.js",
     "test:webhook": "node src/scripts/test-webhook.js",
     "test:webhook:prod": "node src/scripts/test-webhook-prod.js",
-    "test:webhook:api": "curl -X POST -H 'Content-Type: application/json' -d '{\"paymentId\":\"123456789\",\"status\":\"approved\"}' https://mercadopagoiframe.vercel.app/api/test-webhook"
+    "test:webhook:flow": "node src/scripts/test-webhook-flow.js",
+    "test:webhook:api": "curl -X POST -H 'Content-Type: application/json' -d '{\"paymentId\":\"123456789\",\"status\":\"approved\"}' https://mercadopagoiframe.vercel.app/api/test-webhook",
+    "test:webhook:complete": "node src/scripts/test-webhook-flow-with-mock.js"
   },
   "keywords": [
     "mercadopago",
