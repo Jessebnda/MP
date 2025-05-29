@@ -8,7 +8,8 @@
     "build": "next build",
     "dev": "next dev",
     "start": "next start",
-    "migrate": "node scripts/migrate-kv-to-supabase.js"
+    "migrate": "node scripts/migrate-kv-to-supabase.js",
+    "verify-payments": "node src/scripts/run-verification.js"
   },
   "keywords": [
     "mercadopago",
