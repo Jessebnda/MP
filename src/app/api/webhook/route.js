@@ -1,108 +1,309 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-import crypto from 'crypto'; // Import Node.js crypto module
-import { logSecurityEvent } from '../../../lib/security-logger'; // Importa el logger
-import { logInfo, logError, logWarn } from '../../../lib/logger'; // Importa el logger
+import crypto from 'crypto';
+import { logSecurityEvent } from '../../../lib/security-logger';
+import { logInfo, logError, logWarn } from '../../../lib/logger';
+import { createClient } from '@supabase/supabase-js';
+import { generateReceiptPDF } from '../../../lib/pdfService';
+import { sendReceiptEmail } from '../../../lib/emailService';
+import { createOrder } from '../../../lib/orderService';
+import { updateStockAfterOrder } from '../../../lib/productService'; // Cambiar la importación
+
+// Inicializar el cliente de Supabase
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- Implementación de Validación de Firma ---
-// Mejorar la función de validación de firma
-async function isValidSignature(request, secret) {
+async function isValidSignature(rawBody, secret, receivedSignature) {
+  if (!secret || !receivedSignature) {
+    logWarn('Missing webhook signature verification data', {
+      hasSecret: !!secret,
+      hasSignature: !!receivedSignature
+    });
+    return false;
+  }
+
   try {
-    // Obtener la firma del encabezado
-    const receivedSignature = request.headers.get('x-signature') || '';
-    
-    // Obtener el cuerpo como texto para firmar
-    const body = await request.text();
-    
-    // Calcular la firma esperada usando HMAC SHA-256
+    // Compute HMAC signature
     const hmac = crypto.createHmac('sha256', secret);
-    hmac.update(body);
-    const calculatedSignature = hmac.digest('hex');
+    hmac.update(rawBody);
+    const computedSignature = hmac.digest('hex');
     
-    // Usar constantes de tiempo para comparar (evitar timing attacks)
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(calculatedSignature, 'hex'),
-      Buffer.from(receivedSignature, 'hex')
-    );
-    
-    // Registrar el resultado
-    logSecurityEvent(
-      isValid ? 'webhook_signature_valid' : 'webhook_signature_invalid',
-      { receivedSignature: receivedSignature.substring(0, 10) + '...' },
-      isValid ? 'info' : 'warn'
-    );
-    
-    return isValid;
-  } catch (error) {
-    logSecurityEvent('webhook_signature_error', { error: error.message }, 'error');
+    // Log for debugging
+    logInfo('Webhook signature verification', {
+      received: receivedSignature,
+      computed: computedSignature,
+      isValid: computedSignature === receivedSignature
+    });
+
+    return computedSignature === receivedSignature;
+  } catch (e) {
+    logError('Error verifying webhook signature:', e);
     return false;
   }
 }
-// --- Fin Validación de Firma ---
 
 // Función auxiliar para verificar estados de éxito
 function isSuccessfulPayment(status) {
-  // Normalizar el estado a minúsculas para comparación
   const normalizedStatus = (status || '').toLowerCase();
-  
-  // Aceptar cualquiera de estos estados como éxito
   return ['approved', 'success', 'succeeded', 'approved_payment'].includes(normalizedStatus);
 }
 
 export async function POST(req) {
-  logInfo('Webhook received!');
+  logInfo('Webhook recibido desde MercadoPago');
 
-  // Usar el Access Token como secreto para la validación de firma
-  // (O un Webhook Secret específico si lo configuraste en Mercado Pago)
-  const secret = process.env.MERCADOPAGO_ACCESS_TOKEN; 
-
-  // 1. Validar la firma del webhook ANTES de leer el JSON
-  const isValid = await isValidSignature(req, secret);
-  if (!isValid) {
-    logError('Invalid webhook signature. Rejecting request.');
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
-  }
-
-  // Ahora que la firma es válida, podemos procesar el cuerpo JSON
-  const client = new MercadoPagoConfig({ accessToken: secret }); // Reutilizamos el secret
-  const paymentClient = new Payment(client);
+  // Usar la WEBHOOK_KEY específica en lugar del access token
+  const secret = process.env.MERCADOPAGO_WEBHOOK_KEY || process.env.MERCADOPAGO_ACCESS_TOKEN;
+  
+  // Acceso a la API de MercadoPago
+  const mpClient = new MercadoPagoConfig({ 
+    accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN 
+  });
 
   try {
-    // 2. Obtener el cuerpo de la notificación (ahora podemos usar .json())
-    const notification = await req.json();
-    logInfo(`Webhook received: type=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
-
-    // 3. Verificar si es una notificación de pago y obtener el ID
-    if (notification.type === 'payment' && notification.data?.id) {
-      const paymentId = notification.data.id;
-      logInfo(`Processing validated webhook for payment ID: ${paymentId}`);
-
-      // 4. Obtener el estado REAL del pago desde la API de Mercado Pago
-      const paymentInfo = await paymentClient.get({ id: paymentId });
-      logInfo(`Payment ${paymentId.substring(0, 4)}... status: ${paymentInfo.status}`);
-
-      // 5. Lógica para actualizar tu base de datos
-      logInfo(`Simulating database update for Order related to Payment ID ${paymentId} to status: ${paymentInfo.status}`);
-      // await updateOrderStatusInDatabase(paymentId, paymentInfo.status);
-
-      // 6. Acciones adicionales (ej. enviar email)
-      if (isSuccessfulPayment(paymentInfo.status)) {
-        logInfo(`Payment ${paymentId} accepted with status: ${paymentInfo.status}. Consider sending confirmation email.`);
-        // sendConfirmationEmail(paymentInfo.payer.email, paymentId);
-      } else if (paymentInfo.status === 'rejected') {
-        logInfo(`Payment ${paymentId} rejected.`);
-        // sendRejectionEmail(paymentInfo.payer.email, paymentId);
-      }
-
-    } else {
-      logInfo('Validated webhook received, but not a payment notification or missing data ID.');
+    // 1. Obtener el cuerpo como texto para validar firma
+    const rawBody = await req.text();
+    
+    // 2. Obtener firma desde headers (soporta ambos formatos)
+    const receivedSignature = 
+      req.headers.get('x-signature') ||
+      req.headers.get('x-mp-signature') || '';
+    
+    // 3. Validar firma
+    if (!await isValidSignature(rawBody, secret, receivedSignature)) {
+      logSecurityEvent('invalid_webhook_signature', {}, 'error');
+      return NextResponse.json({ error: 'Signature validation failed' }, { status: 401 });
     }
 
-    // 7. Responder a Mercado Pago con 200 OK
+    // 4. Parsear el JSON después de validar
+    const notification = JSON.parse(rawBody);
+    
+    logInfo(`Webhook recibido: tipo=${notification.type}, data.id=${notification.data?.id || 'N/A'}`);
+
+    // 5. Manejar diferentes tipos de notificaciones
+    switch(notification.type) {
+      case 'payment':
+        await handlePaymentNotification(notification, mpClient);
+        break;
+      case 'chargebacks':
+        await handleChargebackNotification(notification, mpClient);
+        break;
+      case 'claim':
+        await handleClaimNotification(notification, mpClient);
+        break;
+      default:
+        logInfo(`Tipo de notificación no manejado: ${notification.type}`);
+    }
+
+    // 6. Responder con éxito a MercadoPago
     return NextResponse.json({ received: true }, { status: 200 });
 
   } catch (error) {
-    logError('Error processing validated webhook:', error);
+    logError('Error procesando webhook:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }
+
+// Maneja notificaciones de pago
+async function handlePaymentNotification(notification, mpClient) {
+  if (!notification.data?.id) {
+    logWarn('Notificación de pago sin ID');
+    return;
+  }
+
+  const paymentId = notification.data.id;
+  const paymentClient = new Payment(mpClient);
+  
+  try {
+    // Obtener detalles del pago desde la API de MercadoPago
+    const paymentInfo = await paymentClient.get({ id: paymentId });
+    logInfo(`Pago ${paymentId}: ${paymentInfo.status} (${paymentInfo.status_detail})`);
+    
+    // Identificar la solicitud de pago por external_reference (idempotencyKey)
+    const externalReference = paymentInfo.external_reference;
+    
+    if (!externalReference) {
+      logWarn(`Pago ${paymentId} sin referencia externa para identificar la solicitud`);
+      return;
+    }
+    
+    // Buscar la solicitud de pago en la tabla payment_requests
+    const { data: paymentRequestData, error: paymentRequestError } = await supabase
+      .from('payment_requests')
+      .select('*')
+      .eq('id', externalReference)
+      .single();
+    
+    if (paymentRequestError || !paymentRequestData) {
+      logError(`No se encontró la solicitud de pago ${externalReference}:`, paymentRequestError);
+      return;
+    }
+
+    // Actualizar el estado del pago en payment_requests
+    await supabase
+      .from('payment_requests')
+      .update({
+        payment_status: paymentInfo.status,
+        payment_detail: paymentInfo.status_detail,
+        updated_at: new Date()
+      })
+      .eq('id', externalReference);
+      
+    // Si el pago fue aprobado, actualizar el stock
+    if (paymentInfo.status === 'approved') {
+      try {
+        // Obtener los items del pedido
+        let orderItems = paymentRequestData.order_items;
+        
+        // Asegurarnos de que orderItems es un array
+        if (typeof orderItems === 'string') {
+          try {
+            orderItems = JSON.parse(orderItems);
+          } catch (e) {
+            logError('Error parseando order_items:', e);
+          }
+        }
+        
+        if (Array.isArray(orderItems) && orderItems.length > 0) {
+          // Actualizar el stock en la base de datos
+          await updateStockAfterOrder(orderItems);
+          logInfo(`✅ Stock actualizado correctamente para pago ${paymentId}`);
+        } else {
+          logError(`No se encontraron items para actualizar stock en pago ${paymentId}`);
+        }
+      } catch (error) {
+        logError(`Error actualizando stock para pago ${paymentId}:`, error);
+      }
+    }
+
+    // REMOVIDO: La lógica de envío de emails ya no va aquí
+    // Los emails se envían desde process-payment inmediatamente
+    
+  } catch (error) {
+    logError(`Error procesando notificación de pago ${paymentId}:`, error);
+  }
+}
+
+// Maneja notificaciones de contracargos
+async function handleChargebackNotification(notification, mpClient) {
+  if (!notification.data?.id) return;
+  
+  const chargebackId = notification.data.id;
+  logInfo(`Procesando contracargo: ${chargebackId}`);
+  
+  try {
+    // Aquí implementarías la lógica específica para contracargos
+    // Necesitarías usar mpClient.get para obtener los detalles del contracargo
+    
+    // Por ahora, solo registramos el evento
+    logInfo(`Contracargo recibido: ${chargebackId}`);
+    
+    // Actualiza la orden relacionada con un estado especial de contracargo
+    // Primero necesitas identificar qué pago está relacionado con este contracargo
+    const paymentId = notification.data.payment_id;
+    
+    if (paymentId) {
+      // Buscar la orden por payment_id
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('payment_id', paymentId)
+        .single();
+        
+      if (orderData) {
+        await supabase
+          .from('orders')
+          .update({
+            payment_status: 'charged_back',
+            payment_detail: `Contracargo: ${chargebackId}`,
+            updated_at: new Date()
+          })
+          .eq('id', orderData.id);
+          
+        logInfo(`Orden ${orderData.id} actualizada con contracargo`);
+      }
+    }
+  } catch (error) {
+    logError(`Error procesando contracargo ${chargebackId}:`, error);
+  }
+}
+
+// Maneja notificaciones de reclamos
+async function handleClaimNotification(notification, mpClient) {
+  if (!notification.data?.id) return;
+  
+  const claimId = notification.data.id;
+  logInfo(`Procesando reclamo: ${claimId}`);
+  
+  try {
+    // Código para obtener los detalles del reclamo desde MercadoPago
+    
+    // Por ahora, solo registramos el evento
+    logInfo(`Reclamo recibido: ${claimId}`);
+    
+    // Similar al contracargo, necesitas identificar la orden y actualizarla
+    const paymentId = notification.data.payment_id;
+    
+    if (paymentId) {
+      // Buscar la orden por payment_id
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('payment_id', paymentId)
+        .single();
+        
+      if (orderData) {
+        await supabase
+          .from('orders')
+          .update({
+            payment_status: 'claimed',
+            payment_detail: `Reclamo: ${claimId}`,
+            updated_at: new Date()
+          })
+          .eq('id', orderData.id);
+          
+        logInfo(`Orden ${orderData.id} actualizada con reclamo`);
+      }
+    }
+  } catch (error) {
+    logError(`Error procesando reclamo ${claimId}:`, error);
+  }
+}
+
+// Función auxiliar para actualizar stock
+async function updateStockForItems(items) {
+  for (const item of items) {
+    try {
+      const { productId, quantity } = item;
+      if (!productId || !quantity) continue;
+      
+      // Obtener producto actual
+      const { data: product } = await supabase
+        .from('products')
+        .select('stock_available')
+        .eq('id', productId)
+        .single();
+        
+      if (!product) continue;
+      
+      // Calcular nuevo stock
+      const newStock = Math.max(0, product.stock_available - quantity);
+      
+      // Actualizar stock
+      await supabase
+        .from('products')
+        .update({ 
+          stock_available: newStock,
+          updated_at: new Date()
+        })
+        .eq('id', productId);
+        
+      logInfo(`Stock actualizado para producto ${productId}: ${newStock}`);
+    } catch (error) {
+      logError('Error actualizando stock:', error);
+    }
+  }
+}
+
+// Recuperar los datos del payment_request y crear la orden definitiva

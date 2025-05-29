@@ -1,0 +1,489 @@
+// Reemplazar completamente el contenido del App Script
+/**
+ * SISTEMA DE GESTIÓN DE CLIENTES Y PEDIDOS
+ * Integración para guardar datos de clientes y sus pedidos
+ */
+
+// ----- CONFIGURACIÓN -----
+const CONFIG = {
+  API_SECRET_KEY: '85991908a6ec59ff73241938f0e0deaaf7eae8d7924e855532d5e59db3535b28'
+};
+
+/**
+ * Función principal que maneja todas las peticiones
+ */
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    
+    // Verificar clave secreta
+    if (data.secretKey !== CONFIG.API_SECRET_KEY) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: false, error: 'Acceso no autorizado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    let result;
+    
+    switch (data.action) {
+      case 'save_customer':
+        result = saveCustomer(data.customerData);
+        break;
+      case 'get_customers':
+        result = getCustomers(data.filters);
+        break;
+      case 'update_customer_payment_status':
+        result = updateCustomerPaymentStatus(data.customerId, data.paymentStatus);
+        break;
+      default:
+        result = { success: false, error: 'Acción no válida' };
+    }
+    
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    Logger.log('Error en doPost: ' + error.toString());
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Configura el menú y hojas al abrir
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('📋 Gestión de Clientes')
+    .addItem('📊 Ver Estadísticas', 'showStatistics')
+    .addItem('🔍 Buscar Cliente', 'searchCustomer')
+    .addItem('📤 Exportar Datos', 'exportData')
+    .addSeparator()
+    .addItem('❓ Ayuda', 'showHelp')
+    .addToUi();
+    
+  setupSheets();
+}
+
+/**
+ * Configura las hojas necesarias
+ */
+function setupSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // Crear hoja de Clientes
+  let clientesSheet = ss.getSheetByName('Clientes');
+  if (!clientesSheet) {
+    clientesSheet = ss.insertSheet('Clientes');
+    
+    // Configurar encabezados
+    const headers = [
+      'ID Cliente', 'Fecha/Hora', 'Nombre', 'Apellido', 'Email', 'Teléfono',
+      'Tipo Doc', 'Núm Doc', 'Calle', 'Número', 'Código Postal', 'Ciudad',
+      'Estado', 'País', 'Total Pedido', 'ID Pedido', 'Estado Pago', 'Productos'
+    ];
+    
+    clientesSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    
+    // Formatear encabezados
+    const headerRange = clientesSheet.getRange(1, 1, 1, headers.length);
+    headerRange.setFontWeight('bold')
+             .setBackground('#4285f4')
+             .setFontColor('white')
+             .setHorizontalAlignment('center');
+    
+    // Configurar anchos de columna
+    clientesSheet.setColumnWidth(1, 120); // ID Cliente
+    clientesSheet.setColumnWidth(2, 150); // Fecha/Hora
+    clientesSheet.setColumnWidth(3, 120); // Nombre
+    clientesSheet.setColumnWidth(4, 120); // Apellido
+    clientesSheet.setColumnWidth(5, 200); // Email
+    clientesSheet.setColumnWidth(6, 130); // Teléfono
+    clientesSheet.setColumnWidth(7, 80);  // Tipo Doc
+    clientesSheet.setColumnWidth(8, 120); // Núm Doc
+    clientesSheet.setColumnWidth(9, 150); // Calle
+    clientesSheet.setColumnWidth(10, 80); // Número
+    clientesSheet.setColumnWidth(11, 100); // Código Postal
+    clientesSheet.setColumnWidth(12, 120); // Ciudad
+    clientesSheet.setColumnWidth(13, 100); // Estado
+    clientesSheet.setColumnWidth(14, 100); // País
+    clientesSheet.setColumnWidth(15, 100); // Total
+    clientesSheet.setColumnWidth(16, 150); // ID Pedido
+    clientesSheet.setColumnWidth(17, 100); // Estado Pago
+    clientesSheet.setColumnWidth(18, 300); // Productos
+    
+    // Congelar primera fila
+    clientesSheet.setFrozenRows(1);
+  }
+  
+  // Crear hoja de Estadísticas
+  let statsSheet = ss.getSheetByName('Estadísticas');
+  if (!statsSheet) {
+    statsSheet = ss.insertSheet('Estadísticas');
+    
+    // Configurar estadísticas básicas
+    const statsHeaders = [
+      ['Métrica', 'Valor'],
+      ['Total Clientes', '=COUNTA(Clientes!A:A)-1'],
+      ['Pedidos Pagados', '=COUNTIF(Clientes!Q:Q,"paid")'],
+      ['Pedidos Pendientes', '=COUNTIF(Clientes!Q:Q,"pending")'],
+      ['Pedidos Fallidos', '=COUNTIF(Clientes!Q:Q,"failed")'],
+      ['Ingresos Totales', '=SUMIF(Clientes!Q:Q,"paid",Clientes!O:O)'],
+      ['Promedio por Pedido', '=AVERAGE(Clientes!O:O)'],
+      ['Último Cliente', '=MAX(Clientes!B:B)']
+    ];
+    
+    statsSheet.getRange(1, 1, statsHeaders.length, 2).setValues(statsHeaders);
+    
+    // Formatear estadísticas
+    statsSheet.getRange(1, 1, 1, 2).setFontWeight('bold')
+             .setBackground('#34a853')
+             .setFontColor('white');
+    
+    statsSheet.setColumnWidth(1, 200);
+    statsSheet.setColumnWidth(2, 150);
+  }
+  
+  // Crear hoja de Logs
+  let logsSheet = ss.getSheetByName('Logs');
+  if (!logsSheet) {
+    logsSheet = ss.insertSheet('Logs');
+    logsSheet.getRange("A1:D1").setValues([["Fecha/Hora", "Acción", "Cliente", "Detalles"]]);
+    logsSheet.getRange("A1:D1").setFontWeight("bold")
+             .setBackground("#ff9800")
+             .setFontColor("white");
+    logsSheet.setFrozenRows(1);
+    logsSheet.setColumnWidth(1, 150);
+    logsSheet.setColumnWidth(2, 150);
+    logsSheet.setColumnWidth(3, 200);
+    logsSheet.setColumnWidth(4, 300);
+  }
+}
+
+/**
+ * Guarda un nuevo cliente
+ */
+function saveCustomer(customerData) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Clientes');
+    
+    // Generar ID único
+    const customerId = 'CLI_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    
+    // Formatear fecha
+    const timestamp = new Date(customerData.timestamp);
+    
+    // Preparar fila de datos
+    const rowData = [
+      customerId,
+      timestamp,
+      customerData.first_name,
+      customerData.last_name,
+      customerData.email,
+      customerData.phone,
+      customerData.identification_type,
+      customerData.identification_number,
+      customerData.street_name,
+      customerData.street_number,
+      customerData.zip_code,
+      customerData.city,
+      customerData.state,
+      customerData.country,
+      customerData.order_total,
+      customerData.order_id,
+      customerData.payment_status,
+      customerData.order_items
+    ];
+    
+    // Insertar nueva fila (después de los encabezados)
+    sheet.insertRowAfter(1);
+    sheet.getRange(2, 1, 1, rowData.length).setValues([rowData]);
+    
+    // Formatear la nueva fila
+    const newRowRange = sheet.getRange(2, 1, 1, rowData.length);
+    
+    // Formatear fecha
+    sheet.getRange(2, 2).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    
+    // Formatear total como moneda
+    sheet.getRange(2, 15).setNumberFormat('$#,##0.00');
+    
+    // Colorear según estado de pago
+    const paymentStatus = customerData.payment_status;
+    if (paymentStatus === 'paid') {
+      newRowRange.setBackground('#d4edda'); // Verde claro
+    } else if (paymentStatus === 'pending') {
+      newRowRange.setBackground('#fff3cd'); // Amarillo claro
+    } else if (paymentStatus === 'failed') {
+      newRowRange.setBackground('#f8d7da'); // Rojo claro
+    }
+    
+    // Registrar en logs
+    logAction('Cliente guardado', customerId, `${customerData.first_name} ${customerData.last_name} - ${customerData.email}`);
+    
+    return {
+      success: true,
+      customerId: customerId,
+      message: 'Cliente guardado exitosamente'
+    };
+    
+  } catch (error) {
+    Logger.log('Error guardando cliente: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Obtiene clientes con filtros opcionales
+ */
+function getCustomers(filters = {}) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Clientes');
+    
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    
+    if (values.length <= 1) {
+      return { success: true, customers: [] };
+    }
+    
+    const headers = values[0];
+    const customers = [];
+    
+    // Procesar cada fila (omitir encabezados)
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const customer = {};
+      
+      // Mapear datos
+      headers.forEach((header, index) => {
+        customer[header] = row[index];
+      });
+      
+      // Aplicar filtros si existen
+      let includeCustomer = true;
+      
+      if (filters.email && customer['Email'] !== filters.email) {
+        includeCustomer = false;
+      }
+      
+      if (filters.orderId && customer['ID Pedido'] !== filters.orderId) {
+        includeCustomer = false;
+      }
+      
+      if (includeCustomer) {
+        customers.push(customer);
+      }
+    }
+    
+    return {
+      success: true,
+      customers: customers
+    };
+    
+  } catch (error) {
+    Logger.log('Error obteniendo clientes: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Actualiza el estado de pago de un cliente
+ */
+function updateCustomerPaymentStatus(customerId, paymentStatus) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Clientes');
+    
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    
+    // Buscar el cliente por ID
+    for (let i = 1; i < values.length; i++) {
+      if (values[i][0] === customerId) {
+        // Actualizar estado de pago (columna Q, índice 16)
+        sheet.getRange(i + 1, 17).setValue(paymentStatus);
+        
+        // Actualizar color de fila según nuevo estado
+        const rowRange = sheet.getRange(i + 1, 1, 1, values[i].length);
+        if (paymentStatus === 'paid') {
+          rowRange.setBackground('#d4edda');
+        } else if (paymentStatus === 'pending') {
+          rowRange.setBackground('#fff3cd');
+        } else if (paymentStatus === 'failed') {
+          rowRange.setBackground('#f8d7da');
+        }
+        
+        // Registrar en logs
+        logAction('Estado actualizado', customerId, `Nuevo estado: ${paymentStatus}`);
+        
+        return {
+          success: true,
+          message: 'Estado de pago actualizado'
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      error: 'Cliente no encontrado'
+    };
+    
+  } catch (error) {
+    Logger.log('Error actualizando estado: ' + error.toString());
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * Registra una acción en los logs
+ */
+function logAction(action, clientId, details) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const logsSheet = ss.getSheetByName('Logs');
+    
+    const timestamp = new Date();
+    const row = [timestamp, action, clientId, details];
+    
+    logsSheet.insertRowAfter(1);
+    logsSheet.getRange(2, 1, 1, row.length).setValues([row]);
+    logsSheet.getRange(2, 1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    
+  } catch (error) {
+    Logger.log('Error en logs: ' + error.toString());
+  }
+}
+
+/**
+ * Muestra estadísticas
+ */
+function showStatistics() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const statsSheet = ss.getSheetByName('Estadísticas');
+  
+  // Activar hoja de estadísticas
+  ss.setActiveSheet(statsSheet);
+  
+  ui.alert(
+    '📊 Estadísticas',
+    'Las estadísticas se han actualizado en la hoja "Estadísticas".\n\n' +
+    'Aquí puedes ver:\n' +
+    '• Total de clientes registrados\n' +
+    '• Estados de los pedidos\n' +
+    '• Ingresos totales\n' +
+    '• Promedio por pedido\n' +
+    '• Y más...',
+    ui.ButtonSet.OK
+  );
+}
+
+/**
+ * Buscar cliente
+ */
+function searchCustomer() {
+  const ui = SpreadsheetApp.getUi();
+  
+  const result = ui.prompt(
+    '🔍 Buscar Cliente',
+    'Ingresa el email del cliente a buscar:',
+    ui.ButtonSet.OK_CANCEL
+  );
+  
+  if (result.getSelectedButton() === ui.Button.OK) {
+    const email = result.getResponseText();
+    
+    if (email) {
+      const customers = getCustomers({ email: email });
+      
+      if (customers.success && customers.customers.length > 0) {
+        const customer = customers.customers[0];
+        ui.alert(
+          '✅ Cliente Encontrado',
+          `Nombre: ${customer['Nombre']} ${customer['Apellido']}\n` +
+          `Email: ${customer['Email']}\n` +
+          `Teléfono: ${customer['Teléfono']}\n` +
+          `Estado del Pago: ${customer['Estado Pago']}\n` +
+          `Total del Pedido: $${customer['Total Pedido']}`,
+          ui.ButtonSet.OK
+        );
+      } else {
+        ui.alert('❌ No Encontrado', 'No se encontró ningún cliente con ese email.', ui.ButtonSet.OK);
+      }
+    }
+  }
+}
+
+/**
+ * Ayuda para el usuario
+ */
+function showHelp() {
+  const ui = SpreadsheetApp.getUi();
+  ui.alert(
+    '❓ Ayuda - Sistema de Clientes',
+    '📋 Este sistema guarda automáticamente los datos de los clientes que realizan pedidos.\n\n' +
+    '📊 Hojas disponibles:\n' +
+    '• Clientes: Datos completos de cada cliente y pedido\n' +
+    '• Estadísticas: Métricas y resúmenes automáticos\n' +
+    '• Logs: Registro de todas las acciones\n\n' +
+    '🎨 Códigos de color:\n' +
+    '• Verde: Pedidos pagados\n' +
+    '• Amarillo: Pedidos pendientes\n' +
+    '• Rojo: Pedidos fallidos\n\n' +
+    '🔧 Funciones del menú:\n' +
+    '• Ver Estadísticas: Muestra métricas actualizadas\n' +
+    '• Buscar Cliente: Encuentra un cliente por email\n' +
+    '• Exportar Datos: Para crear copias de seguridad',
+    ui.ButtonSet.OK
+  );
+}
+
+/**
+ * Exportar datos (función adicional)
+ */
+function exportData() {
+  const ui = SpreadsheetApp.getUi();
+  
+  const result = ui.alert(
+    '📤 Exportar Datos',
+    '¿Quieres crear una copia de los datos de clientes?\n\n' +
+    'Se creará una nueva hoja con todos los datos actuales.',
+    ui.ButtonSet.YES_NO
+  );
+  
+  if (result === ui.Button.YES) {
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const originalSheet = ss.getSheetByName('Clientes');
+      
+      const exportSheetName = `Export_${Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HH-mm')}`;
+      const exportSheet = originalSheet.copyTo(ss);
+      exportSheet.setName(exportSheetName);
+      
+      // Activar la nueva hoja
+      ss.setActiveSheet(exportSheet);
+      
+      ui.alert(
+        '✅ Exportación Completa',
+        `Los datos se han exportado a la hoja: "${exportSheetName}"`,
+        ui.ButtonSet.OK
+      );
+    } catch (error) {
+      ui.alert('❌ Error', 'Error al exportar: ' + error.toString(), ui.ButtonSet.OK);
+    }
+  }
+}
