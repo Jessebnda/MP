@@ -12,36 +12,80 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Validación de firma webhook mejorada
-async function isValidSignature(rawBody, secret, receivedSignature) {
+// Validación de firma webhook CORREGIDA según documentación oficial de MercadoPago
+async function isValidSignature(rawBody, secret, receivedSignature, queryParams) {
   try {
     if (!receivedSignature || !secret) {
-      logWarn('❌ Webhook: Firma o secret faltante');
+      logWarn('❌ Webhook: Firma o secret faltante', {
+        hasSignature: !!receivedSignature,
+        hasSecret: !!secret
+      });
       return false;
     }
     
-    const parts = receivedSignature.split(',').reduce((acc, part) => {
-      const [key, value] = part.split('=');
-      acc[key] = value;
-      return acc;
-    }, {});
+    logInfo('🔍 Validando firma webhook', {
+      signatureHeader: receivedSignature,
+      queryParams: queryParams || {},
+      bodyLength: rawBody.length
+    });
+
+    // Extraer timestamp y signature del header x-signature
+    let timestamp, signature;
     
-    const timestamp = parts.ts;
-    const signature = parts.v1;
+    if (receivedSignature.includes('ts=') && receivedSignature.includes('v1=')) {
+      // Formato: "ts=1580315597,v1=9c5a688d1067cfdf4f0d5d503a42b15da3e71e1d081fa28e4fb4b6a9393dc28"
+      const parts = receivedSignature.split(',').reduce((acc, part) => {
+        const [key, value] = part.split('=');
+        acc[key] = value;
+        return acc;
+      }, {});
+      
+      timestamp = parts.ts;
+      signature = parts.v1;
+    } else {
+      logWarn('❌ Formato de signature no reconocido:', receivedSignature);
+      return false;
+    }
     
     if (!timestamp || !signature) {
-      logWarn('❌ Webhook: Timestamp o signature faltante en header');
+      logWarn('❌ Webhook: Timestamp o signature faltante en header', {
+        timestamp,
+        signature: signature ? 'presente' : 'faltante'
+      });
       return false;
     }
+
+    // CORRECCIÓN CRÍTICA: Construir el string según documentación oficial de MercadoPago
+    // Formato correcto: id:{id};request-id:{request_id};ts:{timestamp};
+    const dataId = queryParams?.['data.id'] || '';
+    const requestId = queryParams?.id || '';
     
-    const signatureString = `${timestamp}.${rawBody}`;
+    const signatureString = `id:${dataId};request-id:${requestId};ts:${timestamp};`;
+    
+    logInfo('🔐 String para validación (formato oficial MP):', { 
+      signatureString,
+      dataId,
+      requestId,
+      timestamp
+    });
+    
     const calculatedSignature = crypto
       .createHmac('sha256', secret)
       .update(signatureString)
       .digest('hex');
     
-    const isValid = calculatedSignature === signature;
-    logInfo(`🔐 Webhook: Validación de firma ${isValid ? 'exitosa' : 'fallida'}`);
+    // Comparación segura contra timing attacks
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(signature, 'hex'),
+      Buffer.from(calculatedSignature, 'hex')
+    );
+    
+    logInfo(`🔐 Webhook: Validación de firma ${isValid ? 'exitosa' : 'fallida'}`, {
+      received: signature.substring(0, 10) + '...',
+      calculated: calculatedSignature.substring(0, 10) + '...',
+      signatureString
+    });
+    
     return isValid;
     
   } catch (error) {
@@ -55,7 +99,16 @@ export async function POST(req) {
   logInfo('🔔 Webhook: Iniciando procesamiento');
 
   try {
-    // 1. Obtener el cuerpo como texto
+    // 1. Extraer query parameters (MercadoPago los incluye)
+    const url = new URL(req.url);
+    const queryParams = {};
+    for (const [key, value] of url.searchParams.entries()) {
+      queryParams[key] = value;
+    }
+    
+    logInfo('📋 Query parameters recibidos:', queryParams);
+
+    // 2. Obtener el cuerpo como texto
     const rawBody = await req.text();
     
     if (!rawBody) {
@@ -63,20 +116,24 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Empty body' }, { status: 400 });
     }
 
-    // 2. Validar firma (opcional en desarrollo)
+    // 3. Validar firma
     const secret = process.env.MERCADOPAGO_WEBHOOK_KEY;
     const receivedSignature = req.headers.get('x-signature') || '';
     
+    // En producción, validar firma obligatorio; en desarrollo opcional
     if (process.env.NODE_ENV === 'production') {
-      if (!await isValidSignature(rawBody, secret, receivedSignature)) {
-        logError('❌ Webhook: Firma inválida');
+      const isValid = await isValidSignature(rawBody, secret, receivedSignature, queryParams);
+      if (!isValid) {
+        logError('❌ Webhook: Firma inválida en producción');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
     } else {
-      logInfo('🔧 Webhook: Modo desarrollo - saltando validación de firma');
+      logInfo('🔧 Webhook: Modo desarrollo - validación de firma opcional');
+      // Ejecutar validación para logs pero no fallar
+      await isValidSignature(rawBody, secret, receivedSignature, queryParams);
     }
 
-    // 3. Parsear notificación
+    // 4. Parsear notificación
     let notification;
     try {
       notification = JSON.parse(rawBody);
@@ -85,18 +142,18 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    // 4. Validar estructura básica
-    if (!notification.data?.id) {
-      logWarn('⚠️ Webhook: Notificación sin data.id');
+    // 5. Validar estructura básica - usar múltiples fuentes para payment ID
+    const paymentId = notification.data?.id || queryParams['data.id'];
+    const eventType = notification.type || notification.action;
+    
+    if (!paymentId) {
+      logWarn('⚠️ Webhook: Notificación sin payment ID');
       return NextResponse.json({ received: true }, { status: 200 });
     }
-
-    const paymentId = notification.data.id;
-    const eventType = notification.type || notification.action;
     
     logInfo(`🔔 Webhook válido: tipo=${eventType}, payment_id=${paymentId}`);
 
-    // 5. Procesar solo notificaciones de pago
+    // 6. Procesar solo notificaciones de pago
     if (eventType === 'payment' || eventType === 'payment.updated' || eventType === 'payment.created') {
       await handlePaymentNotification(paymentId);
     } else {
@@ -130,7 +187,7 @@ async function handlePaymentNotification(paymentId) {
     });
     const paymentClient = new Payment(mpClient);
     
-    const paymentInfo = await paymentClient.get({ id: paymentId });
+    const { response: paymentInfo } = await paymentClient.get({ id: paymentId });
     const currentStatus = paymentInfo.status;
     const statusDetail = paymentInfo.status_detail;
     const externalReference = paymentInfo.external_reference;
@@ -186,10 +243,8 @@ async function handlePaymentNotification(paymentId) {
       await handleApprovedPayment(paymentRequest, paymentInfo);
     } else if (currentStatus === 'rejected' && previousStatus !== 'rejected') {
       logInfo(`❌ Pago ${paymentId} rechazado`);
-      // Aquí podrías agregar lógica para pagos rechazados
     } else if (currentStatus === 'pending' && previousStatus !== 'pending') {
       logInfo(`⏳ Pago ${paymentId} pendiente`);
-      // Aquí podrías agregar lógica para pagos pendientes
     }
 
   } catch (error) {
