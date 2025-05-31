@@ -410,15 +410,21 @@ export async function POST(req) {
         
         itemsForPayment = secureOrderItems;
         
+        // ✅ CORRECCIÓN: Agregar el fee de envío al total calculado
+        const SHIPPING_FEE = 200;
+        const totalWithShipping = secureTotal + SHIPPING_FEE;
+        
         // ✅ Comparar con el total enviado para detectar manipulación
-        if (Math.abs(secureTotal - parseFloat(totalAmount)) > 0.01) {
+        if (Math.abs(totalWithShipping - parseFloat(totalAmount)) > 0.01) {
           logSecurityEvent('total_price_mismatch', {
             frontend_total: totalAmount,
             calculated_total: secureTotal,
+            calculated_with_shipping: totalWithShipping,
+            shipping_fee: SHIPPING_FEE,
             idempotencyKey
           });
-          // Podrías rechazar o continuar con el precio correcto
-          totalAmount = secureTotal; // Usar siempre el cálculo del servidor
+          // Usar siempre el cálculo correcto del servidor
+          totalAmount = totalWithShipping;
         }
       } else {
         // Procesar pedidos simples de manera similar
@@ -554,6 +560,10 @@ export async function POST(req) {
           });
           
           // Preparar datos para el email en el formato esperado
+          const SHIPPING_FEE = 200;
+          const subtotalProducts = itemsForPayment.reduce((total, item) => 
+            total + (parseFloat(item.price) * parseInt(item.quantity)), 0);
+
           const orderDataForEmail = {
             userData: userData,
             items: itemsForPayment.map(item => ({
@@ -562,7 +572,9 @@ export async function POST(req) {
               price: item.price,
               product_id: item.product_id
             })),
-            total_amount: totalAmount,
+            subtotal_amount: subtotalProducts, // ✅ NUEVO: Subtotal sin envío
+            shipping_fee: SHIPPING_FEE, // ✅ NUEVO: Fee de envío separado
+            total_amount: subtotalProducts + SHIPPING_FEE, // ✅ CORRECCIÓN: Total con envío
             payment_id: paymentResponse.id,
             payment_status: paymentResponse.status
           };
@@ -571,7 +583,10 @@ export async function POST(req) {
             customerEmail: userData.email,
             orderId: idempotencyKey,
             isApproved: paymentResponse.status === 'approved',
-            itemsCount: orderDataForEmail.items.length
+            itemsCount: orderDataForEmail.items.length,
+            subtotal: subtotalProducts,
+            shipping: SHIPPING_FEE,
+            total: orderDataForEmail.total_amount
           });
 
           // Generar PDF del recibo
@@ -580,14 +595,18 @@ export async function POST(req) {
             orderId: idempotencyKey,
             hasCustomerData: !!userData,
             itemsCount: orderDataForEmail.items?.length || 0,
-            totalAmount: totalAmount
+            subtotalAmount: subtotalProducts,
+            shippingFee: SHIPPING_FEE,
+            totalAmount: orderDataForEmail.total_amount
           });
 
           const pdfBuffer = await generateReceiptPDF({
             orderId: idempotencyKey,
             customerData: userData,
             items: orderDataForEmail.items,
-            totalAmount: totalAmount,
+            subtotalAmount: subtotalProducts, // ✅ NUEVO: Pasar subtotal
+            shippingFee: SHIPPING_FEE, // ✅ NUEVO: Pasar fee de envío
+            totalAmount: orderDataForEmail.total_amount, // ✅ CORRECCIÓN: Total correcto
             paymentStatus: paymentResponse.status,
             paymentId: paymentResponse.id
           });

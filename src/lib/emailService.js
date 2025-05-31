@@ -283,9 +283,20 @@ function getCustomerEmailTemplate({ orderId, isApproved, customerName, orderData
             ${itemsHtml}
           </tbody>
           <tfoot>
+            <!-- ✅ NUEVO: Mostrar subtotal -->
+            <tr style="background-color: #f8f9fa;">
+              <td colspan="2" style="padding: 10px 8px; text-align: right; color: #2c3e50;">Subtotal:</td>
+              <td style="padding: 10px 8px; text-align: right; color: #2c3e50;">$${orderData.subtotal_amount.toFixed(2)}</td>
+            </tr>
+            <!-- ✅ NUEVO: Mostrar envío -->
+            <tr style="background-color: #f8f9fa;">
+              <td colspan="2" style="padding: 10px 8px; text-align: right; color: #2c3e50;">Envío:</td>
+              <td style="padding: 10px 8px; text-align: right; color: #2c3e50;">$${orderData.shipping_fee.toFixed(2)}</td>
+            </tr>
+            <!-- ✅ CORRECCIÓN: Total correcto -->
             <tr style="background-color: #ecf0f1; font-weight: 600;">
               <td colspan="2" style="padding: 15px 8px; text-align: right; color: #2c3e50;">Total:</td>
-              <td style="padding: 15px 8px; text-align: right; color: #27ae60; font-size: 18px;">$${Number(totalAmount).toFixed(2)}</td>
+              <td style="padding: 15px 8px; text-align: right; color: #27ae60; font-size: 18px;">$${orderData.total_amount.toFixed(2)}</td>
             </tr>
           </tfoot>
         </table>

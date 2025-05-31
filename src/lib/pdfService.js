@@ -7,7 +7,9 @@ import { logInfo, logError } from '../utils/logger';
 export async function generateReceiptPDF({
   orderId,
   customerData,
-  items = [],
+  items,
+  subtotalAmount, // ✅ NUEVO parámetro
+  shippingFee, // ✅ NUEVO parámetro
   totalAmount,
   paymentStatus,
   paymentId
