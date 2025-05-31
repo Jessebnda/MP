@@ -84,13 +84,106 @@ async function processMercadoPagoPayment({
       unit_price: item.unit_price
     }));
     
+    // NUEVO: Validar fecha de nacimiento en backend
+    if (!payerData.birth_date) {
+      logError('❌ Fecha de nacimiento no proporcionada:', { email: payerEmail });
+      return NextResponse.json({
+        success: false,
+        error: 'Debe proporcionar su fecha de nacimiento'
+      }, { status: 400 });
+    }
+
+    let calculatedAge;
+    try {
+      // Calcular edad desde fecha de nacimiento
+      const birthDate = new Date(payerData.birth_date);
+      const today = new Date();
+      
+      // Verificar que la fecha sea válida
+      if (isNaN(birthDate.getTime())) {
+        throw new Error('Fecha de nacimiento inválida');
+      }
+      
+      // Verificar que la fecha no sea en el futuro
+      if (birthDate > today) {
+        throw new Error('Fecha de nacimiento no puede ser en el futuro');
+      }
+      
+      calculatedAge = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000));
+      
+      // Verificar edad razonable
+      if (calculatedAge > 120) {
+        throw new Error('Fecha de nacimiento no es realista');
+      }
+      
+    } catch (error) {
+      logError('❌ Error procesando fecha de nacimiento:', { 
+        birth_date: payerData.birth_date, 
+        error: error.message,
+        email: payerEmail 
+      });
+      
+      return NextResponse.json({
+        success: false,
+        error: 'Error al validar la fecha de nacimiento. Verifique el formato.'
+      }, { status: 400 });
+    }
+
+    if (calculatedAge < 18) {
+      logError('❌ Intento de compra por menor de edad:', { 
+        birth_date: payerData.birth_date, 
+        calculated_age: calculatedAge, 
+        email: payerEmail 
+      });
+      
+      await logSecurityEvent('underage_purchase_attempt', {
+        email: payerEmail,
+        birth_date: payerData.birth_date,
+        calculated_age: calculatedAge,
+        ip: request.headers.get('x-forwarded-for') || 'unknown'
+      });
+      
+      return NextResponse.json({
+        success: false,
+        error: 'Debes ser mayor de 18 años para realizar esta compra'
+      }, { status: 400 });
+    }
+
+    if (!payerData.isOver18 || !payerData.acceptsAlcoholTerms || !payerData.acceptsShippingFee) {
+      logError('❌ Términos no aceptados:', { 
+        isOver18: payerData.isOver18,
+        acceptsAlcoholTerms: payerData.acceptsAlcoholTerms,
+        acceptsShippingFee: payerData.acceptsShippingFee
+      });
+      
+      return NextResponse.json({
+        success: false,
+        error: 'Debes aceptar todos los términos y condiciones'
+      }, { status: 400 });
+    }
+
     // 2. SIEMPRE calcula el total en el backend
+    const SHIPPING_FEE = 200; // $200 MXN cargo fijo
     const calculatedAmount = preferenceItems.reduce((total, item) => 
       total + (item.unit_price * item.quantity), 0);
 
-    // 3. NUNCA confíes en el monto total enviado por el cliente
-    let finalAmount = calculatedAmount; // ✅ Usar SOLO el monto calculado
+    // 3. CRÍTICO: SIEMPRE sumar el fee al total calculado
+    let finalAmount = calculatedAmount + SHIPPING_FEE;
     
+    // 4. VERIFICAR que el frontend envió el monto correcto (con fee incluido)
+    const expectedTotal = calculatedAmount + SHIPPING_FEE;
+    if (Math.abs(parseFloat(transaction_amount) - expectedTotal) > 0.01) {
+      logError('❌ Discrepancia en montos:', {
+        frontend_amount: transaction_amount,
+        expected_amount: expectedTotal,
+        calculated_products: calculatedAmount,
+        shipping_fee: SHIPPING_FEE
+      });
+      
+      // Usar siempre el monto calculado en backend
+      finalAmount = expectedTotal;
+    }
+
     // Format phone for BOTH preference and payment
     let phoneFormatted;
     if (payerData?.phone) {
@@ -417,9 +510,28 @@ export async function POST(req) {
           updated_at: new Date(),
         };
 
-        await supabase
+        const { data: savedPayment, error: saveError } = await supabase
           .from('payment_requests')
-          .insert([paymentRequestData]);
+          .insert([{
+            order_id: idempotencyKey, // CAMBIO: usar idempotencyKey en lugar de orderReference
+            payment_id: paymentResponse.id, // CAMBIO: usar paymentResponse.id
+            customer_name: `${userData.first_name} ${userData.last_name}`, // CAMBIO: usar userData
+            customer_email: userData.email, // CAMBIO: usar userData.email
+            customer_phone: userData.phone || null,
+            customer_birth_date: userData.birth_date, // NUEVO: guardar fecha de nacimiento
+            customer_age: userData.calculatedAge || null, // CAMBIO: usar calculatedAge del frontend
+            is_over_18: userData.isOver18, // NUEVO
+            accepts_alcohol_terms: userData.acceptsAlcoholTerms, // NUEVO
+            accepts_shipping_fee: userData.acceptsShippingFee, // NUEVO
+            shipping_fee: 200, // CAMBIO: usar valor directo
+            total_amount: totalAmount, // CAMBIO: usar totalAmount que sí existe
+            payment_status: paymentResponse.status,
+            products: itemsForPayment,
+            customer_data: userData,
+            created_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
 
         logInfo(`✅ Payment request creado: ${idempotencyKey}`);
 

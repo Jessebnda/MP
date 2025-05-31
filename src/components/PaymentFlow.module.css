@@ -86,3 +86,46 @@ small {
   color: #1976d2;
   font-weight: 500;
 }
+
+/* Nuevos estilos para checkboxes */
+.mp-checkbox-group {
+  margin-bottom: 15px;
+}
+
+.mp-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.mp-checkbox {
+  margin-top: 2px;
+  transform: scale(1.2);
+}
+
+.mp-checkbox-text {
+  flex: 1;
+  color: #333;
+}
+
+/* Estilos para desglose de precios */
+.mp-price-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mp-price-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.mp-total-row {
+  border-top: 2px solid #007bff;
+  padding-top: 8px;
+  margin-top: 8px;
+}

@@ -67,25 +67,23 @@ export function useMercadoPagoBrickSubmit({
       const finalAmount = totalAmount || 
         (orderSummary 
           ? orderSummary.reduce((total, item) => total + (item.price * item.quantity), 0)
-          : 0); // Fallback, ensure totalAmount is correctly passed or calculated
+          : 0);
+
+      // CRÍTICO: Sumar shipping fee al monto final antes de enviarlo al backend
+      const SHIPPING_FEE = 200;
+      const totalWithShipping = finalAmount + SHIPPING_FEE;
 
       const backendPayload = {
         paymentType: formDataFromBrick.paymentType || "credit_card",
-        selectedPaymentMethod: formDataFromBrick.selectedPaymentMethod || "credit_card",
-        formData: { // This structure should match what your backend /api/process-payment expects
-          token: tokenFromForm,
-          payment_method_id: paymentMethodFromForm,
-          issuer_id: formDataFromBrick.issuer_id || formDataFromBrick.formData?.issuer_id || '',
-          installments: parseInt(formDataFromBrick.installments || formDataFromBrick.formData?.installments || 1),
-          payer: userData ? { email: userData.email, ...userData.identification } : { email: formDataFromBrick.payer?.email || 'cliente@example.com' }
-        },
-        ...(orderSummary && orderSummary.length > 0
-          ? { orderSummary: orderSummary, isMultipleOrder: true }
-          : { productId: sanitizeInput(productId, 'productId'), quantity: sanitizeInput(quantity, 'quantity'), isMultipleOrder: false }),
-        totalAmount: finalAmount,
-        userData: userData, // Send full user data if available
-        sessionToken: await getUserSessionToken(), // Obtener el token de sesión del usuario
-        idempotencyKey: uuidv4(), // Generar una clave de idempotencia única
+        formData: formDataFromBrick,
+        isMultipleOrder: !!orderSummary,
+        orderSummary: orderSummary,
+        productId: !orderSummary ? productId : null,
+        quantity: !orderSummary ? quantity : null,
+        totalAmount: totalWithShipping, // CAMBIO: enviar monto con fee incluido
+        userData: userData,
+        sessionToken: await getUserSessionToken(),
+        idempotencyKey: uuidv4(),
       };
 
       logInfo("Payload enviado a /api/process-payment:", backendPayload);

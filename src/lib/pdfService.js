@@ -93,13 +93,57 @@ export async function generateReceiptPDF({
       yPosition -= 20;
     }
     
-    // Total
+    // NUEVO: Agregar línea de cargo de envío
+    yPosition -= 10;
+    page.drawText('Cargo de envío', { x: 50, y: yPosition, size: 10, font });
+    page.drawText('1', { x: 300, y: yPosition, size: 10, font });
+    page.drawText('$200.00', { x: 380, y: yPosition, size: 10, font });
+    page.drawText('$200.00', { x: 480, y: yPosition, size: 10, font });
     yPosition -= 20;
+    
+    // Subtotal
+    const subtotal = parseFloat(totalAmount) - 200; // Restar fee para mostrar subtotal
+    yPosition -= 10;
+    page.drawText(`SUBTOTAL: $${subtotal.toFixed(2)}`, { 
+      x: 380, 
+      y: yPosition, 
+      size: 12, 
+      font: boldFont 
+    });
+    yPosition -= 20;
+    
+    // Total
     page.drawText(`TOTAL: $${parseFloat(totalAmount).toFixed(2)}`, { 
       x: 380, 
       y: yPosition, 
       size: 14, 
       font: boldFont 
+    });
+    
+    // NUEVO: Agregar nota de verificación de edad con fecha
+    yPosition -= 40;
+    page.drawText('VERIFICACIÓN DE EDAD:', { 
+      x: 50, 
+      y: yPosition, 
+      size: 8, 
+      font: boldFont 
+    });
+    yPosition -= 15;
+    
+    // Calcular edad desde fecha de nacimiento
+    let ageText = 'No especificada';
+    if (customerData.birth_date) {
+      const birthDate = new Date(customerData.birth_date);
+      const today = new Date();
+      const calculatedAge = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000));
+      ageText = `${calculatedAge} años (Nacimiento: ${customerData.birth_date})`;
+    }
+    
+    page.drawText(`Cliente confirmó ser mayor de 18 años (${ageText})`, { 
+      x: 50, 
+      y: yPosition, 
+      size: 8, 
+      font 
     });
     
     // Footer

@@ -13,6 +13,9 @@ import CartIcon from './CartIcon';
 import CartSidebar from './CartSidebar';
 import { useCustomerSave } from '../hooks/useCustomerSave';
 
+// NUEVO: Constante para el fee de envío
+const SHIPPING_FEE = 200;
+
 const formatPrice = (price) => {
   return Number(price).toLocaleString('es-MX', {
     minimumFractionDigits: 2, 
@@ -66,6 +69,10 @@ export default function PaymentFlow({
     first_name: '',
     last_name: '',
     phone: '',
+    birth_date: '', // CAMBIO: fecha de nacimiento en lugar de age
+    isOver18: false,
+    acceptsAlcoholTerms: false,
+    acceptsShippingFee: false,
     identification: {
       type: 'DNI',
       number: ''
@@ -76,7 +83,7 @@ export default function PaymentFlow({
       zip_code: '',
       city: '',
       state: '',
-      country: '' // Valor predeterminado
+      country: '' // Mantener vacío por defecto
     }
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -84,6 +91,16 @@ export default function PaymentFlow({
 
   // Obtener datos del carrito
   const { items, totalAmount, clearCart, addItem, updateQuantity, removeItem } = useCart();
+
+  // NUEVO: Función para calcular subtotal
+  const calculateSubtotal = () => {
+    return totalAmount; // El totalAmount del carrito ya es el subtotal de productos
+  };
+
+  // NUEVO: Función para calcular total con fee de envío
+  const calculateTotalPrice = () => {
+    return totalAmount + SHIPPING_FEE;
+  };
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -231,11 +248,6 @@ export default function PaymentFlow({
     }
   };
 
-  const calculateTotalPrice = () => {
-    // Use the cart totalAmount directly instead of calculating from selectedProducts
-    return totalAmount;
-  };
-
   const handleContinueToConfirmation = () => {
     if (selectedProducts.length === 0 || selectedProducts.some(product => product.quantity < 1)) {
       alert('Por favor selecciona productos válidos y cantidades');
@@ -248,27 +260,45 @@ export default function PaymentFlow({
     // Procesamiento del país personalizado
     const processedUserData = {...userData};
     
-    if (processedUserData.address?.country === 'Otro') {
-      if (!processedUserData.address?.customCountry) {
-        alert('Por favor especifique el país');
-        return;
-      }
-      // Usar el país personalizado en lugar de "Otro"
-      processedUserData.address.country = processedUserData.address.customCountry;
-    }
-    
-    // Check all required fields (mantén la validación existente)
-    if (!processedUserData.email || !processedUserData.first_name || !processedUserData.last_name || 
-        !processedUserData.phone || 
-        !processedUserData.address?.street_name || !processedUserData.address?.street_number || 
+    // Validación de datos personales (mantenemos las validaciones importantes)
+    if (!processedUserData.first_name || !processedUserData.last_name || 
+        !processedUserData.email || !processedUserData.phone ||
+        !processedUserData.address?.street_name || !processedUserData.address?.street_number ||
         !processedUserData.address?.zip_code || !processedUserData.address?.city || 
         !processedUserData.address?.state || !processedUserData.address?.country) {
       
       alert('Por favor completa todos los campos, necesitamos estos datos para enviar tu producto');
       return;
     }
+
+    // NUEVO: Validar edad por fecha de nacimiento
+    if (!processedUserData.birth_date) {
+      alert('Por favor ingresa tu fecha de nacimiento');
+      return;
+    }
+
+    try {
+      const birthDate = new Date(processedUserData.birth_date);
+      const today = new Date();
+      const age = Math.floor((today - birthDate) / (365.25 * 24 * 60 * 60 * 1000));
+      
+      if (isNaN(age) || age < 0 || age > 120) {
+        throw new Error('Fecha inválida');
+      }
+      
+      processedUserData.calculatedAge = age;
+      processedUserData.isOver18 = age >= 18;
+    } catch (error) {
+      alert('Error al validar la fecha de nacimiento. Por favor intenta de nuevo.');
+      return;
+    }
+
+    // REMOVIDO: No validar checkboxes aquí, se harán en el paso 3
+    // REMOVIDO: if (!processedUserData.isOver18) { ... }
+    // REMOVIDO: if (!processedUserData.acceptsAlcoholTerms) { ... }
+    // REMOVIDO: if (!processedUserData.acceptsShippingFee) { ... }
     
-    // Asegúrate de que el teléfono sea una cadena limpia (mantén esto igual)
+    // Asegúrate de que el teléfono sea una cadena limpia
     if (processedUserData.phone) {
       processedUserData.phone = String(processedUserData.phone).replace(/[^\d+]/g, '');
     }
@@ -278,24 +308,38 @@ export default function PaymentFlow({
   };
 
   const handleConfirmOrder = async () => {
+    // NUEVO: Validar checkboxes antes de proceder
+    if (!userData.isOver18) {
+      alert('Debes confirmar que eres mayor de 18 años');
+      return;
+    }
+
+    if (!userData.acceptsAlcoholTerms) {
+      alert('Debes aceptar los términos y condiciones para productos con alcohol');
+      return;
+    }
+
+    if (!userData.acceptsShippingFee) {
+      alert('Debes aceptar el cargo de envío para continuar');
+      return;
+    }
+
     logInfo('====== ORDEN CONFIRMADA ======');
-    logInfo('Productos confirmados del carrito:');
-    
-    // Use cart items instead of selectedProducts
-    items.forEach((item, i) => {
-      logInfo(`${i+1}. ${item.name} (ID: ${item.productId})`);
-      logInfo(`   Cantidad: ${item.quantity}`);
-      logInfo(`   Precio unitario: $${formatPrice(item.price)}`);
-      logInfo(`   Subtotal: $${formatPrice(item.price * item.quantity)}`);
-    });
-    
-    logInfo('TOTAL A PAGAR: $' + formatPrice(totalAmount));
+    logInfo('Productos seleccionados:', items.map(item => ({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+      total: item.price * item.quantity
+    })));
+    logInfo('SUBTOTAL: $' + formatPrice(calculateSubtotal()));
+    logInfo('FEE DE ENVÍO: $' + formatPrice(SHIPPING_FEE));
+    logInfo('TOTAL A PAGAR: $' + formatPrice(calculateTotalPrice()));
     logInfo('============================');
 
     // Guardar datos del cliente antes de proceder al pago
     try {
       const orderData = {
-        totalAmount,
+        totalAmount: calculateTotalPrice(),
         items: items.map(item => ({
           productId: item.productId,
           name: item.name,
@@ -303,6 +347,7 @@ export default function PaymentFlow({
           price: item.price,
           total: item.price * item.quantity
         })),
+        userData: userData,
         orderId: `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         paymentStatus: 'pending'
       };
@@ -322,7 +367,7 @@ export default function PaymentFlow({
         product: item,
         quantity: item.quantity
       })),
-      totalPrice: totalAmount,
+      totalPrice: calculateTotalPrice(), // CAMBIO: usar calculateTotalPrice() que incluye el fee
       userData: userData
     });
     
@@ -610,8 +655,20 @@ export default function PaymentFlow({
           </div>
           
           <div className={styles['mp-total-price']}>
-            <span>Total en Carrito:</span>
-            <span>${formatPrice(totalAmount)}</span>
+            <div className={styles['mp-price-breakdown']}>
+              <div className={styles['mp-price-row']}>
+                <span>Subtotal productos:</span>
+                <span>${formatPrice(totalAmount)}</span>
+              </div>
+              <div className={styles['mp-price-row']}>
+                <span>Cargo de envío:</span>
+                <span>$200.00</span>
+              </div>
+              <div className={styles['mp-price-row', styles['mp-total-row']]}>
+                <span><strong>Total en Carrito:</strong></span>
+                <span><strong>${formatPrice(calculateTotalPrice())}</strong></span>
+              </div>
+            </div>
           </div>
           
           {/* Button to continue to payment flow */}
@@ -647,7 +704,6 @@ export default function PaymentFlow({
                 value={userData.email}
                 onChange={(e) => setUserData({...userData, email: e.target.value})}
                 className={styles['mp-text-input']}
-                placeholder="correo@ejemplo.com"
                 required
               />
             </div>
@@ -676,6 +732,21 @@ export default function PaymentFlow({
                   required
                 />
               </div>
+            </div>
+            
+            {/* CAMBIO: Campo de fecha de nacimiento */}
+            <div className={styles['mp-form-group']}>
+              <label htmlFor="mp-birth-date">FECHA DE NACIMIENTO: <span className={styles['required']}>*</span></label>
+              <input
+                id="mp-birth-date"
+                type="date"
+                value={userData.birth_date}
+                onChange={(e) => setUserData({...userData, birth_date: e.target.value})}
+                className={styles['mp-text-input']}
+                max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+                required
+              />
+              <small className={styles['mp-form-help']}>Debes ser mayor de 18 años para realizar esta compra</small>
             </div>
             
             <div className={styles['mp-form-group']}>
@@ -823,7 +894,7 @@ export default function PaymentFlow({
               <label htmlFor="mp-country">PAÍS: <span className={styles['required']}>*</span></label>
               <select
                 id="mp-country"
-                value={userData.address?.country || 'Mexico'}
+                value={userData.address?.country || ''}
                 onChange={(e) => {
                   const countryValue = e.target.value;
                   setUserData({
@@ -831,19 +902,21 @@ export default function PaymentFlow({
                     address: {
                       ...(userData.address || {}), 
                       country: countryValue,
-                      // Si se selecciona "Otro", limpiar el campo personalizado
                       customCountry: countryValue === 'Otro' ? '' : userData.address?.customCountry
                     }
                   });
                 }}
                 className={styles['mp-select-input']}
+                required
               >
+                <option value="">Seleccione un país</option>
                 <option value="Mexico">México</option>
-                <option value="USA">Estados Unidos</option>
+                <option value="Estados Unidos">Estados Unidos</option>
+                <option value="Canada">Canadá</option>
                 <option value="Colombia">Colombia</option>
                 <option value="Argentina">Argentina</option>
-                <option value="Chile">Chile</option>
                 <option value="Peru">Perú</option>
+                <option value="Chile">Chile</option>
                 <option value="Otro">Otro</option>
               </select>
             </div>
@@ -865,6 +938,60 @@ export default function PaymentFlow({
                 />
               </div>
             )}
+          </div>
+          
+          {/* NUEVO: Checkboxes de verificación */}
+          <div className={styles['mp-form-section']}>
+            <h3 className={styles['mp-form-section-title']}>Verificación de Edad y Términos</h3>
+            <p className={styles['mp-form-section-subtitle']}>Requerido para la venta de productos regulados</p>
+            
+            <div className={styles['mp-checkbox-group']}>
+              <label className={styles['mp-checkbox-label']}>
+                <input
+                  type="checkbox"
+                  checked={userData.isOver18}
+                  onChange={(e) => setUserData({...userData, isOver18: e.target.checked})}
+                  className={styles['mp-checkbox']}
+                  required
+                />
+                <span className={styles['mp-checkbox-text']}>
+                  Confirmo que soy mayor de 18 años y tengo la edad legal para comprar productos que pueden contener alcohol. 
+                  Entiendo que puedo ser requerido a mostrar identificación válida al momento de la entrega.
+                </span>
+              </label>
+            </div>
+            
+            <div className={styles['mp-checkbox-group']}>
+              <label className={styles['mp-checkbox-label']}>
+                <input
+                  type="checkbox"
+                  checked={userData.acceptsAlcoholTerms}
+                  onChange={(e) => setUserData({...userData, acceptsAlcoholTerms: e.target.checked})}
+                  className={styles['mp-checkbox']}
+                  required
+                />
+                <span className={styles['mp-checkbox-text']}>
+                  Acepto los términos y condiciones para la compra de productos que pueden contener alcohol. 
+                  Entiendo que está prohibida la venta a menores de edad y que el consumo responsable es mi responsabilidad.
+                </span>
+              </label>
+            </div>
+            
+            <div className={styles['mp-checkbox-group']}>
+              <label className={styles['mp-checkbox-label']}>
+                <input
+                  type="checkbox"
+                  checked={userData.acceptsShippingFee}
+                  onChange={(e) => setUserData({...userData, acceptsShippingFee: e.target.checked})}
+                  className={styles['mp-checkbox']}
+                  required
+                />
+                <span className={styles['mp-checkbox-text']}>
+                  Acepto el cargo fijo de envío de $200.00 MXN que se agregará a mi pedido. 
+                  Este cargo cubre el manejo especial y entrega segura de productos regulados.
+                </span>
+              </label>
+            </div>
           </div>
           
           <div className={styles['mp-form-actions']}>
@@ -897,129 +1024,156 @@ export default function PaymentFlow({
         )}
         <div className={styles['mp-confirmation-container']}>
           <div className={styles['mp-summary']}>
+            <h3>Resumen del Pedido</h3>
             {items.map((item, index) => (
               <div key={index} className={styles['mp-product-card']}>
                 <div className={styles['mp-product-card-header']}>
                   <h4>{item.name}</h4>
                 </div>
                 <div className={styles['mp-product-card-body']}>
-                  <p className={styles['mp-product-description']}>{item.description}</p>
                   <div className={styles['mp-product-card-row']}>
-                    <span className={styles['mp-product-card-label']}>Precio Unitario:</span>
-                    <span className={styles['mp-product-card-value']}>${formatPrice(item.price)}</span>
+                    <span>Cantidad:</span>
+                    <span>{item.quantity}</span>
                   </div>
                   <div className={styles['mp-product-card-row']}>
-                    <span className={styles['mp-product-card-label']}>Cantidad:</span>
-                    <span className={styles['mp-product-card-value']}>{item.quantity}</span>
+                    <span>Precio unitario:</span>
+                    <span>{formatPrice(item.price)}</span>
                   </div>
-                </div>
-                <div className={styles['mp-product-card-footer']}>
-                  <span>Total producto:</span>
-                  <span className={styles['mp-product-card-total']}>${formatPrice(item.price * item.quantity)}</span>
+                  <div className={styles['mp-product-card-row']}>
+                    <span>Subtotal:</span>
+                    <span>{formatPrice(item.price * item.quantity)}</span>
+                  </div>
                 </div>
               </div>
             ))}
             
-           
-            
-            {/* Tarjeta de información del comprador */}
-            <div className={styles['mp-buyer-info-card']}>
-              <div className={styles['mp-buyer-info-header']}>
-                <span className={styles['mp-buyer-info-icon']}>👤</span>
-                <h4>Información del Comprador</h4>
+            <div className={styles['mp-price-summary']}>
+              <div className={styles['mp-price-row']}>
+                <span>Subtotal productos:</span>
+                <span>{formatPrice(calculateSubtotal())}</span>
               </div>
-              <div className={styles['mp-buyer-info-body']}>
-                <div className={styles['mp-buyer-info-section']}>
-                  <h5>Datos Personales</h5>
-                  <div className={styles['mp-buyer-info-row']}>
-                    <span className={styles['mp-buyer-info-label']}>Nombre:</span>
-                    <span className={styles['mp-buyer-info-value']}>{userData.first_name} {userData.last_name}</span>
-                  </div>
-                  <div className={styles['mp-buyer-info-row']}>
-                    <span className={styles['mp-buyer-info-label']}>Email:</span>
-                    <span className={styles['mp-buyer-info-value']}>{userData.email}</span>
-                  </div>
-                  {userData.phone && (
-                    <div className={styles['mp-buyer-info-row']}>
-                      <span className={styles['mp-buyer-info-label']}>Teléfono:</span>
-                      <span className={styles['mp-buyer-info-value']}>{userData.phone}</span>
-                    </div>
-                  )}
-                </div>
-                
-                {(userData.identification?.type || userData.identification?.number) && (
-                  <div className={styles['mp-buyer-info-section']}>
-                    <h5>Documento de Identidad</h5>
-                    <div className={styles['mp-buyer-info-row']}>
-                      <span className={styles['mp-buyer-info-label']}>Tipo:</span>
-                      <span className={styles['mp-buyer-info-value']}>{userData.identification?.type || '-'}</span>
-                    </div>
-                    <div className={styles['mp-buyer-info-row']}>
-                      <span className={styles['mp-buyer-info-label']}>Número:</span>
-                      <span className={styles['mp-buyer-info-value']}>{userData.identification?.number || '-'}</span>
-                    </div>
-                  </div>
-                )}
-                
-                {(userData.address?.street_name || userData.address?.street_number || userData.address?.zip_code || userData.address?.city) && (
-                  <div className={styles['mp-buyer-info-section']}>
-                    <h5>Dirección</h5>
-                    {userData.address?.street_name && (
-                      <div className={styles['mp-buyer-info-row']}>
-                        <span className={styles['mp-buyer-info-label']}>Calle:</span>
-                        <span className={styles['mp-buyer-info-value']}>{userData.address.street_name}</span>
-                      </div>
-                    )}
-                    {userData.address?.street_number && (
-                      <div className={styles['mp-buyer-info-row']}>
-                        <span className={styles['mp-buyer-info-label']}>Número:</span>
-                        <span className={styles['mp-buyer-info-value']}>{userData.address.street_number}</span>
-                      </div>
-                    )}
-                    {userData.address?.zip_code && (
-                      <div className={styles['mp-buyer-info-row']}>
-                        <span className={styles['mp-buyer-info-label']}>Código Postal:</span>
-                        <span className={styles['mp-buyer-info-value']}>{userData.address.zip_code}</span>
-                      </div>
-                    )}
-                    {userData.address?.city && (
-                      <div className={styles['mp-buyer-info-row']}>
-                        <span className={styles['mp-buyer-info-label']}>Ciudad:</span>
-                        <span className={styles['mp-buyer-info-value']}>{userData.address.city}</span>
-                      </div>
-                    )}
-                    {userData.address?.state && (
-                      <div className={styles['mp-buyer-info-row']}>
-                        <span className={styles['mp-buyer-info-label']}>Estado/Provincia:</span>
-                        <span className={styles['mp-buyer-info-value']}>{userData.address.state}</span>
-                      </div>
-                    )}
-                    {userData.address?.country && (
-                      <div className={styles['mp-buyer-info-row']}>
-                        <span className={styles['mp-buyer-info-label']}>País:</span>
-                        <span className={styles['mp-buyer-info-value']}>{userData.address.country}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div className={styles['mp-price-row']}>
+                <span>Envío:</span>
+                <span>{formatPrice(SHIPPING_FEE)}</span>
               </div>
-            </div>
-             <div className={styles['mp-grand-total']}>
-              <span className={styles['mp-grand-total-label']}>Total a Pagar:</span>
-              <span className={styles['mp-grand-total-value']}>${formatPrice(totalAmount)}</span>
+              <div className={cn(styles['mp-price-row'], styles['mp-total'])}>
+                <span>Total:</span>
+                <span>{formatPrice(calculateTotalPrice())}</span>
+              </div>
             </div>
           </div>
-          
-          <div className={styles['mp-confirmation-actions']}>
-            <p className={styles['mp-confirmation-note']}>
-              Al confirmar esta orden, procederás al proceso de pago.
+
+          <div className={styles['mp-customer-summary']}>
+            <h3>Información del Cliente</h3>
+            <div className={styles['mp-buyer-info-card']}>
+              <div className={styles['mp-buyer-info-row']}>
+                <span className={styles['mp-buyer-info-label']}>Nombre:</span>
+                <span className={styles['mp-buyer-info-value']}>{userData.first_name} {userData.last_name}</span>
+              </div>
+              <div className={styles['mp-buyer-info-row']}>
+                <span className={styles['mp-buyer-info-label']}>Email:</span>
+                <span className={styles['mp-buyer-info-value']}>{userData.email}</span>
+              </div>
+              <div className={styles['mp-buyer-info-row']}>
+                <span className={styles['mp-buyer-info-label']}>Teléfono:</span>
+                <span className={styles['mp-buyer-info-value']}>{userData.phone}</span>
+              </div>
+              {userData.birth_date && (
+                <div className={styles['mp-buyer-info-row']}>
+                  <span className={styles['mp-buyer-info-label']}>Fecha de nacimiento:</span>
+                  <span className={styles['mp-buyer-info-value']}>{userData.birth_date}</span>
+                </div>
+              )}
+              {userData.address && (
+                <>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Dirección:</span>
+                    <span className={styles['mp-buyer-info-value']}>{userData.address.street_name} {userData.address.street_number}</span>
+                  </div>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Ciudad:</span>
+                    <span className={styles['mp-buyer-info-value']}>{userData.address.city}</span>
+                  </div>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Estado:</span>
+                    <span className={styles['mp-buyer-info-value']}>{userData.address.state}</span>
+                  </div>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>Código Postal:</span>
+                    <span className={styles['mp-buyer-info-value']}>{userData.address.zip_code}</span>
+                  </div>
+                  <div className={styles['mp-buyer-info-row']}>
+                    <span className={styles['mp-buyer-info-label']}>País:</span>
+                    <span className={styles['mp-buyer-info-value']}>{userData.address.country}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* NUEVO: Checkboxes de confirmación */}
+          <div className={styles['mp-confirmations']}>
+            <h3>Confirmaciones Requeridas</h3>
+            
+            <div className={styles['mp-form-group']}>
+              <label className={styles['mp-checkbox-label']}>
+                <input
+                  type="checkbox"
+                  checked={userData.isOver18 || false}
+                  onChange={(e) => setUserData({...userData, isOver18: e.target.checked})}
+                  required
+                />
+                <span className={styles['mp-checkbox-text']}>
+                  Confirmo que soy mayor de 18 años <span className={styles['required']}>*</span>
+                </span>
+              </label>
+            </div>
+
+            <div className={styles['mp-form-group']}>
+              <label className={styles['mp-checkbox-label']}>
+                <input
+                  type="checkbox"
+                  checked={userData.acceptsAlcoholTerms || false}
+                  onChange={(e) => setUserData({...userData, acceptsAlcoholTerms: e.target.checked})}
+                  required
+                />
+                <span className={styles['mp-checkbox-text']}>
+                  Acepto que algunos productos pueden contener alcohol y confirmo que soy mayor de edad para su consumo <span className={styles['required']}>*</span>
+                </span>
+              </label>
+            </div>
+
+            <div className={styles['mp-form-group']}>
+              <label className={styles['mp-checkbox-label']}>
+                <input
+                  type="checkbox"
+                  checked={userData.acceptsShippingFee || false}
+                  onChange={(e) => setUserData({...userData, acceptsShippingFee: e.target.checked})}
+                  required
+                />
+                <span className={styles['mp-checkbox-text']}>
+                  Acepto el cargo de envío de {formatPrice(SHIPPING_FEE)} <span className={styles['required']}>*</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className={styles['mp-confirmation-notice']}>
+            <p className={styles['mp-notice-text']}>
+              ⚠️ Al confirmar, los datos mostrados quedarán bloqueados y se guardarán para el envío.
+            </p>
+            <p className={styles['mp-notice-text']}>
               Los datos mostrados quedarán bloqueados y se guardarán para el envío.
             </p>
             <div className={styles['mp-button-container']}>
               <button className={cn(styles['mp-button'], styles['mp-secondary'])} onClick={handleBack}>
                 Volver
               </button>
-              <button className={cn(styles['mp-button'], styles['mp-primary'])} onClick={handleConfirmOrder} disabled={savingCustomer}>
+              <button 
+                className={cn(styles['mp-button'], styles['mp-primary'])} 
+                onClick={handleConfirmOrder} 
+                disabled={savingCustomer || !userData.isOver18 || !userData.acceptsAlcoholTerms || !userData.acceptsShippingFee}
+              >
                 {savingCustomer ? 'Guardando...' : 'Confirmar y Proceder al Pago'}
               </button>
             </div>
@@ -1144,8 +1298,20 @@ export default function PaymentFlow({
               </div>
             </div>
              <div className={styles['mp-grand-total']}>
-              <span className={styles['mp-grand-total-label']}>Total a pagar:</span>
-              <span className={styles['mp-grand-total-value']}>${formatPrice(confirmedOrder.totalPrice)}</span>
+              <div className={styles['mp-price-breakdown']}>
+                <div className={styles['mp-price-row']}>
+                  <span>Subtotal productos:</span>
+                  <span>${formatPrice(totalAmount)}</span>
+                </div>
+                <div className={styles['mp-price-row']}>
+                  <span>Cargo de envío:</span>
+                  <span>$200.00</span>
+                </div>
+                <div className={styles['mp-price-row', styles['mp-total-row']]}>
+                  <span><strong>Total a Pagar:</strong></span>
+                  <span><strong>${formatPrice(calculateTotalPrice())}</strong></span>
+                </div>
+              </div>
             </div>
           </div>
           <div className={styles['mp-payment-wrapper']}>
