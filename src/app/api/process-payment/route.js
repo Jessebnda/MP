@@ -87,10 +87,8 @@ async function processMercadoPagoPayment({
     // NUEVO: Validar fecha de nacimiento en backend
     if (!payerData.birth_date) {
       logError('❌ Fecha de nacimiento no proporcionada:', { email: payerEmail });
-      return NextResponse.json({
-        success: false,
-        error: 'Debe proporcionar su fecha de nacimiento'
-      }, { status: 400 });
+      // ✅ CAMBIAR: Lanzar error en lugar de retornar NextResponse
+      throw new Error('Debe proporcionar su fecha de nacimiento');
     }
 
     let calculatedAge;
@@ -123,10 +121,8 @@ async function processMercadoPagoPayment({
         email: payerEmail 
       });
       
-      return NextResponse.json({
-        success: false,
-        error: 'Error al validar la fecha de nacimiento. Verifique el formato.'
-      }, { status: 400 });
+      // ✅ CAMBIAR: Lanzar error en lugar de retornar NextResponse
+      throw new Error('Error al validar la fecha de nacimiento. Verifique el formato.');
     }
 
     if (calculatedAge < 18) {
@@ -140,13 +136,11 @@ async function processMercadoPagoPayment({
         email: payerEmail,
         birth_date: payerData.birth_date,
         calculated_age: calculatedAge,
-        ip: request.headers.get('x-forwarded-for') || 'unknown'
+        ip: req.headers.get('x-forwarded-for') || 'unknown' // ✅ CORREGIDO
       });
       
-      return NextResponse.json({
-        success: false,
-        error: 'Debes ser mayor de 18 años para realizar esta compra'
-      }, { status: 400 });
+      // ✅ CAMBIAR: Lanzar error en lugar de retornar NextResponse
+      throw new Error('Debes ser mayor de 18 años para realizar esta compra');
     }
 
     if (!payerData.isOver18 || !payerData.acceptsAlcoholTerms || !payerData.acceptsShippingFee) {
@@ -156,10 +150,8 @@ async function processMercadoPagoPayment({
         acceptsShippingFee: payerData.acceptsShippingFee
       });
       
-      return NextResponse.json({
-        success: false,
-        error: 'Debes aceptar todos los términos y condiciones'
-      }, { status: 400 });
+      // ✅ CAMBIAR: Lanzar error en lugar de retornar NextResponse
+      throw new Error('Debes aceptar todos los términos y condiciones');
     }
 
     // 2. SIEMPRE calcula el total en el backend
@@ -748,29 +740,66 @@ export async function POST(req) {
     } catch (error) {
       logError("Error general en POST /api/process-payment:", { 
         message: error.message, 
-        stack: error.stack, // Incluir stack para debugging
+        stack: error.stack,
         idempotencyKey,
         isCsrfError: error.isCsrfError,
         errorObject: JSON.stringify(error, Object.getOwnPropertyNames(error))
       });
+      
+      // ✅ NUEVO: Manejo específico de errores de validación
+      if (error.message && error.message.includes('Debes ser mayor de 18 años')) {
+        return NextResponse.json({ 
+          error: error.message,
+          code: 'UNDERAGE_USER',
+          idempotencyKey 
+        }, { status: 400 });
+      }
+      
+      if (error.message && error.message.includes('Debe proporcionar su fecha de nacimiento')) {
+        return NextResponse.json({ 
+          error: error.message,
+          code: 'MISSING_BIRTHDATE',
+          idempotencyKey 
+        }, { status: 400 });
+      }
+      
+      if (error.message && error.message.includes('Error al validar la fecha de nacimiento')) {
+        return NextResponse.json({ 
+          error: error.message,
+          code: 'INVALID_BIRTHDATE',
+          idempotencyKey 
+        }, { status: 400 });
+      }
+      
+      if (error.message && error.message.includes('Debes aceptar todos los términos')) {
+        return NextResponse.json({ 
+          error: error.message,
+          code: 'TERMS_NOT_ACCEPTED',
+          idempotencyKey 
+        }, { status: 400 });
+      }
       
       if (error.isCsrfError) {
         return NextResponse.json({ error: error.message, idempotencyKey }, { status: 403 });
       }
       
       if (error.message && error.message.startsWith('Stock insuficiente')) {
-        return NextResponse.json({ error: error.message, idempotencyKey }, { status: 400 });
+        return NextResponse.json({ 
+          error: error.message, 
+          code: 'INSUFFICIENT_STOCK',
+          idempotencyKey 
+        }, { status: 400 });
       }
       
       if (error.message && error.message.startsWith('Error de MercadoPago:')) {
         return NextResponse.json({ 
           error: `Error con el proveedor de pagos: ${error.message.replace('Error de MercadoPago: ', '')}`, 
           idempotencyKey,
-          details: error.cause || error.data // Incluir detalles adicionales
+          code: 'MERCADOPAGO_ERROR',
+          details: error.cause || error.data
         }, { status: 502 });
       }
 
-      // In the catch block around line 265, add specific MP error detection
       if (error.message && (
           error.message.includes('card payment requires a higher amount') || 
           error.message.includes('minimum amount required'))) {
@@ -782,10 +811,11 @@ export async function POST(req) {
         }, { status: 400 });
       }
       
-      // Error genérico con información para debug
+      // Error genérico solo para errores verdaderamente inesperados
       return NextResponse.json({ 
         error: 'Error interno del servidor al procesar el pago. Intente más tarde.', 
         idempotencyKey,
+        code: 'INTERNAL_ERROR',
         debugInfo: process.env.NODE_ENV === 'development' ? error.message : undefined
       }, { status: 500 });
     }

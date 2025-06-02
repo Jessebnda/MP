@@ -200,19 +200,37 @@ export function useMercadoPagoBrickSubmit({
     } catch (error) {
       logError("Error procesando el pago en hook:", error);
       
-      // Improved error messaging with more details
+      // ✅ MEJORADO: Manejo específico de errores de validación
       let errMsg;
+      
       if (error.name === 'AbortError') {
         errMsg = 'El tiempo de espera para el pago se ha excedido. Inténtelo de nuevo.';
       } else if (error.message.includes('Cannot read properties')) {
         errMsg = 'Error de configuración en el servidor. Por favor contacte al administrador.';
+      } else if (error.message.includes('Debes ser mayor de 18 años')) {
+        errMsg = '🚫 No puedes realizar esta compra: Debes ser mayor de 18 años para comprar productos con alcohol.';
+      } else if (error.message.includes('Debe proporcionar su fecha de nacimiento')) {
+        errMsg = '📅 Fecha de nacimiento requerida: Por favor ingresa tu fecha de nacimiento para continuar.';
+      } else if (error.message.includes('Error al validar la fecha de nacimiento')) {
+        errMsg = '📅 Fecha inválida: Por favor verifica que la fecha de nacimiento sea correcta.';
+      } else if (error.message.includes('Debes aceptar todos los términos')) {
+        errMsg = '✅ Términos pendientes: Debes aceptar todos los términos y condiciones para continuar.';
+      } else if (error.message.includes('Stock insuficiente')) {
+        errMsg = `📦 ${error.message}. Por favor reduce la cantidad o elige otros productos.`;
+      } else if (error.message.includes('El monto mínimo para pagos')) {
+        errMsg = error.message;
+      } else if (error.message.includes('Error con el proveedor de pagos')) {
+        errMsg = error.message;
       } else {
         errMsg = `Error: ${error.message || 'Error desconocido al procesar pago'}`;
       }
       
       setProcessingError(errMsg);
       setStatusMsg('');
-      if (onError) onError(error);
+      
+      if (onError) {
+        onError(new Error(errMsg));
+      }
     } finally {
       setIsProcessing(false);
     }

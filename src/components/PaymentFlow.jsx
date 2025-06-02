@@ -308,19 +308,36 @@ export default function PaymentFlow({
   };
 
   const handleConfirmOrder = async () => {
-    // NUEVO: Validar checkboxes antes de proceder
+    // ✅ MEJORADO: Validaciones más específicas antes de proceder
     if (!userData.isOver18) {
-      alert('Debes confirmar que eres mayor de 18 años');
+      alert('🚫 Debes confirmar que eres mayor de 18 años para comprar productos con alcohol');
       return;
     }
 
     if (!userData.acceptsAlcoholTerms) {
-      alert('Debes aceptar los términos y condiciones para productos con alcohol');
+      alert('✅ Debes aceptar los términos y condiciones para productos con alcohol');
       return;
     }
 
     if (!userData.acceptsShippingFee) {
-      alert('Debes aceptar el cargo de envío para continuar');
+      alert('📦 Debes aceptar el cargo de envío para continuar');
+      return;
+    }
+
+    // ✅ NUEVO: Validación adicional de edad calculada
+    if (userData.calculatedAge && userData.calculatedAge < 18) {
+      alert('🚫 Lo sentimos, debes ser mayor de 18 años para realizar esta compra. Tu edad calculada es ' + userData.calculatedAge + ' años.');
+      return;
+    }
+
+    // ✅ NUEVO: Validación de stock antes de proceder
+    const hasStockIssues = items.some(item => {
+      // Aquí podrías agregar lógica para verificar stock si tienes esa información
+      return false; // Por ahora solo placeholder
+    });
+
+    if (hasStockIssues) {
+      alert('📦 Algunos productos no tienen suficiente stock disponible. Por favor revisa tu carrito.');
       return;
     }
 
