@@ -12,6 +12,7 @@ import { useCart } from '../hooks/useCart';
 import CartIcon from './CartIcon';
 import CartSidebar from './CartSidebar';
 import { useCustomerSave } from '../hooks/useCustomerSave';
+import ErrorMessage from './ErrorMessage';
 
 // NUEVO: Constante para el fee de envío
 const SHIPPING_FEE = 200;
@@ -87,6 +88,7 @@ export default function PaymentFlow({
     }
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
   const { saveCustomer, saving: savingCustomer } = useCustomerSave();
 
   // Obtener datos del carrito
@@ -435,9 +437,33 @@ export default function PaymentFlow({
   const handlePaymentError = (error) => {
     logError('====== ERROR EN PAGO ======');
     logError('Detalle del error:', error);
-    logError('Productos intentados:', selectedProducts.map(p => p.product.name).join(', '));
+    logError('Productos intentados:', items.map(p => p.name).join(', '));
     logError('Monto total intentado:', formatPrice(calculateTotalPrice()));
     logError('===========================');
+    
+    // ✅ NUEVO: Mostrar alert para casos específicos, componente para otros
+    if (error.message && typeof error.message === 'object' && error.message.type) {
+      // Para errores estructurados, no mostrar alert, solo set en estado
+      setPaymentError(error.message);
+    } else {
+      // Para errores simples, mostrar alert como antes
+      let userMessage = error.message;
+      
+      if (error.message.includes('Stock insuficiente') || error.message.includes('📦')) {
+        userMessage = error.message;
+      } else if (error.message.includes('🚫') || error.message.includes('📅') || error.message.includes('✅')) {
+        userMessage = error.message;
+      } else if (error.message.includes('💳') || error.message.includes('rechazado')) {
+        userMessage = 'El pago no pudo procesarse. Por favor verifica tus datos o intenta con otro método de pago.';
+      } else if (error.message.includes('🔧') || error.message.includes('⏰')) {
+        userMessage = error.message;
+      } else {
+        userMessage = 'Ocurrió un problema al procesar tu solicitud. Por favor intenta nuevamente.';
+      }
+      
+      alert(userMessage);
+    }
+    
     if (onError) onError(error);
   };
 

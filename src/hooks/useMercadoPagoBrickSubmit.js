@@ -111,26 +111,60 @@ export function useMercadoPagoBrickSubmit({
       logInfo("Respuesta de /api/process-payment:", data);
 
       if (!response.ok) {
-        // Manejo de error específico según el código de estado
-        if (response.status === 400) {
-          // Bad Request - posiblemente datos de pago incompletos
-          throw new Error(data.message || 'Solicitud incorrecta. Verifique los datos enviados.');
-        } else if (response.status === 401) {
-          // Unauthorized - posible problema de autenticación
-          throw new Error('No autorizado. Por favor, inicie sesión nuevamente.');
-        } else if (response.status === 403) {
-          // Forbidden - el servidor entendió la solicitud, pero se niega a autorizarla
-          throw new Error('Acceso denegado. No tiene permiso para realizar esta acción.');
-        } else if (response.status === 404) {
-          // Not Found - la URL solicitada no fue encontrada en el servidor
-          throw new Error('No encontrado. La URL solicitada no existe en el servidor.');
-        } else if (response.status === 500) {
-          // Internal Server Error - error genérico del servidor
-          throw new Error('Error interno del servidor. Inténtelo de nuevo más tarde.');
-        } else {
-          // Otros códigos de error
-          throw new Error(data.message || 'Error desconocido. Código de estado: ' + response.status);
+        // ✅ NUEVO: Manejo inteligente de errores según el tipo y código
+        let errorMessage;
+        
+        // Analizar el contenido del error para determinar el tipo
+        if (data.code === 'INSUFFICIENT_STOCK' || data.error?.includes('Stock insuficiente')) {
+          // ✅ STOCK: Mostrar detalles específicos para ayudar al usuario
+          errorMessage = `📦 ${data.error || data.message}
+        \n
+🔄 Sugerencias: \n
+• Reduce la cantidad del producto\n
+• Elige otros productos disponibles\n
+• Recarga la página para ver stock actualizado`;
+        } 
+        else if (data.code === 'UNDERAGE_USER' || data.error?.includes('mayor de 18 años')) {
+          // ✅ EDAD: Mostrar mensaje específico de validación
+          errorMessage = '🚫 No puedes realizar esta compra: Debes ser mayor de 18 años para comprar productos con alcohol.';
         }
+        else if (data.code === 'MISSING_BIRTHDATE' || data.error?.includes('fecha de nacimiento')) {
+          // ✅ VALIDACIÓN: Mostrar mensaje específico
+          errorMessage = '📅 Fecha de nacimiento requerida: Por favor completa todos los campos obligatorios.';
+        }
+        else if (data.code === 'TERMS_NOT_ACCEPTED' || data.error?.includes('términos')) {
+          // ✅ TÉRMINOS: Mostrar mensaje específico
+          errorMessage = '✅ Debes aceptar todos los términos y condiciones para continuar.';
+        }
+        else if (response.status === 400) {
+          // ✅ TARJETA/PAGO: Mensaje genérico por seguridad
+          if (data.error?.includes('rechazado') || data.error?.includes('rejected')) {
+            errorMessage = '💳 Pago rechazado. Por favor verifica tus datos o intenta con otro método de pago.';
+          } else {
+            errorMessage = '⚠️ Hay un problema con los datos enviados. Por favor revisa la información e intenta nuevamente.';
+          }
+        } 
+        else if (response.status === 401) {
+          errorMessage = '🔐 Sesión expirada. Por favor recarga la página e intenta nuevamente.';
+        } 
+        else if (response.status === 403) {
+          errorMessage = '🚫 Acceso denegado. Por favor contacta al soporte si el problema persiste.';
+        } 
+        else if (response.status === 404) {
+          errorMessage = '❌ Servicio no disponible temporalmente. Intenta más tarde.';
+        } 
+        else if (response.status === 500) {
+          errorMessage = '🔧 Error temporal del servidor. Por favor intenta en unos minutos.';
+        } 
+        else if (response.status === 502 || response.status === 503) {
+          errorMessage = '⏰ Servicio temporalmente no disponible. Intenta en unos minutos.';
+        }
+        else {
+          // Error genérico para códigos desconocidos
+          errorMessage = '❌ Error inesperado. Por favor contacta al soporte si el problema persiste.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       // Handle different payment statuses

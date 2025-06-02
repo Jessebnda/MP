@@ -283,6 +283,34 @@ async function processMercadoPagoPayment({
   }
 }
 
+function getSecureRejectionMessage(statusDetail) {
+  // ✅ SEGURIDAD: Log interno para monitoreo, mensaje genérico para usuario
+  logSecurityEvent('payment_rejection', {
+    status_detail: statusDetail,
+    timestamp: new Date().toISOString(),
+    // NO incluir datos sensibles como números de tarjeta
+  }, 'warn');
+  
+  // Categorizar tipos de rechazo para análisis interno
+  const rejectionCategory = categorizeRejection(statusDetail);
+  
+  logInfo(`Pago rechazado - Categoría: ${rejectionCategory}`, {
+    status_detail: statusDetail,
+    category: rejectionCategory
+  });
+  
+  // Siempre devolver mensaje genérico al usuario
+  return 'El pago fue rechazado. Por favor verifica tus datos o intenta con otro método de pago.';
+}
+
+function categorizeRejection(statusDetail) {
+  if (statusDetail?.startsWith('cc_rejected_insufficient')) return 'funds';
+  if (statusDetail?.startsWith('cc_rejected_bad_filled')) return 'card_data';
+  if (statusDetail?.startsWith('cc_rejected_high_risk')) return 'security';
+  if (statusDetail?.startsWith('cc_rejected_blacklist')) return 'blocked';
+  return 'other';
+}
+
 export async function POST(req) {
   const idempotencyKey = req.headers.get('X-Idempotency-Key') || uuidv4();
   
@@ -385,7 +413,7 @@ export async function POST(req) {
           // Modificar esta validación para mostrar un mensaje más claro
           if (dbProduct.stock_available < item.quantity) {
             // Mensaje de error más específico
-            const errorMessage = `Stock insuficiente para ${dbProduct.name}. Disponible: ${dbProduct.stock_available}, solicitado: ${item.quantity}`;
+            const errorMessage = `Stock insuficiente para ${dbProduct.name}. `;
             logError(errorMessage);
             throw new Error(errorMessage);
           }
@@ -726,7 +754,7 @@ export async function POST(req) {
       }, 'warn');
       
       const userMessage = paymentResponse.status === 'rejected' 
-        ? `El pago fue rechazado. Motivo: ${paymentResponse.status_detail || 'Desconocido'}. Por favor, intente con otro medio de pago o verifique sus datos.`
+        ? getSecureRejectionMessage(paymentResponse.status_detail)
         : `El estado del pago es: ${paymentResponse.status}. Detalle: ${paymentResponse.status_detail || 'N/A'}.`;
 
       return NextResponse.json({
