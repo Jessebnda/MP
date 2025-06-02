@@ -503,45 +503,116 @@ export async function POST(req) {
         
         logInfo(`🟢 [${idempotencyKey}] ENTRANDO al bloque principal de payment request`);
         
-        // Almacenar la información del pago en payment_requests
-        const paymentRequestData = {
-          id: idempotencyKey,
-          payment_id: paymentResponse.id,
-          customer_data: userData,
-          order_items: itemsForPayment,
-          total_amount: totalAmount,
-          payment_status: paymentResponse.status,
-          payment_detail: paymentResponse.status_detail,
-          created_at: new Date(),
-          updated_at: new Date(),
-        };
+        // ✅ REEMPLAZAR: Preparar datos del payment request con el formato correcto de Supabase
+        try {
+          const SHIPPING_FEE = 200;
+          const subtotalProducts = itemsForPayment.reduce((total, item) => 
+            total + (parseFloat(item.price) * parseInt(item.quantity)), 0);
+          const totalWithShipping = subtotalProducts + SHIPPING_FEE;
 
-        const { data: savedPayment, error: saveError } = await supabase
-          .from('payment_requests')
-          .insert([{
-            order_id: idempotencyKey, // CAMBIO: usar idempotencyKey en lugar de orderReference
-            payment_id: paymentResponse.id, // CAMBIO: usar paymentResponse.id
-            customer_name: `${userData.first_name} ${userData.last_name}`, // CAMBIO: usar userData
-            customer_email: userData.email, // CAMBIO: usar userData.email
-            customer_phone: userData.phone || null,
-            customer_birth_date: userData.birth_date, // NUEVO: guardar fecha de nacimiento
-            customer_age: userData.calculatedAge || null, // CAMBIO: usar calculatedAge del frontend
-            is_over_18: userData.isOver18, // NUEVO
-            accepts_alcohol_terms: userData.acceptsAlcoholTerms, // NUEVO
-            accepts_shipping_fee: userData.acceptsShippingFee, // NUEVO
-            shipping_fee: 200, // CAMBIO: usar valor directo
-            total_amount: totalAmount, // CAMBIO: usar totalAmount que sí existe
+          const paymentRequestData = {
+            id: idempotencyKey,
+            payment_id: paymentResponse.id?.toString(),
+            customer_data: {
+              age: userData.calculatedAge?.toString() || "0",
+              email: userData.email,
+              phone: userData.phone,
+              address: {
+                city: userData.address?.city || "",
+                state: userData.address?.state || "",
+                country: userData.address?.country || "Mexico",
+                zip_code: userData.address?.zip_code || "",
+                street_name: userData.address?.street_name || "",
+                street_number: userData.address?.street_number || ""
+              },
+              isOver18: userData.isOver18 === true,
+              last_name: userData.last_name || "",
+              first_name: userData.first_name || "",
+              identification: {
+                type: userData.identification?.type || "DNI",
+                number: userData.identification?.number || ""
+              },
+              acceptsShippingFee: userData.acceptsShippingFee === true,
+              acceptsAlcoholTerms: userData.acceptsAlcoholTerms === true
+            },
+            order_items: itemsForPayment.map(item => ({
+              product_id: item.product_id || item.productId,
+              name: item.name,
+              quantity: parseInt(item.quantity),
+              price: parseFloat(item.price),
+              total: parseFloat(item.price) * parseInt(item.quantity)
+            })),
+            total_amount: totalWithShipping,
             payment_status: paymentResponse.status,
-            products: itemsForPayment,
-            customer_data: userData,
-            created_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
+            payment_detail: paymentResponse.status_detail || null,
+            customer_age: parseInt(userData.calculatedAge) || 0,
+            shipping_fee: SHIPPING_FEE
+          };
+
+          logInfo(`💾 [${idempotencyKey}] Preparando inserción en BD:`, {
+            paymentId: paymentRequestData.payment_id,
+            totalAmount: paymentRequestData.total_amount,
+            customerEmail: paymentRequestData.customer_data?.email,
+            itemsCount: paymentRequestData.order_items?.length,
+            shippingFee: paymentRequestData.shipping_fee,
+            customerAge: paymentRequestData.customer_age
+          });
+
+          // ✅ INSERTAR: Crear payment request en Supabase
+          logInfo(`🔄 [${idempotencyKey}] Insertando payment request en Supabase...`);
+          
+          const { data: insertedPaymentRequest, error: insertError } = await supabase
+            .from('payment_requests')
+            .insert([paymentRequestData])
+            .select()
+            .single();
+
+          if (insertError) {
+            logError(`❌ [${idempotencyKey}] Error detallado insertando payment request:`, {
+              error: insertError.message,
+              code: insertError.code,
+              details: insertError.details,
+              hint: insertError.hint,
+              supabaseError: insertError,
+              dataToInsert: {
+                id: paymentRequestData.id,
+                payment_id: paymentRequestData.payment_id,
+                customer_email: paymentRequestData.customer_data?.email,
+                total_amount: paymentRequestData.total_amount,
+                customer_data_keys: Object.keys(paymentRequestData.customer_data || {}),
+                order_items_count: paymentRequestData.order_items?.length
+              }
+            });
+            
+            // No lanzar error para continuar con emails
+            logWarn(`⚠️ [${idempotencyKey}] Continuando con emails a pesar del error de BD`);
+          } else {
+            logInfo(`✅ [${idempotencyKey}] Payment request insertado exitosamente en BD:`, {
+              id: insertedPaymentRequest.id,
+              payment_id: insertedPaymentRequest.payment_id,
+              total_amount: insertedPaymentRequest.total_amount,
+              payment_status: insertedPaymentRequest.payment_status,
+              customer_email: insertedPaymentRequest.customer_data?.email,
+              created_at: insertedPaymentRequest.created_at,
+              shipping_fee: insertedPaymentRequest.shipping_fee
+            });
+          }
+
+        } catch (dbError) {
+          logError(`❌ [${idempotencyKey}] Error general en creación de payment request:`, {
+            error: dbError.message,
+            stack: dbError.stack,
+            paymentId: paymentResponse.id,
+            type: dbError.constructor.name
+          });
+          
+          // No lanzar error para continuar con emails
+          logWarn(`⚠️ [${idempotencyKey}] Continuando con emails a pesar del error de BD`);
+        }
 
         logInfo(`✅ Payment request creado: ${idempotencyKey}`);
 
-        // 🚀 NUEVO: Enviar emails inmediatamente después de crear el payment request
+        // 🚀 CONTINUAR: Enviar emails inmediatamente después de crear el payment request
         logInfo(`🔵 [${idempotencyKey}] CHECKPOINT: Llegué al bloque de emails`);
         logInfo(`🔵 [${idempotencyKey}] Payment status: ${paymentResponse.status}`);
         logInfo(`🔵 [${idempotencyKey}] Payment ID exists: ${!!paymentResponse.id}`);
