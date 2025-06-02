@@ -8,15 +8,15 @@ const nextConfig = {
   async headers() {
     // Content Security Policy más permisivo para Framer
     const ContentSecurityPolicy = `
-      default-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com data: https://*.framerusercontent.com;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://*.mercadolibre.com https://*.mercadolivre.com https://*.framerusercontent.com;
-      style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com;
-      img-src 'self' data: https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://*.framerusercontent.com;
+      default-src 'self' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com data: https://*.framerusercontent.com https://api.mercadopago.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://*.mercadolibre.com https://*.mercadolivre.com https://*.framerusercontent.com https://api.mercadopago.com;
+      style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com;
+      img-src 'self' data: https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://*.framerusercontent.com;
       font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;
-      connect-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com;
+      connect-src 'self' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com https://api.mercadopago.com;
       
       /* Estas son las directivas más importantes para Framer */
-      frame-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://*.framercanvas.com https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com;
+      frame-src 'self' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://*.framercanvas.com https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com;
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [

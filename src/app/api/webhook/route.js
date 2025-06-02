@@ -7,6 +7,22 @@ import { updateStockAfterOrder } from '../../../lib/productService';
 import { generateReceiptPDF } from '../../../lib/pdfService';
 import { sendReceiptEmail } from '../../../lib/emailService';
 
+// Verificar variables críticas al cargar el módulo
+if (!process.env.MERCADOPAGO_WEBHOOK_KEY) {
+  console.error('❌ CRITICAL: MERCADOPAGO_WEBHOOK_KEY no está definida');
+}
+
+if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
+  console.error('❌ CRITICAL: MERCADOPAGO_ACCESS_TOKEN no está definida');
+}
+
+console.log('🔧 Webhook variables check:', {
+  hasWebhookKey: !!process.env.MERCADOPAGO_WEBHOOK_KEY,
+  hasAccessToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN,
+  environment: process.env.NODE_ENV,
+  webhookKeyLength: process.env.MERCADOPAGO_WEBHOOK_KEY?.length
+});
+
 // Inicializar Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -33,7 +49,6 @@ async function isValidSignature(rawBody, secret, receivedSignature, queryParams)
     let timestamp, signature;
     
     if (receivedSignature.includes('ts=') && receivedSignature.includes('v1=')) {
-      // Formato: "ts=1580315597,v1=9c5a688d1067cfdf4f0d5d503a42b15da3e71e1d081fa28e4fb4b6a9393dc28"
       const parts = receivedSignature.split(',').reduce((acc, part) => {
         const [key, value] = part.split('=');
         acc[key] = value;
@@ -55,38 +70,54 @@ async function isValidSignature(rawBody, secret, receivedSignature, queryParams)
       return false;
     }
 
-    // CORRECCIÓN CRÍTICA: Construir el string según documentación oficial de MercadoPago
-    // Formato correcto: id:{id};request-id:{request_id};ts:{timestamp};
+    // CORRECCIÓN: Usar múltiples formatos según la documentación de MercadoPago
     const dataId = queryParams?.['data.id'] || '';
-    const requestId = queryParams?.id || '';
+    const requestId = queryParams?.id || queryParams?.['request-id'] || '';
     
-    const signatureString = `id:${dataId};request-id:${requestId};ts:${timestamp};`;
+    // Probar diferentes formatos de string de validación
+    const formats = [
+      // Formato oficial v2 (más reciente)
+      `id:${dataId};request-id:${requestId};ts:${timestamp};`,
+      // Formato alternativo sin request-id
+      `id:${dataId};ts:${timestamp};`,
+      // Formato legacy
+      `${timestamp}.${rawBody}`,
+      // Formato solo con timestamp y body (para casos específicos)
+      `ts=${timestamp}&id=${dataId}`
+    ];
     
-    logInfo('🔐 String para validación (formato oficial MP):', { 
-      signatureString,
-      dataId,
-      requestId,
-      timestamp
-    });
+    for (const format of formats) {
+      const calculatedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(format)
+        .digest('hex');
+      
+      try {
+        const isValid = crypto.timingSafeEqual(
+          Buffer.from(signature, 'hex'),
+          Buffer.from(calculatedSignature, 'hex')
+        );
+        
+        if (isValid) {
+          logInfo(`🔐 Webhook: Validación exitosa con formato: ${format}`, {
+            received: signature.substring(0, 10) + '...',
+            calculated: calculatedSignature.substring(0, 10) + '...'
+          });
+          return true;
+        }
+      } catch (err) {
+        // Continuar con el siguiente formato
+        continue;
+      }
+    }
     
-    const calculatedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(signatureString)
-      .digest('hex');
-    
-    // Comparación segura contra timing attacks
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(calculatedSignature, 'hex')
-    );
-    
-    logInfo(`🔐 Webhook: Validación de firma ${isValid ? 'exitosa' : 'fallida'}`, {
+    logError(`🔐 Webhook: Validación fallida con todos los formatos`, {
       received: signature.substring(0, 10) + '...',
-      calculated: calculatedSignature.substring(0, 10) + '...',
-      signatureString
+      testedFormats: formats,
+      queryParams
     });
     
-    return isValid;
+    return false;
     
   } catch (error) {
     logError('❌ Webhook: Error validando firma:', error);
@@ -106,7 +137,9 @@ export async function POST(req) {
       queryParams[key] = value;
     }
     
+    // NUEVO: Agregar logging más detallado
     logInfo('📋 Query parameters recibidos:', queryParams);
+    logInfo('🔗 URL completa:', req.url);
 
     // 2. Obtener el cuerpo como texto
     const rawBody = await req.text();
@@ -115,6 +148,25 @@ export async function POST(req) {
       logError('❌ Webhook: Cuerpo vacío recibido');
       return NextResponse.json({ error: 'Empty body' }, { status: 400 });
     }
+
+    logInfo('📦 Raw body recibido:', {
+      length: rawBody.length,
+      preview: rawBody.substring(0, 200)
+    });
+
+    // NUEVO: Log completo de headers para debugging
+    const allHeaders = {};
+    req.headers.forEach((value, key) => {
+      allHeaders[key] = value;
+    });
+    
+    logInfo('🔍 Headers completos recibidos:', {
+      'x-signature': allHeaders['x-signature'],
+      'content-type': allHeaders['content-type'],
+      'user-agent': allHeaders['user-agent'],
+      'x-forwarded-for': allHeaders['x-forwarded-for'],
+      totalHeaders: Object.keys(allHeaders).length
+    });
 
     // 3. Validar firma
     const secret = process.env.MERCADOPAGO_WEBHOOK_KEY;
@@ -129,7 +181,6 @@ export async function POST(req) {
       }
     } else {
       logInfo('🔧 Webhook: Modo desarrollo - validación de firma opcional');
-      // Ejecutar validación para logs pero no fallar
       await isValidSignature(rawBody, secret, receivedSignature, queryParams);
     }
 
@@ -137,6 +188,12 @@ export async function POST(req) {
     let notification;
     try {
       notification = JSON.parse(rawBody);
+      logInfo('📋 Notificación parseada:', {
+        action: notification.action,
+        type: notification.type,
+        dataId: notification.data?.id,
+        liveMode: notification.live_mode
+      });
     } catch (parseError) {
       logError('❌ Webhook: Error parseando JSON:', parseError);
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
