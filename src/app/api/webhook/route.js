@@ -28,213 +28,51 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Validación de firma webhook CORREGIDA según documentación oficial de MercadoPago
-async function isValidSignature(rawBody, secret, receivedSignature, queryParams) {
+// Función CORREGIDA para validar firma según documentación oficial de MercadoPago v2.6
+function buildSignatureManifest({ ts, id, requestId }) {
+  return `id:${id};request-id:${requestId};ts:${ts};`;
+}
+
+function verifyWebhookSignature({ signatureHeader, rawBody, secret, id, requestId }) {
   try {
-    if (!receivedSignature || !secret) {
-      logWarn('❌ Webhook: Firma o secret faltante', {
-        hasSignature: !!receivedSignature,
-        hasSecret: !!secret
-      });
-      return false;
-    }
-    
-    logInfo('🔍 Validando firma webhook', {
-      signatureHeader: receivedSignature,
-      queryParams: queryParams || {},
-      bodyLength: rawBody.length
-    });
-
     // Extraer timestamp y signature del header x-signature
-    let timestamp, signature;
-    
-    if (receivedSignature.includes('ts=') && receivedSignature.includes('v1=')) {
-      const parts = receivedSignature.split(',').reduce((acc, part) => {
-        const [key, value] = part.split('=');
-        acc[key] = value;
-        return acc;
-      }, {});
-      
-      timestamp = parts.ts;
-      signature = parts.v1;
-    } else {
-      logWarn('❌ Formato de signature no reconocido:', receivedSignature);
-      return false;
-    }
-    
-    if (!timestamp || !signature) {
-      logWarn('❌ Webhook: Timestamp o signature faltante en header', {
-        timestamp,
-        signature: signature ? 'presente' : 'faltante'
-      });
+    const signatureMatch = signatureHeader.match(/ts=(\d+),v1=([a-f0-9]+)/);
+    if (!signatureMatch) {
+      logWarn('❌ Formato de signature header inválido:', signatureHeader);
       return false;
     }
 
-    // EXPANDIDO: Todos los formatos observados en producción de MercadoPago
-    const dataId = queryParams?.['data.id'] || '';
-    const requestId = queryParams?.id || queryParams?.['request-id'] || '';
+    const [, ts, v1] = signatureMatch;
     
-    // Lista completa de formatos basada en documentación y casos reales
-    const formats = [
-      // Formatos oficiales documentados
-      `id:${dataId};request-id:${requestId};ts:${timestamp};`,
-      `id:${dataId};ts:${timestamp};`,
-      `${timestamp}.${rawBody}`,
-      `ts=${timestamp}&id=${dataId}`,
-      
-      // Formatos adicionales observados en producción
-      `id=${dataId}&request-id=${requestId}&ts=${timestamp}`,
-      `${dataId}${requestId}${timestamp}`,
-      `id:${dataId};request-id:${requestId};ts:${timestamp};${rawBody}`,
-      
-      // Formatos específicos de v2 API
-      `data.id=${dataId}&type=payment&ts=${timestamp}`,
-      `id=${dataId}&type=payment&ts=${timestamp}`,
-      `${dataId}&${timestamp}`,
-      `${timestamp}&${dataId}`,
-      `id:${dataId};type:payment;ts:${timestamp};`,
-      `data.id:${dataId};ts:${timestamp};`,
-      `webhook_id=${requestId}&data_id=${dataId}&ts=${timestamp}`,
-      
-      // Formatos con hash del body
-      crypto.createHash('sha256').update(rawBody).digest('hex') + timestamp,
-      timestamp + crypto.createHash('sha256').update(rawBody).digest('hex'),
-      
-      // Formatos minimalistas
-      `${dataId}${timestamp}`,
-      `${timestamp}${dataId}`,
-      
-      // Formato con query params completos
-      Object.entries(queryParams || {}).map(([k,v]) => `${k}=${v}`).join('&') + `&ts=${timestamp}`,
-      
-      // Formatos legacy y alternativos
-      `notification_id=${dataId}&ts=${timestamp}`,
-      `id=${dataId};ts=${timestamp}`,
-      `data_id=${dataId}&timestamp=${timestamp}`,
-      `${dataId}-${timestamp}`,
-      `mp_${dataId}_${timestamp}`,
-      
-      // Formato con user_id específico (observado en logs)
-      `id:${dataId};user_id:2379483292;ts:${timestamp};`,
-      
-      // Formatos con prefijos específicos
-      `webhook:${dataId}:${timestamp}`,
-      `payment:${dataId}:${timestamp}`,
-      `mercadopago_${dataId}_${timestamp}`,
-      
-      // Formatos base64
-      Buffer.from(`${timestamp}:${dataId}`).toString('base64'),
-      Buffer.from(`${dataId}:${timestamp}`).toString('base64'),
-      
-      // Formatos de producción específicos
-      `prod_${dataId}_${timestamp}`,
-      `v2:${dataId}:${timestamp}`,
-      `webhook_v2_${dataId}_${timestamp}`,
-      
-      // Formatos con el body completo
-      `${rawBody}${timestamp}`,
-      `${timestamp}:${rawBody}`,
-      
-      // Formatos específicos para el caso de los logs
-      `type=payment&data.id=${dataId}&ts=${timestamp}`,
-      `data.id=${dataId}&type=payment&ts=${timestamp}`,
-      
-      // Formato directo observado en casos similares
-      `${dataId}_${timestamp}_webhook`,
-      `${timestamp}_${dataId}_payment`,
-      
-      // Formatos sin separadores
-      dataId + timestamp + 'webhook',
-      timestamp + dataId + 'payment',
-      
-      // Formato específico para Vercel/producción
-      `vercel_${dataId}_${timestamp}`,
-      `live_${dataId}_${timestamp}`,
-      
-      // Formatos extremos de fallback
-      `${dataId}`,
-      `${timestamp}`,
-      `webhook_${timestamp}`,
-      `payment_${dataId}`,
-      
-      // Formato con hash SHA256 completo
-      crypto.createHash('sha256').update(`${dataId}${timestamp}${rawBody}`).digest('hex'),
-      crypto.createHash('sha256').update(`${timestamp}${dataId}${rawBody}`).digest('hex'),
-      
-      // Último recurso: formatos observados en casos edge
-      `mp_webhook_${dataId}_${timestamp}`,
-      `${dataId}:${timestamp}:webhook`,
-      `webhook_data_${dataId}_ts_${timestamp}`,
-      
-      // Formato que puede estar usando MercadoPago actualmente
-      `signature_data_${dataId}_${timestamp}`,
-      `webhook_signature_${timestamp}_${dataId}`
-    ];
+    // Construir el manifest según documentación oficial
+    const manifest = buildSignatureManifest({ ts, id, requestId });
     
-    logInfo('🔍 Probando validación con formatos expandidos', {
-      totalFormatos: formats.length,
-      timestamp,
-      dataId,
+    // Calcular firma esperada
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(manifest)
+      .digest('hex');
+    
+    // Comparación segura
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(expectedSignature, 'hex'),
+      Buffer.from(v1, 'hex')
+    );
+    
+    logInfo('🔍 Validación de firma webhook:', {
+      manifest,
+      ts,
+      id,
       requestId,
-      signatureToMatch: signature.substring(0, 10) + '...'
+      signatureValid: isValid,
+      expectedStart: expectedSignature.substring(0, 10) + '...',
+      receivedStart: v1.substring(0, 10) + '...'
     });
     
-    // Probar cada formato
-    for (let i = 0; i < formats.length; i++) {
-      const format = formats[i];
-      
-      try {
-        const calculatedSignature = crypto
-          .createHmac('sha256', secret)
-          .update(format)
-          .digest('hex');
-        
-        const isValid = crypto.timingSafeEqual(
-          Buffer.from(signature, 'hex'),
-          Buffer.from(calculatedSignature, 'hex')
-        );
-        
-        if (isValid) {
-          logInfo(`🔐 Webhook: Validación exitosa con formato #${i + 1}`, {
-            received: signature.substring(0, 10) + '...',
-            calculated: calculatedSignature.substring(0, 10) + '...',
-            formatUsed: format.length > 100 ? format.substring(0, 100) + '...' : format,
-            formatIndex: i + 1
-          });
-          return true;
-        } else {
-          // Log solo para los primeros 10 formatos para evitar spam
-          if (i < 10) {
-            logInfo(`🔍 Formato #${i + 1} no coincide`, {
-              format: format.length > 50 ? format.substring(0, 50) + '...' : format,
-              expected: signature.substring(0, 10) + '...',
-              calculated: calculatedSignature.substring(0, 10) + '...'
-            });
-          }
-        }
-      } catch (err) {
-        logWarn(`⚠️ Error procesando formato #${i + 1}:`, {
-          format: format.substring(0, 50) + '...',
-          error: err.message
-        });
-        continue;
-      }
-    }
-    
-    // Si llegamos aquí, ningún formato funcionó
-    logError(`🔐 Webhook: Validación fallida con ${formats.length} formatos`, {
-      received: signature.substring(0, 10) + '...',
-      totalFormatsTested: formats.length,
-      queryParams,
-      bodyPreview: rawBody.substring(0, 100) + '...',
-      timestamp,
-      suggestion: 'Considera revisar la documentación más reciente de MercadoPago o contactar soporte'
-    });
-    
-    return false;
+    return isValid;
     
   } catch (error) {
-    logError('❌ Webhook: Error validando firma:', error);
+    logError('❌ Error en verificación de firma:', error);
     return false;
   }
 }
@@ -244,18 +82,20 @@ export async function POST(req) {
   logInfo('🔔 Webhook: Iniciando procesamiento');
 
   try {
-    // 1. Extraer query parameters (MercadoPago los incluye)
+    // 1. Extraer query parameters
     const url = new URL(req.url);
     const queryParams = {};
     for (const [key, value] of url.searchParams.entries()) {
       queryParams[key] = value;
     }
     
-    // NUEVO: Agregar logging más detallado
-    logInfo('📋 Query parameters recibidos:', queryParams);
-    logInfo('🔗 URL completa:', req.url);
-
-    // 2. Obtener el cuerpo como texto
+    // 2. Obtener datos necesarios para validación
+    const id = queryParams['data.id'];
+    const requestId = req.headers.get('x-request-id') || req.headers.get('X-Request-Id') || '';
+    const signatureHeader = req.headers.get('x-signature') || '';
+    const secret = process.env.MERCADOPAGO_WEBHOOK_KEY;
+    
+    // 3. Obtener body
     const rawBody = await req.text();
     
     if (!rawBody) {
@@ -263,42 +103,47 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Empty body' }, { status: 400 });
     }
 
-    logInfo('📦 Raw body recibido:', {
-      length: rawBody.length,
-      preview: rawBody.substring(0, 200)
+    // Log detallado para debugging
+    logInfo('📋 Datos del webhook recibidos:', {
+      id,
+      requestId,
+      hasSignature: !!signatureHeader,
+      bodyLength: rawBody.length,
+      queryParams,
+      userAgent: req.headers.get('user-agent')
     });
 
-    // NUEVO: Log completo de headers para debugging
-    const allHeaders = {};
-    req.headers.forEach((value, key) => {
-      allHeaders[key] = value;
-    });
-    
-    logInfo('🔍 Headers completos recibidos:', {
-      'x-signature': allHeaders['x-signature'],
-      'content-type': allHeaders['content-type'],
-      'user-agent': allHeaders['user-agent'],
-      'x-forwarded-for': allHeaders['x-forwarded-for'],
-      totalHeaders: Object.keys(allHeaders).length
-    });
-
-    // 3. Validar firma
-    const secret = process.env.MERCADOPAGO_WEBHOOK_KEY;
-    const receivedSignature = req.headers.get('x-signature') || '';
-    
-    // En producción, validar firma obligatorio; en desarrollo opcional
+    // 4. Validar firma (obligatorio en producción)
     if (process.env.NODE_ENV === 'production') {
-      const isValid = await isValidSignature(rawBody, secret, receivedSignature, queryParams);
+      if (!signatureHeader || !id || !secret) {
+        logError('❌ Webhook: Datos requeridos faltantes para validación', {
+          hasSignature: !!signatureHeader,
+          hasId: !!id,
+          hasSecret: !!secret,
+          hasRequestId: !!requestId
+        });
+        return NextResponse.json({ error: 'Missing required data for validation' }, { status: 400 });
+      }
+
+      const isValid = verifyWebhookSignature({
+        signatureHeader,
+        rawBody,
+        secret,
+        id,
+        requestId
+      });
+
       if (!isValid) {
         logError('❌ Webhook: Firma inválida en producción');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
+      
+      logInfo('✅ Webhook: Firma válida');
     } else {
-      logInfo('🔧 Webhook: Modo desarrollo - validación de firma opcional');
-      await isValidSignature(rawBody, secret, receivedSignature, queryParams);
+      logInfo('🔧 Webhook: Modo desarrollo - validación de firma omitida');
     }
 
-    // 4. Parsear notificación
+    // 5. Parsear notificación
     let notification;
     try {
       notification = JSON.parse(rawBody);
@@ -313,8 +158,8 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
-    // 5. Validar estructura básica - usar múltiples fuentes para payment ID
-    const paymentId = notification.data?.id || queryParams['data.id'];
+    // 6. Obtener payment ID de múltiples fuentes
+    const paymentId = notification.data?.id || id;
     const eventType = notification.type || notification.action;
     
     if (!paymentId) {
@@ -324,7 +169,7 @@ export async function POST(req) {
     
     logInfo(`🔔 Webhook válido: tipo=${eventType}, payment_id=${paymentId}`);
 
-    // 6. Procesar solo notificaciones de pago
+    // 7. Procesar solo notificaciones de pago
     if (eventType === 'payment' || eventType === 'payment.updated' || eventType === 'payment.created') {
       await handlePaymentNotification(paymentId);
     } else {

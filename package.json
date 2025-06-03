@@ -14,7 +14,11 @@
     "test:webhook:prod": "node src/scripts/test-webhook-prod.js",
     "test:webhook:flow": "node src/scripts/test-webhook-flow.js",
     "test:webhook:api": "curl -X POST -H 'Content-Type: application/json' -d '{\"paymentId\":\"123456789\",\"status\":\"approved\"}' https://mercadopagoiframe.vercel.app/api/test-webhook",
-    "test:webhook:complete": "node src/scripts/test-webhook-flow-with-mock.js"
+    "test:webhook:complete": "node src/scripts/test-webhook-flow-with-mock.js",
+    "test:webhook:v2": "node src/scripts/test-webhook-v2.js",
+    "diagnose": "node src/scripts/diagnose-env.js",
+    "test:webhook:debug": "node --inspect src/scripts/test-webhook-v2.js",
+    "env:check": "node -e \"require('dotenv').config({path: '.env.local'}); console.log('✅ Variables cargadas:', Object.keys(process.env).filter(k => k.includes('MERCADO') || k.includes('SUPABASE')).length);\""
   },
   "keywords": [
     "mercadopago",
@@ -34,7 +38,7 @@
     "google-auth-library": "^9.15.1",
     "google-spreadsheet": "^4.1.4",
     "googleapis": "^149.0.0",
-    "mercadopago": "^2.4.0",
+    "mercadopago": "^2.6.0",
     "next": "^14.0.4",
     "nodemailer": "^7.0.3",
     "pdf-lib": "^1.17.1",
