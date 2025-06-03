@@ -20,7 +20,8 @@ console.log('🔧 Webhook variables check:', {
   hasWebhookKey: !!process.env.MERCADOPAGO_WEBHOOK_KEY,
   hasAccessToken: !!process.env.MERCADOPAGO_ACCESS_TOKEN,
   environment: process.env.NODE_ENV,
-  webhookKeyLength: process.env.MERCADOPAGO_WEBHOOK_KEY?.length
+  webhookKeyLength: process.env.MERCADOPAGO_WEBHOOK_KEY?.length,
+  accessTokenType: process.env.MERCADOPAGO_ACCESS_TOKEN?.substring(0, 4) // TEST o APP-
 });
 
 // Inicializar Supabase
@@ -192,18 +193,69 @@ export async function POST(req) {
   }
 }
 
-// Función principal para manejar notificaciones de pago
+// Función principal para manejar notificaciones de pago - MEJORADA
 async function handlePaymentNotification(paymentId) {
   try {
     logInfo(`🔍 Procesando pago: ${paymentId}`);
 
-    // 1. Obtener información del pago desde MercadoPago
+    // 1. Obtener información del pago desde MercadoPago con mejor manejo de errores
     const mpClient = new MercadoPagoConfig({ 
       accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN 
     });
     const paymentClient = new Payment(mpClient);
     
-    const { response: paymentInfo } = await paymentClient.get({ id: paymentId });
+    let paymentInfo;
+    let mpApiError = null;
+    
+    try {
+      logInfo(`🌐 Consultando pago ${paymentId} en MercadoPago API...`);
+      const response = await paymentClient.get({ id: paymentId });
+      
+      // CRITICAL: Verificar estructura de respuesta
+      if (response && response.response) {
+        paymentInfo = response.response;
+        logInfo(`✅ Pago consultado exitosamente: ${paymentId}`);
+      } else {
+        logError(`❌ Respuesta de MP API inesperada:`, {
+          hasResponse: !!response,
+          responseKeys: response ? Object.keys(response) : [],
+          paymentId
+        });
+        throw new Error('Estructura de respuesta inesperada de MercadoPago API');
+      }
+      
+    } catch (mpError) {
+      mpApiError = mpError;
+      logError(`❌ Error consultando pago ${paymentId} en MercadoPago:`, {
+        error: mpError.message,
+        status: mpError.status,
+        cause: mpError.cause,
+        stack: mpError.stack
+      });
+      
+      // Si es un error 404, el pago no existe en MP
+      if (mpError.status === 404) {
+        logWarn(`⚠️ Pago ${paymentId} no encontrado en MercadoPago - posible webhook duplicado o pago eliminado`);
+        return; // Salir silenciosamente para pagos no encontrados
+      }
+      
+      // Para otros errores, re-lanzar
+      throw new Error(`MercadoPago API error: ${mpError.message} (status: ${mpError.status})`);
+    }
+
+    // 2. Verificar que paymentInfo tenga la estructura esperada
+    if (!paymentInfo) {
+      throw new Error(`paymentInfo es undefined después de consulta exitosa`);
+    }
+
+    if (!paymentInfo.status) {
+      logError(`❌ paymentInfo sin status:`, {
+        paymentInfo: Object.keys(paymentInfo),
+        paymentId
+      });
+      throw new Error(`paymentInfo.status is undefined`);
+    }
+
     const currentStatus = paymentInfo.status;
     const statusDetail = paymentInfo.status_detail;
     const externalReference = paymentInfo.external_reference;
@@ -215,7 +267,7 @@ async function handlePaymentNotification(paymentId) {
       return;
     }
 
-    // 2. Buscar el payment_request en nuestra BD
+    // 3. Buscar el payment_request en nuestra BD
     const { data: paymentRequest, error: fetchError } = await supabase
       .from('payment_requests')
       .select('*')
@@ -230,13 +282,13 @@ async function handlePaymentNotification(paymentId) {
     const previousStatus = paymentRequest.payment_status;
     logInfo(`📊 Estado: ${previousStatus} → ${currentStatus}`);
 
-    // 3. Verificar si ya fue procesado (idempotencia)
+    // 4. Verificar si ya fue procesado (idempotencia)
     if (previousStatus === currentStatus) {
       logInfo(`✅ Pago ${paymentId} ya tiene estado ${currentStatus} - ignorando duplicado`);
       return;
     }
 
-    // 4. Actualizar estado en payment_requests
+    // 5. Actualizar estado en payment_requests
     const { error: updateError } = await supabase
       .from('payment_requests')
       .update({
@@ -254,7 +306,7 @@ async function handlePaymentNotification(paymentId) {
 
     logInfo(`✅ Payment request ${externalReference} actualizado exitosamente`);
 
-    // 5. Ejecutar acciones según el nuevo estado
+    // 6. Ejecutar acciones según el nuevo estado
     if (currentStatus === 'approved' && previousStatus !== 'approved') {
       await handleApprovedPayment(paymentRequest, paymentInfo);
     } else if (currentStatus === 'rejected' && previousStatus !== 'rejected') {
@@ -266,8 +318,12 @@ async function handlePaymentNotification(paymentId) {
   } catch (error) {
     logError(`❌ Error procesando pago ${paymentId}:`, {
       message: error.message,
-      stack: error.stack
+      stack: error.stack,
+      name: error.name
     });
+    
+    // No re-lanzar el error para evitar que el webhook falle completamente
+    // MercadoPago seguirá reenviando si respondemos con error
   }
 }
 
