@@ -3,9 +3,9 @@ import { MercadoPagoConfig, Payment } from 'mercadopago';
 import crypto from 'crypto';
 import { logInfo, logError, logWarn } from '../../../utils/logger';
 import { createClient } from '@supabase/supabase-js';
-import { updateStockAfterOrder } from '../../../lib/productService';
+import { updateStockAfterOrder, restoreStockAfterRefund, updateOrderStatus } from '../../../lib/productService';
 import { generateReceiptPDF } from '../../../lib/pdfService';
-import { sendReceiptEmail } from '../../../lib/emailService';
+import { sendReceiptEmail, sendRefundEmail, notifyChargebackToAdmins } from '../../../lib/emailService';
 
 // Verificar variables críticas al cargar el módulo
 if (!process.env.MERCADOPAGO_WEBHOOK_KEY) {
@@ -618,94 +618,52 @@ async function sendConfirmationEmail(paymentRequest, paymentInfo) {
 async function sendPaymentApprovedEmail(paymentRequest, paymentInfo) {
   try {
     const customerData = paymentRequest.customer_data;
-    const paymentId = paymentInfo.id;
+    let orderItems = paymentRequest.order_items;
+
+    if (typeof orderItems === 'string') {
+      orderItems = JSON.parse(orderItems);
+    }
 
     if (!customerData?.email) {
-      logWarn(`⚠️ No hay email para enviar notificación de aprobación del pago ${paymentId}`);
+      logWarn(`⚠️ No hay email para enviar confirmación del pago ${paymentInfo.id}`);
       return;
     }
 
-    // Contenido del email
-    const subject = `Pago aprobado - Orden ${paymentRequest.id}`;
-    const text = `Estimado/a ${customerData.first_name},\n\nSu pago ha sido aprobado exitosamente. Su orden está siendo procesada.\n\nID de Pago: ${paymentId}\nOrden ID: ORDER_${paymentRequest.id}\n\nGracias por su compra!`;
-    const html = `<p>Estimado/a ${customerData.first_name},</p><p>Su pago ha sido aprobado exitosamente. Su orden está siendo procesada.</p><p><strong>ID de Pago:</strong> ${paymentId}<br><strong>Orden ID:</strong> ORDER_${paymentRequest.id}</p><p>Gracias por su compra!</p>`;
-
-    // Enviar email (aquí se puede usar una función de envío de email ya existente)
-    await sendEmail({
-      to: customerData.email,
-      subject,
-      text,
-      html
+    // Generar PDF
+    const receiptPDF = await generateReceiptPDF({
+      orderId: paymentRequest.id,
+      customerData,
+      items: orderItems,
+      totalAmount: paymentRequest.total_amount,
+      paymentStatus: 'approved',
+      paymentId: paymentInfo.id
     });
 
-    logInfo(`✅ Email de aprobación enviado a ${customerData.email}`);
-
-  } catch (error) {
-    logError(`❌ Error enviando email de aprobación para pago ${paymentId}:`, error);
-  }
-}
-
-// ✅ NUEVO: Enviar email de reembolso
-async function sendRefundEmail(paymentRequest, paymentInfo) {
-  try {
-    const customerData = paymentRequest.customer_data;
-    const paymentId = paymentInfo.id;
-
-    if (!customerData?.email) {
-      logWarn(`⚠️ No hay email para enviar notificación de reembolso del pago ${paymentId}`);
-      return;
-    }
-
-    // Contenido del email
-    const subject = `Reembolso procesado - Pago ${paymentId}`;
-    const text = `Estimado/a ${customerData.first_name},\n\nSu pago ha sido reembolsado exitosamente.\n\nID de Pago: ${paymentId}\nOrden ID: ORDER_${paymentRequest.id}\n\nGracias por su comprensión.`;
-    const html = `<p>Estimado/a ${customerData.first_name},</p><p>Su pago ha sido reembolsado exitosamente.</p><p><strong>ID de Pago:</strong> ${paymentId}<br><strong>Orden ID:</strong> ORDER_${paymentRequest.id}</p><p>Gracias por su comprensión.</p>`;
-
-    // Enviar email (aquí se puede usar una función de envío de email ya existente)
-    await sendEmail({
+    // Enviar email usando función existente
+    const emailResult = await sendReceiptEmail({
       to: customerData.email,
-      subject,
-      text,
-      html
+      customerName: `${customerData.first_name || ''} ${customerData.last_name || ''}`.trim(),
+      orderId: paymentRequest.id,
+      paymentId: paymentInfo.id,
+      amount: paymentRequest.total_amount,
+      items: orderItems,
+      pdfAttachment: receiptPDF
     });
 
-    logInfo(`✅ Email de reembolso enviado a ${customerData.email}`);
-
-  } catch (error) {
-    logError(`❌ Error enviando email de reembolso para pago ${paymentId}:`, error);
-  }
-}
-
-// ✅ NUEVO: Notificar contracargo a administradores
-async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
-  try {
-    const paymentId = paymentInfo.id;
-    const orderId = paymentRequest.id;
-
-    // Obtener lista de administradores (aquí se debe implementar según la lógica de la aplicación)
-    const admins = await getAdminUsers();
-
-    for (const admin of admins) {
-      // Contenido del email
-      const subject = `Notificación de contracargo - Pago ${paymentId}`;
-      const text = `Se ha detectado un contracargo para el pago ${paymentId} asociado a la orden ${orderId}.\n\nPor favor, revise el estado del pedido y tome las acciones necesarias.`;
-      const html = `<p>Se ha detectado un contracargo para el pago ${paymentId} asociado a la orden ${orderId}.</p><p>Por favor, revise el estado del pedido y tome las acciones necesarias.</p>`;
-
-      // Enviar email (aquí se puede usar una función de envío de email ya existente)
-      await sendEmail({
-        to: admin.email,
-        subject,
-        text,
-        html
-      });
-
-      logInfo(`✅ Notificación de contracargo enviada a ${admin.email}`);
+    if (emailResult.success) {
+      logInfo(`✅ Email de aprobación enviado a ${customerData.email}`);
+    } else {
+      logError(`❌ Error enviando email:`, emailResult.error);
     }
 
   } catch (error) {
-    logError(`❌ Error notificando contracargo a administradores para pago ${paymentId}:`, error);
+    logError(`❌ Error en sendPaymentApprovedEmail:`, error);
   }
 }
+
+// ✅ ELIMINAR: Funciones duplicadas que ya existen en emailService.js
+// - sendRefundEmail (ya existe)
+// - notifyChargebackToAdmins (ya existe)
 
 // ✅ NUEVA: Función de diagnóstico de timing
 async function diagnoseTimingIssue(externalReference, paymentId) {

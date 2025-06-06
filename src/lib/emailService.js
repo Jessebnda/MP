@@ -515,12 +515,158 @@ export async function sendPaymentApprovedEmail(paymentRequest, paymentInfo) {
   }
 }
 
-// ✅ NUEVA: Email de reembolso
+// ✅ COMPLETAR: Email de reembolso
 export async function sendRefundEmail(paymentRequest, paymentInfo) {
-  // Implementar lógica de email de reembolso...
+  try {
+    const customerData = paymentRequest.customer_data;
+    let orderItems = paymentRequest.order_items;
+
+    if (typeof orderItems === 'string') {
+      orderItems = JSON.parse(orderItems);
+    }
+
+    if (!customerData?.email) {
+      logWarn(`⚠️ No hay email para enviar notificación de reembolso del pago ${paymentInfo.id}`);
+      return { success: false, error: 'No email provided' };
+    }
+
+    const customerName = `${customerData.first_name || ''} ${customerData.last_name || ''}`.trim();
+    const refundAmount = paymentRequest.total_amount;
+
+    // Usar la función base de envío de email
+    const emailResult = await sendEmail({
+      to: customerData.email,
+      subject: `Reembolso procesado - Orden ${paymentRequest.id}`,
+      html: getRefundEmailTemplate({
+        customerName,
+        orderId: paymentRequest.id,
+        paymentId: paymentInfo.id,
+        refundAmount,
+        items: orderItems
+      })
+    });
+
+    if (emailResult.success) {
+      logInfo(`✅ Email de reembolso enviado a ${customerData.email}`);
+    } else {
+      logError(`❌ Error enviando email de reembolso:`, emailResult.error);
+    }
+
+    return emailResult;
+
+  } catch (error) {
+    logError(`❌ Error en sendRefundEmail:`, error);
+    return { success: false, error: error.message };
+  }
 }
 
-// ✅ NUEVA: Notificar contracargos a admins
+// ✅ COMPLETAR: Notificar contracargos a admins
 export async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
-  // Implementar notificación urgente a administradores...
+  try {
+    const paymentId = paymentInfo.id;
+    const orderId = paymentRequest.id;
+
+    // Lista temporal de administradores - mover a variable de entorno
+    const adminEmails = [
+      process.env.ADMIN_EMAIL_1,
+      process.env.ADMIN_EMAIL_2
+    ].filter(Boolean);
+
+    if (adminEmails.length === 0) {
+      logWarn('⚠️ No hay emails de administrador configurados');
+      return { success: false, error: 'No admin emails configured' };
+    }
+
+    for (const adminEmail of adminEmails) {
+      const emailResult = await sendEmail({
+        to: adminEmail,
+        subject: `🚨 ALERTA: Contracargo detectado - Pago ${paymentId}`,
+        html: getChargebackAlertTemplate({
+          paymentId,
+          orderId,
+          customerData: paymentRequest.customer_data,
+          amount: paymentRequest.total_amount
+        })
+      });
+
+      if (emailResult.success) {
+        logInfo(`✅ Alerta de contracargo enviada a ${adminEmail}`);
+      } else {
+        logError(`❌ Error enviando alerta de contracargo a ${adminEmail}:`, emailResult.error);
+      }
+    }
+
+    return { success: true };
+
+  } catch (error) {
+    logError(`❌ Error en notifyChargebackToAdmins:`, error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Template para email de reembolso
+function getRefundEmailTemplate({ customerName, orderId, paymentId, refundAmount, items }) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #f8d7da; color: #721c24; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+        <h1 style="margin: 0; font-size: 24px;">💰 Reembolso Procesado</h1>
+        <p style="margin: 10px 0 0; font-size: 16px;">Su reembolso ha sido procesado exitosamente</p>
+      </div>
+      
+      <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+        <h2 style="color: #2c3e50; margin: 0 0 15px; font-size: 20px;">Detalles del Reembolso</h2>
+        <p><strong>Cliente:</strong> ${customerName}</p>
+        <p><strong>Orden ID:</strong> ${orderId}</p>
+        <p><strong>Pago ID:</strong> ${paymentId}</p>
+        <p><strong>Monto reembolsado:</strong> $${refundAmount} MXN</p>
+      </div>
+
+      ${items && items.length > 0 ? `
+      <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+        <h3 style="color: #2c3e50; margin: 0 0 15px;">Productos reembolsados:</h3>
+        ${items.map(item => `
+          <div style="border-bottom: 1px solid #ddd; padding: 10px 0;">
+            <strong>${item.name}</strong><br>
+            Cantidad: ${item.quantity} - Precio: $${item.price} MXN
+          </div>
+        `).join('')}
+      </div>
+      ` : ''}
+
+      <div style="background-color: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 8px; text-align: center;">
+        <p style="margin: 0;">El reembolso será reflejado en su método de pago original en 3-5 días hábiles.</p>
+      </div>
+    </div>
+  `;
+}
+
+// Template para alerta de contracargo
+function getChargebackAlertTemplate({ paymentId, orderId, customerData, amount }) {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #f8d7da; color: #721c24; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
+        <h1 style="margin: 0; font-size: 24px;">🚨 ALERTA: Contracargo Detectado</h1>
+        <p style="margin: 10px 0 0; font-size: 16px;">Requiere acción inmediata</p>
+      </div>
+      
+      <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+        <h2 style="color: #2c3e50; margin: 0 0 15px; font-size: 20px;">Detalles del Contracargo</h2>
+        <p><strong>Pago ID:</strong> ${paymentId}</p>
+        <p><strong>Orden ID:</strong> ${orderId}</p>
+        <p><strong>Monto:</strong> $${amount} MXN</p>
+        <p><strong>Cliente:</strong> ${customerData?.email || 'N/A'}</p>
+        <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-MX')}</p>
+      </div>
+
+      <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px;">
+        <p style="margin: 0;"><strong>Acciones requeridas:</strong></p>
+        <ul style="margin: 10px 0 0 20px;">
+          <li>Revisar la transacción en MercadoPago</li>
+          <li>Verificar documentación de la orden</li>
+          <li>Preparar evidencia para disputar si es necesario</li>
+          <li>Contactar al cliente si es apropiado</li>
+        </ul>
+      </div>
+    </div>
+  `;
 }
