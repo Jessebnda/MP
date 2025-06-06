@@ -580,8 +580,7 @@ export async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
 
     // Lista temporal de administradores - mover a variable de entorno
     const adminEmails = [
-      process.env.ADMIN_EMAIL_1,
-      process.env.ADMIN_EMAIL_2
+      process.env.LOGISTICS_EMAIL
     ].filter(Boolean);
 
     if (adminEmails.length === 0) {
