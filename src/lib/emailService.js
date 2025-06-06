@@ -460,114 +460,6 @@ function getLogisticsEmailTemplate({ orderId, isApproved, orderData }) {
   `;
 }
 
-// Template para email de reembolso
-function getRefundEmailTemplate({ customerName, orderId, paymentId, subtotalRefund, shippingRefund, totalRefundAmount, items }) {
-  return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
-      <!-- Header con logo -->
-      <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
-        <img src="https://framerusercontent.com/images/mf7sOfj3j3JPwUTBq7iv2eBpw.png?scale-down-to=512" alt="Altura Divina" style="max-width: 150px; height: auto;">
-      </div>
-      
-      <div style="background-color: #f8d7da; color: #721c24; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
-        <h1 style="margin: 0; font-size: 24px;">💰 Reembolso Procesado</h1>
-        <p style="margin: 10px 0 0; font-size: 16px;">Su reembolso ha sido procesado exitosamente</p>
-      </div>
-      
-      <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
-        <h2 style="color: #2c3e50; margin: 0 0 15px; font-size: 20px;">Detalles del Reembolso</h2>
-        <p><strong>Cliente:</strong> ${customerName}</p>
-        <p><strong>Orden ID:</strong> ${orderId}</p>
-        <p><strong>Pago ID:</strong> ${paymentId}</p>
-        
-        <!-- ✅ NUEVO: Desglose del reembolso -->
-        <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #dee2e6;">
-          <h3 style="color: #2c3e50; margin: 0 0 10px; font-size: 16px;">💰 Desglose del Reembolso</h3>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span>Subtotal productos:</span>
-            <span><strong>$${subtotalRefund.toFixed(2)} MXN</strong></span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span>Costo de envío:</span>
-            <span><strong>$${shippingRefund.toFixed(2)} MXN</strong></span>
-          </div>
-          <hr style="margin: 10px 0; border: none; border-top: 1px solid #dee2e6;">
-          <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; color: #27ae60;">
-            <span>Total reembolsado:</span>
-            <span>$${totalRefundAmount.toFixed(2)} MXN</span>
-          </div>
-        </div>
-      </div>
-
-      ${items && items.length > 0 ? `
-      <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
-        <h3 style="color: #2c3e50; margin: 0 0 15px;">📦 Productos reembolsados:</h3>
-        ${items.map(item => `
-          <div style="border-bottom: 1px solid #ddd; padding: 10px 0;">
-            <strong>${item.name}</strong><br>
-            <span style="color: #666;">Cantidad: ${item.quantity} - Precio unitario: $${item.price} MXN</span>
-          </div>
-        `).join('')}
-      </div>
-      ` : ''}
-
-      <div style="background-color: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 8px; text-align: center;">
-        <p style="margin: 0;">El reembolso será reflejado en su método de pago original en 3-5 días hábiles.</p>
-      </div>
-      
-      <!-- Footer -->
-      <div style="text-align: center; padding-top: 20px; border-top: 1px solid #eee; margin-top: 25px;">
-        <p style="color: #95a5a6; font-size: 12px; margin: 0;">
-          &copy; ${new Date().getFullYear()} Altura Divina. Todos los derechos reservados.
-        </p>
-      </div>
-    </div>
-  `;
-}
-
-// Template para alerta de contracargo
-function getChargebackAlertTemplate({ paymentId, orderId, customerData, amount }) {
-  return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
-      <!-- Header con logo -->
-      <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
-        <img src="https://framerusercontent.com/images/mf7sOfj3j3JPwUTBq7iv2eBpw.png?scale-down-to=512" alt="Altura Divina" style="max-width: 150px; height: auto;">
-      </div>
-      
-      <div style="background-color: #f8d7da; color: #721c24; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
-        <h1 style="margin: 0; font-size: 24px;">🚨 ALERTA: Contracargo Detectado</h1>
-        <p style="margin: 10px 0 0; font-size: 16px;">Requiere acción inmediata</p>
-      </div>
-      
-      <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
-        <h2 style="color: #2c3e50; margin: 0 0 15px; font-size: 20px;">Detalles del Contracargo</h2>
-        <p><strong>Pago ID:</strong> ${paymentId}</p>
-        <p><strong>Orden ID:</strong> ${orderId}</p>
-        <p><strong>Monto:</strong> $${amount} MXN</p>
-        <p><strong>Cliente:</strong> ${customerData?.email || 'N/A'}</p>
-        <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-MX')}</p>
-      </div>
-
-      <div style="background-color: #fff3cd; color: #856404; padding: 15px; border-radius: 8px;">
-        <p style="margin: 0;"><strong>Acciones requeridas:</strong></p>
-        <ul style="margin: 10px 0 0 20px;">
-          <li>Revisar la transacción en MercadoPago</li>
-          <li>Verificar documentación de la orden</li>
-          <li>Preparar evidencia para disputar si es necesario</li>
-          <li>Contactar al cliente si es apropiado</li>
-        </ul>
-      </div>
-      
-      <!-- Footer -->
-      <div style="text-align: center; padding-top: 20px; border-top: 1px solid #eee; margin-top: 25px;">
-        <p style="color: #95a5a6; font-size: 12px; margin: 0;">
-          &copy; ${new Date().getFullYear()} Altura Divina. Todos los derechos reservados.
-        </p>
-      </div>
-    </div>
-  `;
-}
-
 // ✅ NUEVA: Email de confirmación de solicitud (inmediato)
 export async function sendPaymentRequestConfirmation({ userData, paymentId, status, orderId, amount }) {
   try {
@@ -726,7 +618,7 @@ export async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
   }
 }
 
-// Template para email de reembolso
+// ✅ AGREGAR: Template para email de reembolso
 function getRefundEmailTemplate({ customerName, orderId, paymentId, subtotalRefund, shippingRefund, totalRefundAmount, items }) {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
@@ -791,7 +683,7 @@ function getRefundEmailTemplate({ customerName, orderId, paymentId, subtotalRefu
   `;
 }
 
-// Template para alerta de contracargo
+// ✅ AGREGAR: Template para alerta de contracargo
 function getChargebackAlertTemplate({ paymentId, orderId, customerData, amount }) {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff;">
