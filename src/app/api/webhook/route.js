@@ -203,7 +203,52 @@ async function handlePaymentNotification(paymentId) {
     });
     const paymentClient = new Payment(mpClient);
     
-    const { response: paymentInfo } = await paymentClient.get({ id: paymentId });
+    // ✅ CORRECCIÓN: Manejo correcto de la respuesta del SDK v2.6
+    let paymentInfo;
+    try {
+      const paymentResponse = await paymentClient.get({ id: paymentId });
+      
+      // El SDK v2.6 puede devolver la respuesta en diferentes formatos
+      if (paymentResponse.response) {
+        paymentInfo = paymentResponse.response;
+      } else if (paymentResponse.body) {
+        paymentInfo = paymentResponse.body;
+      } else {
+        paymentInfo = paymentResponse;
+      }
+      
+      // Validar que tenemos los datos necesarios
+      if (!paymentInfo || typeof paymentInfo !== 'object') {
+        logError(`❌ Respuesta inválida de MercadoPago para pago ${paymentId}:`, paymentResponse);
+        return;
+      }
+      
+      logInfo(`🔍 Respuesta completa de MercadoPago:`, {
+        hasResponse: !!paymentResponse.response,
+        hasBody: !!paymentResponse.body,
+        keys: Object.keys(paymentResponse),
+        paymentInfoKeys: paymentInfo ? Object.keys(paymentInfo) : []
+      });
+      
+      // ✅ DEBUGGING TEMPORAL: Capturar estructura completa
+      logInfo(`🔍 DEBUG - Estructura de respuesta MercadoPago:`, {
+        responseType: typeof paymentResponse,
+        responseKeys: Object.keys(paymentResponse || {}),
+        hasResponse: 'response' in (paymentResponse || {}),
+        hasBody: 'body' in (paymentResponse || {}),
+        responseResponseKeys: paymentResponse?.response ? Object.keys(paymentResponse.response) : null,
+        responseBodyKeys: paymentResponse?.body ? Object.keys(paymentResponse.body) : null
+      });
+      
+    } catch (apiError) {
+      logError(`❌ Error consultando API de MercadoPago para pago ${paymentId}:`, {
+        message: apiError.message,
+        cause: apiError.cause,
+        status: apiError.status
+      });
+      return;
+    }
+    
     const currentStatus = paymentInfo.status;
     const statusDetail = paymentInfo.status_detail;
     const externalReference = paymentInfo.external_reference;
