@@ -515,7 +515,7 @@ export async function sendPaymentApprovedEmail(paymentRequest, paymentInfo) {
   }
 }
 
-// ✅ COMPLETAR: Email de reembolso
+// ✅ CORREGIR: Email de reembolso usando transport.sendMail directamente
 export async function sendRefundEmail(paymentRequest, paymentInfo) {
   try {
     const customerData = paymentRequest.customer_data;
@@ -533,8 +533,9 @@ export async function sendRefundEmail(paymentRequest, paymentInfo) {
     const customerName = `${customerData.first_name || ''} ${customerData.last_name || ''}`.trim();
     const refundAmount = paymentRequest.total_amount;
 
-    // Usar la función base de envío de email
-    const emailResult = await sendEmail({
+    // ✅ USAR: transport.sendMail directamente en lugar de sendEmail
+    const emailResult = await transport.sendMail({
+      from: `"Altura Divina" <${process.env.EMAIL_USER}>`,
       to: customerData.email,
       subject: `Reembolso procesado - Orden ${paymentRequest.id}`,
       html: getRefundEmailTemplate({
@@ -546,13 +547,13 @@ export async function sendRefundEmail(paymentRequest, paymentInfo) {
       })
     });
 
-    if (emailResult.success) {
+    if (emailResult.messageId) {
       logInfo(`✅ Email de reembolso enviado a ${customerData.email}`);
+      return { success: true, messageId: emailResult.messageId };
     } else {
-      logError(`❌ Error enviando email de reembolso:`, emailResult.error);
+      logError(`❌ Error enviando email de reembolso - sin messageId`);
+      return { success: false, error: 'No messageId returned' };
     }
-
-    return emailResult;
 
   } catch (error) {
     logError(`❌ Error en sendRefundEmail:`, error);
@@ -560,7 +561,7 @@ export async function sendRefundEmail(paymentRequest, paymentInfo) {
   }
 }
 
-// ✅ COMPLETAR: Notificar contracargos a admins
+// ✅ CORREGIR: Notificar contracargos usando transport.sendMail directamente
 export async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
   try {
     const paymentId = paymentInfo.id;
@@ -578,7 +579,9 @@ export async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
     }
 
     for (const adminEmail of adminEmails) {
-      const emailResult = await sendEmail({
+      // ✅ USAR: transport.sendMail directamente en lugar de sendEmail
+      const emailResult = await transport.sendMail({
+        from: `"Sistema Altura Divina" <${process.env.EMAIL_USER}>`,
         to: adminEmail,
         subject: `🚨 ALERTA: Contracargo detectado - Pago ${paymentId}`,
         html: getChargebackAlertTemplate({
@@ -589,10 +592,10 @@ export async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
         })
       });
 
-      if (emailResult.success) {
+      if (emailResult.messageId) {
         logInfo(`✅ Alerta de contracargo enviada a ${adminEmail}`);
       } else {
-        logError(`❌ Error enviando alerta de contracargo a ${adminEmail}:`, emailResult.error);
+        logError(`❌ Error enviando alerta de contracargo a ${adminEmail} - sin messageId`);
       }
     }
 

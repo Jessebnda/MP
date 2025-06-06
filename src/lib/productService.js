@@ -247,29 +247,57 @@ export async function restoreStockAfterRefund(orderItems) {
     logInfo('📦 Restaurando stock después de reembolso/contracargo');
 
     for (const item of orderItems) {
-      const { error } = await supabase
-        .from('products')
-        .update({
-          stock: supabase.raw('stock + ?', [item.quantity])
-        })
-        .eq('id', item.id);
+      const productId = item.productId || item.id || item.product_id;
+      const quantity = parseInt(item.quantity) || 1;
 
-      if (error) {
-        logError(`❌ Error restaurando stock para producto ${item.id}:`, error);
+      if (!productId) {
+        logWarn(`⚠️ Item sin productId válido:`, item);
+        continue;
+      }
+
+      // ✅ USAR: supabaseAdmin en lugar de supabase
+      const { data: product, error: fetchError } = await supabaseAdmin
+        .from('products')
+        .select('id, name, stock_available')
+        .eq('id', productId)
+        .single();
+
+      if (fetchError || !product) {
+        logError(`❌ Error obteniendo producto ${productId}:`, fetchError);
+        continue;
+      }
+
+      // Calcular nuevo stock (restaurar)
+      const newStock = product.stock_available + quantity;
+
+      // ✅ USAR: supabaseAdmin en lugar de supabase
+      const { error: updateError } = await supabaseAdmin
+        .from('products')
+        .update({ 
+          stock_available: newStock,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', productId);
+
+      if (updateError) {
+        logError(`❌ Error restaurando stock para producto ${productId}:`, updateError);
       } else {
-        logInfo(`✅ Stock restaurado: +${item.quantity} para producto ${item.id}`);
+        logInfo(`✅ Stock restaurado para ${product.name}: ${product.stock_available} → ${newStock} (+${quantity})`);
       }
     }
 
+    logInfo(`✅ Restauración de stock completada`);
+
   } catch (error) {
     logError('❌ Error general restaurando stock:', error);
+    throw error;
   }
 }
 
-// ✅ NUEVA: Actualizar estado de orden
+// ✅ CORREGIR: Usar supabaseAdmin en lugar de supabase
 export async function updateOrderStatus(paymentRequestId, newStatus) {
   try {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('orders')
       .update({
         payment_status: newStatus,
@@ -285,5 +313,6 @@ export async function updateOrderStatus(paymentRequestId, newStatus) {
 
   } catch (error) {
     logError('❌ Error actualizando estado de orden:', error);
+    throw error;
   }
 }
