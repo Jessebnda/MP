@@ -214,8 +214,6 @@ async function handlePaymentNotification(paymentId) {
         return;
       }
       
-      // ✅ REMOVER DEBUG TEMPORAL ya que funciona
-      
     } catch (apiError) {
       logError(`❌ Error consultando API de MercadoPago para pago ${paymentId}:`, {
         message: apiError.message,
@@ -236,22 +234,32 @@ async function handlePaymentNotification(paymentId) {
       return;
     }
 
-    // 2. Buscar el payment_request en nuestra BD
-    const { data: paymentRequest, error: fetchError } = await supabase
-      .from('payment_requests')
-      .select('*')
-      .eq('id', externalReference)
-      .single();
+    // 2. ✅ USAR: Nueva lógica de retry inteligente
+    const { paymentRequest, error: fetchError } = await findPaymentRequestWithRetry(
+      externalReference, 
+      currentStatus
+    );
 
     if (fetchError || !paymentRequest) {
-      logWarn(`⚠️ Payment request ${externalReference} no encontrado - posiblemente pago rechazado sin payment_request`);
+      if (WEBHOOK_RETRY_CONFIG.RETRY_STATES.includes(currentStatus)) {
+        // Ejecutar diagnóstico antes de reportar error
+        await diagnoseTimingIssue(externalReference, paymentId);
+        
+        logError(`❌ CRÍTICO: Payment request ${externalReference} no encontrado para pago ${currentStatus}`);
+        logError(`🔍 Esto puede indicar problema de sincronización o datos perdidos`);
+        
+        // ✅ OPCIONAL: Notificar a administradores de problema crítico
+        await notifyAdminsOfMissingPaymentRequest(paymentId, externalReference, currentStatus);
+      } else {
+        logInfo(`ℹ️ Payment request ${externalReference} no encontrado para pago ${currentStatus} - esperado`);
+      }
       return;
     }
 
     const previousStatus = paymentRequest.payment_status;
     logInfo(`📊 Estado: ${previousStatus} → ${currentStatus}`);
 
-    // 3. ✅ NUEVA LÓGICA: Verificar si necesita actualización
+    // 3. Verificar si necesita actualización
     const needsUpdate = shouldUpdatePaymentStatus(previousStatus, currentStatus);
     
     if (!needsUpdate) {
@@ -277,7 +285,7 @@ async function handlePaymentNotification(paymentId) {
 
     logInfo(`✅ Payment request ${externalReference} actualizado exitosamente`);
 
-    // 5. ✅ NUEVA LÓGICA: Ejecutar acciones según transición de estado
+    // 5. Ejecutar acciones según transición de estado
     await handleStatusTransition(previousStatus, currentStatus, paymentRequest, paymentInfo);
 
   } catch (error) {
@@ -285,6 +293,86 @@ async function handlePaymentNotification(paymentId) {
       message: error.message,
       stack: error.stack
     });
+  }
+}
+
+// ✅ NUEVA CONFIGURACIÓN: Parámetros de retry configurables
+const WEBHOOK_RETRY_CONFIG = {
+  // Estados que justifican retry (pagos que deberían tener payment_request)
+  RETRY_STATES: ['approved', 'pending', 'in_process'],
+  // Estados que no justifican retry (pagos que pueden no tener payment_request)
+  NO_RETRY_STATES: ['rejected', 'cancelled'],
+  // Configuración de reintentos
+  MAX_RETRIES: 3,
+  INITIAL_DELAY: 1000, // 1 segundo
+  MAX_DELAY: 5000,     // 5 segundos máximo
+  BACKOFF_MULTIPLIER: 1.5
+};
+
+// ✅ MEJORAR: Función de retry con configuración avanzada
+async function findPaymentRequestWithRetry(externalReference, paymentStatus) {
+  const config = WEBHOOK_RETRY_CONFIG;
+  
+  // Decidir si usar retry basado en el estado del pago
+  if (!config.RETRY_STATES.includes(paymentStatus)) {
+    logInfo(`🚫 Estado ${paymentStatus} no requiere retry - búsqueda simple`);
+    const { data, error } = await supabase
+      .from('payment_requests')
+      .select('*')
+      .eq('id', externalReference)
+      .single();
+    return { paymentRequest: data, error };
+  }
+
+  // Usar retry logic para estados que lo justifican
+  let currentDelay = config.INITIAL_DELAY;
+  
+  for (let attempt = 1; attempt <= config.MAX_RETRIES; attempt++) {
+    const startTime = Date.now();
+    logInfo(`🔄 [${attempt}/${config.MAX_RETRIES}] Buscando payment_request: ${externalReference}`);
+    
+    const { data: paymentRequest, error: fetchError } = await supabase
+      .from('payment_requests')
+      .select('*')
+      .eq('id', externalReference)
+      .single();
+
+    if (!fetchError && paymentRequest) {
+      const searchTime = Date.now() - startTime;
+      logInfo(`✅ Payment request encontrado en intento ${attempt} (${searchTime}ms): ${externalReference}`);
+      return { paymentRequest, error: null };
+    }
+
+    if (attempt < config.MAX_RETRIES) {
+      logInfo(`⏳ Intento ${attempt} fallido, esperando ${currentDelay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, currentDelay));
+      
+      // Backoff exponencial con límite
+      currentDelay = Math.min(currentDelay * config.BACKOFF_MULTIPLIER, config.MAX_DELAY);
+    } else {
+      logError(`❌ Payment request ${externalReference} no encontrado después de ${config.MAX_RETRIES} intentos`);
+    }
+  }
+
+  return { paymentRequest: null, error: fetchError };
+}
+
+// ✅ NUEVA: Función para notificar problemas críticos
+async function notifyAdminsOfMissingPaymentRequest(paymentId, externalReference, paymentStatus) {
+  try {
+    logError(`🚨 PROBLEMA CRÍTICO: Payment request perdido`, {
+      paymentId,
+      externalReference,
+      paymentStatus,
+      timestamp: new Date().toISOString(),
+      severity: 'CRITICAL'
+    });
+    
+    // Aquí podrías enviar email, Slack, etc.
+    // await sendAdminAlert({...});
+    
+  } catch (error) {
+    logError(`❌ Error notificando problema crítico:`, error);
   }
 }
 
@@ -616,5 +704,50 @@ async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
 
   } catch (error) {
     logError(`❌ Error notificando contracargo a administradores para pago ${paymentId}:`, error);
+  }
+}
+
+// ✅ NUEVA: Función de diagnóstico de timing
+async function diagnoseTimingIssue(externalReference, paymentId) {
+  try {
+    logInfo(`🔬 Diagnóstico de timing para: ${externalReference}`);
+    
+    // Buscar registros relacionados con diferentes timestamps
+    const { data: allRecords, error } = await supabase
+      .from('payment_requests')
+      .select('id, created_at, payment_id, payment_status')
+      .or(`id.eq.${externalReference},payment_id.eq.${paymentId}`)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    
+    if (!error && allRecords) {
+      logInfo(`🔍 Registros relacionados encontrados:`, {
+        count: allRecords.length,
+        records: allRecords.map(r => ({
+          id: r.id,
+          payment_id: r.payment_id,
+          created_at: r.created_at,
+          status: r.payment_status
+        }))
+      });
+    }
+    
+    // Buscar registros creados recientemente (últimos 30 segundos)
+    const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
+    const { data: recentRecords } = await supabase
+      .from('payment_requests')
+      .select('id, created_at, payment_id')
+      .gte('created_at', thirtySecondsAgo)
+      .order('created_at', { ascending: false });
+    
+    if (recentRecords && recentRecords.length > 0) {
+      logInfo(`📊 Payment requests creados en últimos 30s:`, {
+        count: recentRecords.length,
+        records: recentRecords.slice(0, 3) // Solo los primeros 3
+      });
+    }
+    
+  } catch (error) {
+    logError(`❌ Error en diagnóstico de timing:`, error);
   }
 }
