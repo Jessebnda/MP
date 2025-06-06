@@ -193,6 +193,7 @@ export async function POST(req) {
 }
 
 // Función principal para manejar notificaciones de pago
+// ✅ MODIFICACIÓN: Webhook como autoridad principal
 async function handlePaymentNotification(paymentId) {
   try {
     logInfo(`🔍 Procesando pago: ${paymentId}`);
@@ -203,42 +204,17 @@ async function handlePaymentNotification(paymentId) {
     });
     const paymentClient = new Payment(mpClient);
     
-    // ✅ CORRECCIÓN: Manejo correcto de la respuesta del SDK v2.6
     let paymentInfo;
     try {
       const paymentResponse = await paymentClient.get({ id: paymentId });
+      paymentInfo = paymentResponse;
       
-      // El SDK v2.6 puede devolver la respuesta en diferentes formatos
-      if (paymentResponse.response) {
-        paymentInfo = paymentResponse.response;
-      } else if (paymentResponse.body) {
-        paymentInfo = paymentResponse.body;
-      } else {
-        paymentInfo = paymentResponse;
-      }
-      
-      // Validar que tenemos los datos necesarios
       if (!paymentInfo || typeof paymentInfo !== 'object') {
         logError(`❌ Respuesta inválida de MercadoPago para pago ${paymentId}:`, paymentResponse);
         return;
       }
       
-      logInfo(`🔍 Respuesta completa de MercadoPago:`, {
-        hasResponse: !!paymentResponse.response,
-        hasBody: !!paymentResponse.body,
-        keys: Object.keys(paymentResponse),
-        paymentInfoKeys: paymentInfo ? Object.keys(paymentInfo) : []
-      });
-      
-      // ✅ DEBUGGING TEMPORAL: Capturar estructura completa
-      logInfo(`🔍 DEBUG - Estructura de respuesta MercadoPago:`, {
-        responseType: typeof paymentResponse,
-        responseKeys: Object.keys(paymentResponse || {}),
-        hasResponse: 'response' in (paymentResponse || {}),
-        hasBody: 'body' in (paymentResponse || {}),
-        responseResponseKeys: paymentResponse?.response ? Object.keys(paymentResponse.response) : null,
-        responseBodyKeys: paymentResponse?.body ? Object.keys(paymentResponse.body) : null
-      });
+      // ✅ REMOVER DEBUG TEMPORAL ya que funciona
       
     } catch (apiError) {
       logError(`❌ Error consultando API de MercadoPago para pago ${paymentId}:`, {
@@ -268,16 +244,18 @@ async function handlePaymentNotification(paymentId) {
       .single();
 
     if (fetchError || !paymentRequest) {
-      logError(`❌ Payment request ${externalReference} no encontrado:`, fetchError);
+      logWarn(`⚠️ Payment request ${externalReference} no encontrado - posiblemente pago rechazado sin payment_request`);
       return;
     }
 
     const previousStatus = paymentRequest.payment_status;
     logInfo(`📊 Estado: ${previousStatus} → ${currentStatus}`);
 
-    // 3. Verificar si ya fue procesado (idempotencia)
-    if (previousStatus === currentStatus) {
-      logInfo(`✅ Pago ${paymentId} ya tiene estado ${currentStatus} - ignorando duplicado`);
+    // 3. ✅ NUEVA LÓGICA: Verificar si necesita actualización
+    const needsUpdate = shouldUpdatePaymentStatus(previousStatus, currentStatus);
+    
+    if (!needsUpdate) {
+      logInfo(`✅ Pago ${paymentId} no necesita actualización: ${previousStatus} → ${currentStatus}`);
       return;
     }
 
@@ -299,14 +277,8 @@ async function handlePaymentNotification(paymentId) {
 
     logInfo(`✅ Payment request ${externalReference} actualizado exitosamente`);
 
-    // 5. Ejecutar acciones según el nuevo estado
-    if (currentStatus === 'approved' && previousStatus !== 'approved') {
-      await handleApprovedPayment(paymentRequest, paymentInfo);
-    } else if (currentStatus === 'rejected' && previousStatus !== 'rejected') {
-      logInfo(`❌ Pago ${paymentId} rechazado`);
-    } else if (currentStatus === 'pending' && previousStatus !== 'pending') {
-      logInfo(`⏳ Pago ${paymentId} pendiente`);
-    }
+    // 5. ✅ NUEVA LÓGICA: Ejecutar acciones según transición de estado
+    await handleStatusTransition(previousStatus, currentStatus, paymentRequest, paymentInfo);
 
   } catch (error) {
     logError(`❌ Error procesando pago ${paymentId}:`, {
@@ -316,23 +288,75 @@ async function handlePaymentNotification(paymentId) {
   }
 }
 
-// Manejar pagos aprobados
-async function handleApprovedPayment(paymentRequest, paymentInfo) {
+// ✅ NUEVA FUNCIÓN: Determinar si necesita actualización
+function shouldUpdatePaymentStatus(previousStatus, currentStatus) {
+  // No actualizar si es el mismo estado
+  if (previousStatus === currentStatus) {
+    return false;
+  }
+
+  // Matriz de transiciones válidas
+  const validTransitions = {
+    'pending': ['approved', 'rejected', 'cancelled', 'in_process'],
+    'in_process': ['approved', 'rejected', 'cancelled'],
+    'approved': ['refunded', 'charged_back'], // Solo para reembolsos y contracargos
+    'rejected': [], // Los rechazados no cambian
+    'cancelled': [], // Los cancelados no cambian
+    'refunded': ['charged_back'], // Reembolsado puede tener contracargo
+    'charged_back': [] // Contracargo es final
+  };
+
+  const allowedNext = validTransitions[previousStatus] || [];
+  return allowedNext.includes(currentStatus);
+}
+
+// ✅ NUEVA FUNCIÓN: Manejar transiciones de estado
+async function handleStatusTransition(previousStatus, currentStatus, paymentRequest, paymentInfo) {
+  const paymentId = paymentInfo.id;
+  
+  logInfo(`🔄 Procesando transición: ${previousStatus} → ${currentStatus} para pago ${paymentId}`);
+
+  switch (currentStatus) {
+    case 'approved':
+      if (previousStatus !== 'approved') {
+        await handlePaymentApproved(paymentRequest, paymentInfo);
+      }
+      break;
+      
+    case 'rejected':
+      if (previousStatus !== 'rejected') {
+        await handlePaymentRejected(paymentRequest, paymentInfo);
+      }
+      break;
+      
+    case 'refunded':
+      await handlePaymentRefunded(paymentRequest, paymentInfo);
+      break;
+      
+    case 'charged_back':
+      await handlePaymentChargedBack(paymentRequest, paymentInfo);
+      break;
+      
+    case 'cancelled':
+      await handlePaymentCancelled(paymentRequest, paymentInfo);
+      break;
+      
+    default:
+      logInfo(`ℹ️ Estado ${currentStatus} no requiere acciones especiales`);
+  }
+}
+
+// ✅ RENOMBRAR Y MEJORAR: Funciones específicas por estado
+async function handlePaymentApproved(paymentRequest, paymentInfo) {
   const paymentId = paymentInfo.id;
   
   try {
     logInfo(`🎉 Procesando pago aprobado: ${paymentId}`);
 
-    // 1. Actualizar stock
+    // 1. Actualizar stock (solo si no se hizo antes)
     let orderItems = paymentRequest.order_items;
-    
     if (typeof orderItems === 'string') {
-      try {
-        orderItems = JSON.parse(orderItems);
-      } catch (e) {
-        logError('❌ Error parseando order_items:', e);
-        orderItems = [];
-      }
+      orderItems = JSON.parse(orderItems);
     }
 
     if (Array.isArray(orderItems) && orderItems.length > 0) {
@@ -343,14 +367,85 @@ async function handleApprovedPayment(paymentRequest, paymentInfo) {
     // 2. Crear orden definitiva
     await createFinalOrder(paymentRequest, paymentInfo);
 
-    // 3. Enviar email de confirmación
-    await sendConfirmationEmail(paymentRequest, paymentInfo);
+    // 3. ✅ NUEVO: Enviar email de APROBACIÓN (no de confirmación)
+    await sendPaymentApprovedEmail(paymentRequest, paymentInfo);
 
-    logInfo(`✅ Pago ${paymentId} procesado completamente`);
+    logInfo(`✅ Pago ${paymentId} aprobado procesado completamente`);
 
   } catch (error) {
-    logError(`❌ Error en acciones post-aprobación para pago ${paymentId}:`, error);
+    logError(`❌ Error procesando pago aprobado ${paymentId}:`, error);
   }
+}
+
+async function handlePaymentRejected(paymentRequest, paymentInfo) {
+  const paymentId = paymentInfo.id;
+  logInfo(`❌ Pago ${paymentId} rechazado - no se requieren acciones adicionales`);
+  
+  // ✅ OPCIONAL: Enviar email de rechazo si se desea
+  // await sendPaymentRejectedEmail(paymentRequest, paymentInfo);
+}
+
+async function handlePaymentRefunded(paymentRequest, paymentInfo) {
+  const paymentId = paymentInfo.id;
+  
+  try {
+    logInfo(`💰 Procesando reembolso para pago: ${paymentId}`);
+
+    // 1. Restaurar stock
+    let orderItems = paymentRequest.order_items;
+    if (typeof orderItems === 'string') {
+      orderItems = JSON.parse(orderItems);
+    }
+
+    if (Array.isArray(orderItems) && orderItems.length > 0) {
+      await restoreStockAfterRefund(orderItems);
+      logInfo(`📦 Stock restaurado para reembolso ${paymentId}`);
+    }
+
+    // 2. Marcar orden como reembolsada
+    await updateOrderStatus(paymentRequest.id, 'refunded');
+
+    // 3. Enviar email de reembolso
+    await sendRefundEmail(paymentRequest, paymentInfo);
+
+  } catch (error) {
+    logError(`❌ Error procesando reembolso ${paymentId}:`, error);
+  }
+}
+
+async function handlePaymentChargedBack(paymentRequest, paymentInfo) {
+  const paymentId = paymentInfo.id;
+  
+  try {
+    logInfo(`⚠️ Procesando contracargo para pago: ${paymentId}`);
+
+    // 1. Restaurar stock
+    let orderItems = paymentRequest.order_items;
+    if (typeof orderItems === 'string') {
+      orderItems = JSON.parse(orderItems);
+    }
+
+    if (Array.isArray(orderItems) && orderItems.length > 0) {
+      await restoreStockAfterRefund(orderItems);
+      logInfo(`📦 Stock restaurado por contracargo ${paymentId}`);
+    }
+
+    // 2. Marcar orden como contracargo
+    await updateOrderStatus(paymentRequest.id, 'charged_back');
+
+    // 3. ✅ IMPORTANTE: Notificar a administradores
+    await notifyChargebackToAdmins(paymentRequest, paymentInfo);
+
+  } catch (error) {
+    logError(`❌ Error procesando contracargo ${paymentId}:`, error);
+  }
+}
+
+async function handlePaymentCancelled(paymentRequest, paymentInfo) {
+  const paymentId = paymentInfo.id;
+  logInfo(`🚫 Pago ${paymentId} cancelado - marcando como cancelado`);
+  
+  // Solo actualizar estado, no se requieren más acciones
 }
 
 // Crear orden definitiva
@@ -428,5 +523,98 @@ async function sendConfirmationEmail(paymentRequest, paymentInfo) {
 
   } catch (error) {
     logError(`❌ Error en sendConfirmationEmail:`, error);
+  }
+}
+
+// ✅ NUEVO: Enviar email de aprobación de pago
+async function sendPaymentApprovedEmail(paymentRequest, paymentInfo) {
+  try {
+    const customerData = paymentRequest.customer_data;
+    const paymentId = paymentInfo.id;
+
+    if (!customerData?.email) {
+      logWarn(`⚠️ No hay email para enviar notificación de aprobación del pago ${paymentId}`);
+      return;
+    }
+
+    // Contenido del email
+    const subject = `Pago aprobado - Orden ${paymentRequest.id}`;
+    const text = `Estimado/a ${customerData.first_name},\n\nSu pago ha sido aprobado exitosamente. Su orden está siendo procesada.\n\nID de Pago: ${paymentId}\nOrden ID: ORDER_${paymentRequest.id}\n\nGracias por su compra!`;
+    const html = `<p>Estimado/a ${customerData.first_name},</p><p>Su pago ha sido aprobado exitosamente. Su orden está siendo procesada.</p><p><strong>ID de Pago:</strong> ${paymentId}<br><strong>Orden ID:</strong> ORDER_${paymentRequest.id}</p><p>Gracias por su compra!</p>`;
+
+    // Enviar email (aquí se puede usar una función de envío de email ya existente)
+    await sendEmail({
+      to: customerData.email,
+      subject,
+      text,
+      html
+    });
+
+    logInfo(`✅ Email de aprobación enviado a ${customerData.email}`);
+
+  } catch (error) {
+    logError(`❌ Error enviando email de aprobación para pago ${paymentId}:`, error);
+  }
+}
+
+// ✅ NUEVO: Enviar email de reembolso
+async function sendRefundEmail(paymentRequest, paymentInfo) {
+  try {
+    const customerData = paymentRequest.customer_data;
+    const paymentId = paymentInfo.id;
+
+    if (!customerData?.email) {
+      logWarn(`⚠️ No hay email para enviar notificación de reembolso del pago ${paymentId}`);
+      return;
+    }
+
+    // Contenido del email
+    const subject = `Reembolso procesado - Pago ${paymentId}`;
+    const text = `Estimado/a ${customerData.first_name},\n\nSu pago ha sido reembolsado exitosamente.\n\nID de Pago: ${paymentId}\nOrden ID: ORDER_${paymentRequest.id}\n\nGracias por su comprensión.`;
+    const html = `<p>Estimado/a ${customerData.first_name},</p><p>Su pago ha sido reembolsado exitosamente.</p><p><strong>ID de Pago:</strong> ${paymentId}<br><strong>Orden ID:</strong> ORDER_${paymentRequest.id}</p><p>Gracias por su comprensión.</p>`;
+
+    // Enviar email (aquí se puede usar una función de envío de email ya existente)
+    await sendEmail({
+      to: customerData.email,
+      subject,
+      text,
+      html
+    });
+
+    logInfo(`✅ Email de reembolso enviado a ${customerData.email}`);
+
+  } catch (error) {
+    logError(`❌ Error enviando email de reembolso para pago ${paymentId}:`, error);
+  }
+}
+
+// ✅ NUEVO: Notificar contracargo a administradores
+async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
+  try {
+    const paymentId = paymentInfo.id;
+    const orderId = paymentRequest.id;
+
+    // Obtener lista de administradores (aquí se debe implementar según la lógica de la aplicación)
+    const admins = await getAdminUsers();
+
+    for (const admin of admins) {
+      // Contenido del email
+      const subject = `Notificación de contracargo - Pago ${paymentId}`;
+      const text = `Se ha detectado un contracargo para el pago ${paymentId} asociado a la orden ${orderId}.\n\nPor favor, revise el estado del pedido y tome las acciones necesarias.`;
+      const html = `<p>Se ha detectado un contracargo para el pago ${paymentId} asociado a la orden ${orderId}.</p><p>Por favor, revise el estado del pedido y tome las acciones necesarias.</p>`;
+
+      // Enviar email (aquí se puede usar una función de envío de email ya existente)
+      await sendEmail({
+        to: admin.email,
+        subject,
+        text,
+        html
+      });
+
+      logInfo(`✅ Notificación de contracargo enviada a ${admin.email}`);
+    }
+
+  } catch (error) {
+    logError(`❌ Error notificando contracargo a administradores para pago ${paymentId}:`, error);
   }
 }

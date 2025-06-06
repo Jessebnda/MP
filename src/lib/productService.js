@@ -240,3 +240,50 @@ export async function populateProductsFromData(products) {
     };
   }
 }
+
+// ✅ NUEVA: Restaurar stock después de reembolso/contracargo
+export async function restoreStockAfterRefund(orderItems) {
+  try {
+    logInfo('📦 Restaurando stock después de reembolso/contracargo');
+
+    for (const item of orderItems) {
+      const { error } = await supabase
+        .from('products')
+        .update({
+          stock: supabase.raw('stock + ?', [item.quantity])
+        })
+        .eq('id', item.id);
+
+      if (error) {
+        logError(`❌ Error restaurando stock para producto ${item.id}:`, error);
+      } else {
+        logInfo(`✅ Stock restaurado: +${item.quantity} para producto ${item.id}`);
+      }
+    }
+
+  } catch (error) {
+    logError('❌ Error general restaurando stock:', error);
+  }
+}
+
+// ✅ NUEVA: Actualizar estado de orden
+export async function updateOrderStatus(paymentRequestId, newStatus) {
+  try {
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        payment_status: newStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('payment_request_id', paymentRequestId);
+
+    if (error) {
+      logError(`❌ Error actualizando estado de orden:`, error);
+    } else {
+      logInfo(`✅ Estado de orden actualizado a: ${newStatus}`);
+    }
+
+  } catch (error) {
+    logError('❌ Error actualizando estado de orden:', error);
+  }
+}

@@ -454,3 +454,73 @@ function getLogisticsEmailTemplate({ orderId, isApproved, orderData }) {
     </div>
   `;
 }
+
+// ✅ NUEVA: Email de confirmación de solicitud (inmediato)
+export async function sendPaymentRequestConfirmation({ userData, paymentId, status, orderId, amount }) {
+  try {
+    const emailContent = `
+      Hola ${userData.first_name},
+      
+      Hemos recibido tu solicitud de pago:
+      
+      - Orden: ${orderId}
+      - Pago ID: ${paymentId}
+      - Monto: $${amount} MXN
+      - Estado actual: ${status}
+      
+      ${status === 'approved' ? 
+        'Tu pago ha sido aprobado instantáneamente. Te enviaremos la confirmación completa en breve.' :
+        'Te notificaremos cuando el estado de tu pago se actualice.'
+      }
+    `;
+
+    // Implementar envío...
+    
+  } catch (error) {
+    logError('❌ Error enviando confirmación de solicitud:', error);
+  }
+}
+
+// ✅ NUEVA: Email de aprobación (desde webhook)
+export async function sendPaymentApprovedEmail(paymentRequest, paymentInfo) {
+  try {
+    const customerData = JSON.parse(paymentRequest.customer_data);
+    let orderItems = JSON.parse(paymentRequest.order_items);
+
+    // Generar PDF completo
+    const receiptPDF = await generateReceiptPDF({
+      orderId: paymentRequest.id,
+      customerData,
+      items: orderItems,
+      totalAmount: paymentRequest.total_amount,
+      paymentStatus: 'approved',
+      paymentId: paymentInfo.id
+    });
+
+    // Enviar email completo con PDF
+    const emailResult = await sendReceiptEmail({
+      to: customerData.email,
+      customerName: `${customerData.first_name || ''} ${customerData.last_name || ''}`.trim(),
+      orderId: paymentRequest.id,
+      paymentId: paymentInfo.id,
+      amount: paymentRequest.total_amount,
+      items: orderItems,
+      pdfAttachment: receiptPDF
+    });
+
+    return emailResult;
+
+  } catch (error) {
+    logError('❌ Error enviando email de aprobación:', error);
+  }
+}
+
+// ✅ NUEVA: Email de reembolso
+export async function sendRefundEmail(paymentRequest, paymentInfo) {
+  // Implementar lógica de email de reembolso...
+}
+
+// ✅ NUEVA: Notificar contracargos a admins
+export async function notifyChargebackToAdmins(paymentRequest, paymentInfo) {
+  // Implementar notificación urgente a administradores...
+}

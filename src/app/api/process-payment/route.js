@@ -311,6 +311,7 @@ function categorizeRejection(statusDetail) {
   return 'other';
 }
 
+// ✅ MODIFICACIÓN 1: Reducir acciones inmediatas en process-payment
 export async function POST(req) {
   const idempotencyKey = req.headers.get('X-Idempotency-Key') || uuidv4();
   
