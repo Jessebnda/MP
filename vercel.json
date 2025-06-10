@@ -29,5 +29,20 @@
         }
       ]
     }
+  ],
+  "functions": {
+    "src/app/api/*/route.js": {
+      "maxDuration": 30
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/sync-sheets",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/performance-report",
+      "schedule": "0 0 * * *"
+    }
   ]
 }
