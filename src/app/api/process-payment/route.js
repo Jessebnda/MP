@@ -9,9 +9,9 @@ import { sendReceiptEmail } from '../../../lib/emailService';
 import { v4 as uuidv4 } from 'uuid';
 import { getProductById, verifyStockForOrder, updateStockAfterOrder } from '../../../lib/productService';
 import { validatePaymentRequestBody, extractPaymentInstrumentData } from '../../../lib/validation';
-import { paymentCircuitBreaker } from '../../../lib/circuit-breaker.js';
-import { performanceMonitor } from '../../../lib/performance-monitor.js';
-import { paymentQueue } from '../../../lib/queue-manager.js';
+import { paymentCircuitBreaker } from '../../../lib/circuit-breaker-pro.js';
+import { performanceMonitor } from '../../../lib/performance-monitor-pro.js';
+import { paymentQueue } from '../../../lib/queue-manager-pro.js';
 
 // Inicializar el cliente de Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
