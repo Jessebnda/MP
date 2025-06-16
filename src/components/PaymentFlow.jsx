@@ -1167,7 +1167,8 @@ export default function PaymentFlow({
                   required
                 />
                 <span className={styles['mp-checkbox-text']}>
-                  Confirmo que soy mayor de 18 años <span className={styles['required']}>*</span>
+                  Confirmo que soy mayor de 18 años y tengo la edad legal para comprar productos que pueden contener alcohol. 
+                  Entiendo que puedo ser requerido a mostrar identificación válida al momento de la entrega. <span className={styles['required']}>*</span>
                 </span>
               </label>
             </div>
@@ -1181,7 +1182,8 @@ export default function PaymentFlow({
                   required
                 />
                 <span className={styles['mp-checkbox-text']}>
-                  Acepto que algunos productos pueden contener alcohol y confirmo que soy mayor de edad para su consumo <span className={styles['required']}>*</span>
+                  Acepto los términos y condiciones para la compra de productos que pueden contener alcohol. 
+                  Entiendo que está prohibida la venta a menores de edad y que el consumo responsable es mi responsabilidad. <span className={styles['required']}>*</span>
                 </span>
               </label>
             </div>
@@ -1195,7 +1197,8 @@ export default function PaymentFlow({
                   required
                 />
                 <span className={styles['mp-checkbox-text']}>
-                  Acepto el cargo de envío de {formatPrice(SHIPPING_FEE)} <span className={styles['required']}>*</span>
+                  Acepto el cargo fijo de envío de $200.00 MXN que se agregará a mi pedido. 
+                  Este cargo cubre el manejo especial y entrega segura de productos regulados. <span className={styles['required']}>*</span>
                 </span>
               </label>
             </div>
