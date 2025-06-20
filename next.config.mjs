@@ -6,54 +6,54 @@ const nextConfig = {
   swcMinify: true,
 
   async headers() {
+    // Content Security Policy más permisivo para Framer
     const ContentSecurityPolicy = `
-      default-src 'self' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.framer.app https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com https://fonts.gstatic.com;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.mercadolibre.com https://*.mercadolivre.com;
-      style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com;
-      img-src 'self' data: blob: https: https://*.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.mercadolibre.com https://*.mercadolivre.com;
-      connect-src 'self' https://*.mercadopago.com https://api.mercadopago.com https://*.mlstatic.com https://*.framer.com https://*.mercadolibre.com https://*.mercadolivre.com https://api.mercadolibre.com https://api.mercadolivre.com;
-      font-src 'self' data: https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.gstatic.com;
-      object-src 'self' data:;
-      frame-src 'self' * https://*.mercadolibre.com https://*.mercadolivre.com;
-      frame-ancestors *; 
-      base-uri 'self';
-      upgrade-insecure-requests;
+      default-src 'self' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com data: https://*.framerusercontent.com https://api.mercadopago.com;
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://*.mercadolibre.com https://*.mercadolivre.com https://*.framerusercontent.com https://api.mercadopago.com;
+      style-src 'self' 'unsafe-inline' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://fonts.googleapis.com;
+      img-src 'self' data: https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.mercadolibre.com https://*.mercadolivre.com https://*.framerusercontent.com;
+      font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com;
+      connect-src 'self' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com https://api.mercadopago.com;
+      
+      /* Estas son las directivas más importantes para Framer */
+      frame-src 'self' https://*.mercadopago.com https://*.mercadopago.com.ar https://*.mercadopago.com.br https://*.mercadopago.com.mx https://*.mlstatic.com https://*.framer.com https://framer.com https://*.framer.app https://*.framercanvas.com https://alturadivina.com https://*.mercadolibre.com https://*.mercadolivre.com;
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [
-      // API: sin cache
       {
-        source: '/api/:path*',
+        source: '/(.*)',
         headers: [
-          { key: 'Cache-Control', value: 'no-store, max-age=0' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
-        ],
-      },
-      // Assets estáticos: cache largo
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
-      {
-        source: '/static/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
-        ],
-      },
-      // Resto de rutas: CSP básico + headers de seguridad
-      {
-        source: '/:path*',
-        headers: [
-          { key: 'Content-Security-Policy', value: ContentSecurityPolicy },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          {
+            // CRÍTICO: Usar CSP para frame-ancestors en vez de X-Frame-Options
+            key: 'Content-Security-Policy',
+            value: `${ContentSecurityPolicy}; frame-ancestors 'self' https://*.framer.com https://framer.com https://*.framer.app https://*.framercanvas.com https://framercanvas.com https://alturadivina.com;`,
+          },
+          // IMPORTANTE: Eliminar X-Frame-Options para evitar conflictos
+          // {
+          //   key: 'X-Frame-Options',
+          //   value: 'SAMEORIGIN',
+          // },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          // CRÍTICO: Hacer más permisiva la política de permisos para payment
+          {
+            key: 'Permissions-Policy',
+            value: 'payment=(self "https://*.framer.com" "https://framer.com"), camera=(), microphone=(), geolocation=()',
+          }
         ],
       },
     ];

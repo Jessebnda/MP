@@ -13,7 +13,11 @@
   font-size: 2rem;
   font-weight: 400;
   margin-bottom: 3rem;
-  text-align: center;
+  text-align: center !important;
+  width: 100%;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
   color: #000;
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -28,7 +32,7 @@
   transform: translateX(-50%);
   width: 3rem;
   height: 1px;
-  background-color: #F26F32;
+  background-color: var(--mp-primary-button-color) !important;
 }
 
 /* Formulario y selección de productos */
@@ -47,8 +51,34 @@
   font-weight: 500;
   margin-bottom: 0.5rem;
   font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05rem;
+  color: #444;
+  letter-spacing: 0.02rem;
+}
+
+.mp-form-group small {
+  display: block;
+  font-size: 0.75rem;
+  color: #777;
+  margin-top: 0.25rem;
+}
+
+/* Hacer responsive las filas de formulario */
+.mp-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.mp-form-row .mp-form-group {
+  flex: 1 1 45%;
+  min-width: 200px;
+}
+
+/* En móvil, apilar vertical */
+@media (max-width: 767px) {
+  .mp-form-row {
+    flex-direction: column;
+  }
 }
 
 /* Selector base */
@@ -56,16 +86,27 @@
 .mp-number-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid #ccc;
+  border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 0.95rem;
-  font-family: inherit;
+  color: #333;
+  background-color: #fff;
+  transition: border-color 0.2s ease;
   height: 60px;  /* Altura base en todas las pantallas */
   box-sizing: border-box;
 }
 
+/* Enfoque en el selector y campo numérico */
+.mp-text-input:focus,
+.mp-select-input:focus,
+.mp-phone-input:focus {
+  border-color: #F26F32;
+  outline: none;
+}
+
 /* Mejoras específicas para el select */
 .mp-select-input {
+  height: 48px;
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 1rem center;
@@ -107,7 +148,7 @@
   padding: 1.25rem;
   margin-top: 1.25rem;
   font-weight: 500;
-  border-left: 3px solid #F26F32;  /* Más sutil */
+  border-left: 3px solid var(--mp-primary-button-color) !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -149,36 +190,32 @@
   }
 }
 
-/* Botón principal naranja */
+/* Botón principal */
 .mp-button.mp-primary {
-  background-color: #F26F32;
+  background-color: var(--mp-primary-button-color, #F26F32) !important;
   color: white;
   font-weight: 600;
-  transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
 .mp-button.mp-primary:hover {
-  background-color: #e05b22;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+  background-color: color-mix(in srgb, var(--mp-primary-button-color, #F26F32) 90%, black) !important;
 }
 
 /* Botón secundario */
 .mp-button.mp-secondary {
-  background-color: #E5E5E5;
+  background-color: var(--mp-secondary-button-color, #E5E5E5) !important;
   color: #333;
-  margin-right: 1rem;
-  font-weight: 500;
-  transition: background-color 0.2s ease;
 }
 
 .mp-button.mp-secondary:hover {
-  background-color: #d5d5d5;
+  background-color: color-mix(in srgb, var(--mp-secondary-button-color, #E5E5E5) 90%, black) !important;
 }
 
 /* Botón grande de confirmación */
 .mp-confirmation-actions .mp-button.mp-primary {
   padding: 0.85rem 2rem;
+  background-color: var(--mp-primary-button-color) !important;
+  border-color: var(--mp-primary-button-color) !important;
 }
 
 /* Confirmation page */
@@ -189,6 +226,9 @@
   border-radius: 4px;
   border: 1px solid #eee;
   padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 /* Título del resumen con estilo elegante */
@@ -286,13 +326,172 @@
   border-left: 4px solid var(--primary-color);
   padding: 1rem;
   margin: 2rem 0;
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 0.95rem;
+  color: #555;
   border-radius: 0 var(--border-radius) var(--border-radius) 0;
+  margin-bottom: 16px;
 }
 
 .mp-confirmation-actions {
-  margin-top: 1.5rem;
+  margin-top: 10px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 5px solid var(--mp-primary-button-color) !important;
+}
+
+/* Add or update these styles */
+
+/* Form section styles */
+.mp-form-container {
+  max-width: 650px;
+  margin: 0 auto;
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.mp-form-section {
+  margin-bottom: 2.5rem;
+}
+
+.mp-form-section-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.mp-form-section-subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.mp-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.mp-form-group label {
+  display: block;
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  color: #444;
+  letter-spacing: 0.02rem;
+}
+
+.mp-form-group small {
+  display: block;
+  font-size: 0.75rem;
+  color: #777;
+  margin-top: 0.25rem;
+}
+
+.mp-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.mp-text-input,
+.mp-select-input,
+.mp-phone-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  color: #333;
+  background-color: #fff;
+  transition: border-color 0.2s ease;
+  height: 60px;  /* Altura base en todas las pantallas */
+  box-sizing: border-box;
+}
+
+/* Enfoque en el selector y campo numérico */
+.mp-text-input:focus,
+.mp-select-input:focus,
+.mp-phone-input:focus {
+  border-color: #F26F32;
+  outline: none;
+}
+
+/* Mejoras específicas para el select */
+.mp-select-input {
+  height: 48px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 16px;
+  padding-right: 2.5rem; /* Espacio para el ícono de flecha */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  line-height: 1.5;
+}
+
+.mp-phone-container {
+  width: 100%;
+}
+
+.mp-phone-input {
+  width: 100% !important;
+  padding-left: 52px !important;
+}
+
+.required {
+  color: #F26F32;
+  margin-left: 2px;
+}
+
+/* Form actions (buttons) */
+.mp-form-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.mp-form-actions .mp-button {
+  min-width: 120px;
+  padding: 0.85rem 1.5rem;
+}
+
+.mp-button.mp-primary {
+  background-color: #F26F32;
+  color: white;
+  border: none;
+  font-weight: 500;
+}
+
+.mp-button.mp-secondary {
+  background-color: #E5E5E5;
+  color: #333;
+  border: none;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 640px) {
+  .mp-form-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .mp-form-container {
+    padding: 1.5rem;
+  }
+  
+  .mp-form-actions {
+    flex-direction: column-reverse;
+    gap: 1rem;
+  }
+  
+  .mp-form-actions .mp-button {
+    width: 100%;
+  }
 }
 
 /* Ajustes responsivos para la confirmación del pedido */
@@ -530,6 +729,7 @@
   background-color: #f8f8f8;
   padding: 1rem;
   border-radius: 4px;
+  border-left: 3px solid var(--mp-primary-button-color) !important;
 }
 
 .mp-order-preview h3 {
@@ -621,28 +821,57 @@
   color: #222;
 }
 
-.mp-add-product-button {
+/* Nuevo estilo para el contenedor del botón Agregar Producto */
+.mp-add-product-container {
   display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+/* Y modificar el estilo del botón */
+.mp-add-product-button {
+  display: inline-flex;
   align-items: center;
-  background: transparent;
+  
   border: 1px dashed #ccc;
   border-radius: 4px;
-  padding: 0.75rem;
-  width: 100%;
-  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  width: auto;
   cursor: pointer;
   color: #666;
   font-weight: 500;
   transition: all 0.2s ease;
 }
 
-.mp-add-product-button:hover {
-  border-color: #F26F32;
-  color: #F26F32;
-}
-
 .mp-add-product-button span {
   margin-left: 0.5rem;
+}
+
+/* Estilo para el botón X */
+.mp-product-remove-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+
+.mp-product-remove-x:hover {
+  background-color: #ff4d4f;
+  color: white;
+  border-color: #ff4d4f;
 }
 
 /* Estilos para el resumen con múltiples productos */
@@ -680,7 +909,7 @@
   padding: 1rem;
   border-radius: 4px;
   margin-top: 1.5rem;
-  border-left: 4px solid #F26F32;
+  border-left: 5px solid var(--mp-primary-button-color) !important;
 }
 
 .mp-grand-total span:last-child {
@@ -706,4 +935,270 @@
   .mp-grand-total span:last-child {
     font-size: 1.2rem;
   }
+}
+
+/* Estilos para tarjetas de producto */
+.mp-product-card {
+  background-color: white;
+  border-radius: 10px;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+}
+
+.mp-product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.mp-product-card-header {
+  background-color: #f7f7f7;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e0e0e0;
+  border-left: 4px solid #F26F32;
+}
+
+.mp-product-card-header h4 {
+  margin: 0;
+  font-weight: 600;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.mp-product-card-body {
+  padding: 16px 18px;
+}
+
+.mp-product-card-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  margin-bottom: 10px;
+  align-items: baseline;
+}
+
+.mp-product-description {
+  margin: 12px 0 16px;
+  padding: 10px 12px;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  color: #555;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.mp-product-card-label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.mp-product-card-value {
+  color: #333;
+}
+
+.mp-product-card-footer {
+  background-color: #f9f9f9;
+  padding: 14px 18px;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mp-product-card-total {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #F26F32;
+}
+
+/* Estilos para el total general */
+.mp-grand-total {
+  background-color: #f7f7f7;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 20px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-left: 5px solid var(--mp-primary-button-color) !important;
+  font-size: 1.2rem;
+}
+
+.mp-grand-total-label {
+  font-weight: 600;
+  color: #333;
+}
+
+.mp-grand-total-value {
+  font-weight: 700;
+  color: #F26F32;
+  font-size: 1.3rem;
+}
+
+/* Estilos para la tarjeta de información del comprador */
+.mp-buyer-info-card {
+  background-color: #fafafa;
+  border-radius: 10px;
+  border: 1px solid #e0e0e0;
+  border-left: 4px solid #4285F4;
+  margin-top: 30px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.mp-buyer-info-header {
+  background-color: #f3f7fd;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+}
+
+.mp-buyer-info-header h4 {
+  margin: 0;
+  font-weight: 600;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.mp-buyer-info-icon {
+  margin-right: 10px;
+  color: #4285F4;
+}
+
+.mp-buyer-info-body {
+  padding: 18px;
+}
+
+.mp-buyer-info-section {
+  margin-bottom: 20px;
+}
+
+.mp-buyer-info-section h5 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #444;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.mp-buyer-info-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  margin-bottom: 8px;
+  align-items: baseline;
+}
+
+.mp-buyer-info-label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.mp-buyer-info-value {
+  color: #333;
+}
+
+/* Ajustes responsivos */
+@media (max-width: 480px) {
+  .mp-product-card-row,
+  .mp-buyer-info-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  .mp-buyer-info-label,
+  .mp-product-card-label {
+    font-size: 0.8rem;
+    color: #666;
+  }
+  
+  .mp-product-card-header h4 {
+    font-size: 1.1rem;
+  }
+  
+  .mp-buyer-info-section h5 {
+    font-size: 1rem;
+  }
+}
+
+/* Agregar a PaymentFlow.module.css */
+.mp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+/* Add this to your PaymentFlow.module.css */
+
+.mp-add-to-cart-container {
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.addToCartButton {
+  padding: 10px 20px;
+  background-color: var(--mp-primary-button-color, #F26F32);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-weight: 600;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.9rem;
+  height: 48px;
+}
+
+.addToCartButton:hover {
+  background-color: color-mix(in srgb, var(--mp-primary-button-color, #F26F32) 90%, black);
+}
+
+/* Add these styles to your css file */
+.mp-quantity-control {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.mp-quantity-button {
+  background: #f5f5f5;
+  border: none;
+  width: 40px;
+  height: 48px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.mp-quantity-button:hover {
+  background: #e0e0e0;
+}
+
+.mp-quantity-control .mp-number-input {
+  width: 60px;
+  border: none;
+  height: 48px;
+  text-align: center;
+  border-left: 1px solid #ddd;
+  border-right: 1px solid #ddd;
+  border-radius: 0;
+}
+
+.mp-number-input::-webkit-inner-spin-button,
+.mp-number-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }

@@ -1,0 +1,3 @@
+Contact: mailto:contacto@alturadivina.com
+Expires: 2025-12-31T23:00:00.000Z
+Preferred-Languages: es, en

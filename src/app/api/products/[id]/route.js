@@ -1,28 +1,21 @@
 import { NextResponse } from 'next/server';
-import { getProductById } from '../../../../data/products';
+import { getProductById } from '../../../../lib/productService';
+import { logInfo, logError } from '../../../../utils/logger';
 
 export async function GET(request, { params }) {
+  const { id } = params;
+  logInfo(`--- HIT /api/products/${id} ---`);
+  
   try {
-    const { id } = params;
-    
-    console.log("Fetching product with ID:", id);
-
-    const product = getProductById(id);
+    const product = await getProductById(id);
     
     if (!product) {
-      console.log("Product not found for ID:", id);
-      return NextResponse.json(
-        { error: 'Producto no encontrado' }, 
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 });
     }
     
     return NextResponse.json(product);
   } catch (error) {
-    console.error("Error fetching product:", error); 
-    return NextResponse.json(
-      { error: 'Error interno del servidor' }, 
-      { status: 500 }
-    );
+    logError(`Error al obtener producto ${id}:`, error);
+    return NextResponse.json({ error: 'Error al obtener producto' }, { status: 500 });
   }
 }

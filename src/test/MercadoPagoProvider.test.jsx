@@ -39,7 +39,7 @@ describe('MercadoPagoProvider', () => {
           json: () => Promise.resolve({ 
             id: '1', 
             name: 'Test Product', 
-            price: 1500,
+            price: 1,
             description: 'Test product description' 
           })
         });

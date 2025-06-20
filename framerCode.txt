@@ -12,6 +12,10 @@ interface MercadoPagoEmbedProps {
     width: number | string
     height: number | string
     onRedirect?: (event: any) => void
+    sessionIdOverride?: string
+    displayMode?: "full" | "cartIconOnly" | "paymentFlowOnly" | "sidebarOnly"
+    initialStep?: number
+    cartIconColor?: string
 }
 
 export function MercadoPagoEmbed(
@@ -26,21 +30,156 @@ export function MercadoPagoEmbed(
         hideTitle,
         width,
         height,
-        onRedirect
-    } = props;
+        onRedirect,
+        sessionIdOverride,
+        displayMode,
+        initialStep,
+        cartIconColor, // Nueva prop
+    } = props
+
+    // CAMBIO CLAVE: Usar un sessionId global para toda la página
+    const getOrCreateGlobalSessionId = React.useCallback(() => {
+        // 1. Intentar obtener de la URL
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionFromUrl = urlParams.get('sessionId');
+            if (sessionFromUrl) return sessionFromUrl;
+        }
+        
+        // 2. Intentar obtener del sessionStorage (persistente en la sesión)
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            const storedId = sessionStorage.getItem('mp_global_session_id');
+            if (storedId) return storedId;
+        }
+        
+        // 3. Crear uno nuevo y guardarlo para que sea consistente
+        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+            sessionStorage.setItem('mp_global_session_id', newSessionId);
+        }
+        return newSessionId;
+    }, []);
     
-    const baseUrl = "https://mercadopagoiframe.vercel.app/";
-    const queryParams = new URLSearchParams({
-        initialProductId: productId || '',
-        publicKey: publicKey || '',
-        successUrl: successUrl || '',
-        pendingUrl: pendingUrl || '',
-        failureUrl: failureUrl || '',
-        hideTitle: hideTitle ? 'true' : 'false'
-    }).toString();
+    // Usar el sessionId global o el override proporcionado explícitamente
+    const sessionId = React.useMemo(() => 
+        sessionIdOverride || getOrCreateGlobalSessionId(), 
+    [getOrCreateGlobalSessionId, sessionIdOverride]);
     
-    const iframeSrc = `${baseUrl}?${queryParams}`;
+    // El resto de tu código de MercadoPagoEmbed...
+    React.useEffect(() => {
+        // Escuchar mensajes del iframe
+        const handleMessage = (event: MessageEvent) => {
+            // Verificar origen para seguridad
+            if (!event.origin.includes('mercadopagoiframe.vercel.app')) {
+                return;
+            }
+            
+            if (event.data.type === 'MP_PAYMENT_SUCCESS') {
+                console.log('Pago exitoso, redirigiendo a:', event.data.redirectUrl);
+                
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'success',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                // Abrir en nueva pestaña en lugar de redireccionar
+                if (event.data.redirectUrl) {
+                    window.open(event.data.redirectUrl, '_blank');
+                }
+            } 
+            else if (event.data.type === 'MP_PAYMENT_PENDING') {
+                console.log('Pago pendiente, redirigiendo a:', event.data.redirectUrl);
+                
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'pending',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                // Abrir en nueva pestaña
+                if (event.data.redirectUrl) {
+                    window.open(event.data.redirectUrl, '_blank');
+                }
+            }
+            else if (event.data.type === 'MP_PAYMENT_FAILED') {
+                console.log('Pago fallido, redirigiendo a:', event.data.redirectUrl);
+                
+                if (onRedirect) {
+                    onRedirect({
+                        status: 'failed',
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData
+                    });
+                }
+                
+                // Abrir en nueva pestaña
+                if (event.data.redirectUrl) {
+                    window.open(event.data.redirectUrl, '_blank');
+                }
+            }
+            else if (event.data.type === 'CART_UPDATE') {
+                // NUEVO: Cuando el iframe actualiza el carrito, notificar a otros componentes
+                if (typeof window !== 'undefined') {
+                    const updateEvent = new CustomEvent('ALTURA_DIVINA_CART_UPDATE', {
+                        detail: { source: 'mercadopago_iframe', sessionId }
+                    });
+                    window.dispatchEvent(updateEvent);
+                }
+            }
+            // En el componente Framer, añadir listener para mensajes de redirección
+            else if (event.data.type === 'MP_REDIRECT') {
+                console.log('Redirección solicitada a:', event.data.url);
+                
+                // Notificar a Framer si hay un callback
+                if (onRedirect) {
+                    onRedirect({
+                        status: event.data.status,
+                        url: event.data.url
+                    });
+                }
+                
+                // Siempre usar window.open en lugar de redirección directa
+                window.open(event.data.url, '_blank');
+            }
+        };
+        
+        window.addEventListener('message', handleMessage);
+        
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, [onRedirect, successUrl, pendingUrl, failureUrl, sessionId]);
     
+    const baseUrl = "https://mercadopagoiframe.vercel.app/"
+    const params = {
+        initialProductId: productId || "",
+        publicKey: publicKey || "",
+        successUrl: successUrl || "",
+        pendingUrl: pendingUrl || "",
+        failureUrl: failureUrl || "",
+        hideTitle: hideTitle ? "true" : "false",
+        isInIframe: "true",
+        sessionId: sessionId,
+    }
+
+    if (displayMode) {
+        params["displayMode"] = displayMode
+    }
+    if (initialStep !== undefined && initialStep !== null) {
+        params["initialStep"] = initialStep.toString()
+    }
+    if (cartIconColor && displayMode === "cartIconOnly") {
+        params["cartIconColor"] = cartIconColor
+    }
+
+    const queryParams = new URLSearchParams(params).toString()
+    const iframeSrc = `${baseUrl}?${queryParams}`
+
     return (
         <iframe
             src={iframeSrc}
@@ -49,11 +188,12 @@ export function MercadoPagoEmbed(
             style={{
                 border: "none",
                 borderRadius: "8px",
-                overflow: "hidden"
+                overflow: "hidden",
             }}
+            sandbox="allow-scripts allow-forms allow-same-origin allow-top-navigation allow-popups"
             allow="payment"
         />
-    );
+    )
 }
 
 // Controles en el panel de Framer
@@ -108,6 +248,36 @@ addPropertyControls(MercadoPagoEmbed, {
         title: "On Redirect",
         type: ControlType.EventHandler,
     },
+    // Nuevo control para sessionId (opcional)
+    sessionIdOverride: {
+        title: "Session ID (opcional)",
+        type: ControlType.String,
+        defaultValue: "",
+    },
+    displayMode: {
+        title: "Display Mode",
+        type: ControlType.Enum,
+        options: ["full", "cartIconOnly", "paymentFlowOnly", "sidebarOnly"],
+        defaultValue: "full",
+    },
+    cartIconColor: {
+        title: "Cart Icon Color",
+        type: ControlType.Color,
+        defaultValue: "#333333",
+        hidden(props) {
+            return props.displayMode !== "cartIconOnly"
+        },
+    },
+    initialStep: {
+        title: "Initial Step (PaymentFlow)",
+        type: ControlType.Number,
+        defaultValue: 1, // Or undefined if you prefer no default to be sent
+        min: 1,
+        step: 1,
+        hidden(props) {
+            return props.displayMode === "cartIconOnly"
+        },
+    },
 })
 
 // Props por defecto en canvas
@@ -120,4 +290,7 @@ MercadoPagoEmbed.defaultProps = {
     hideTitle: false,
     width: 300,
     height: 500,
+    displayMode: "full" as const,
+    initialStep: 1,
+    cartIconColor: "#333333",
 }
