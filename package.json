@@ -30,8 +30,8 @@
   "license": "ISC",
   "dependencies": {
     "@mercadopago/sdk-react": "^1.0.3",
-    "@supabase/auth-js": "^2.70.0-rc.7",
-    "@supabase/supabase-js": "^2.49.8",
+    "@supabase/auth-js": "^2.70.0",
+    "@supabase/supabase-js": "^2.50.0",
     "@vercel/analytics": "^1.5.0",
     "@vercel/kv": "^3.0.0",
     "classnames": "^2.5.1",
