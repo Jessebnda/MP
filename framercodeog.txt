@@ -1,0 +1,228 @@
+// src/components/MercadoPagoEmbed.tsx
+import * as React from "react"
+import { addPropertyControls, ControlType } from "framer"
+
+interface MercadoPagoEmbedProps {
+    productId: string
+    publicKey: string
+    successUrl: string
+    pendingUrl: string
+    failureUrl: string
+    hideTitle: boolean
+    buttonColor: string // Color del botón de pago de MercadoPago
+    circleColor: string // Color del círculo de MercadoPago
+    primaryButtonColor: string // NUEVO: Color de los botones primarios (continuar, confirmar)
+    secondaryButtonColor: string // NUEVO: Color de los botones secundarios (volver, cancelar)
+    width: number | string
+    height: number | string
+    onRedirect?: (event: any) => void
+}
+
+export function MercadoPagoEmbed(
+    props: MercadoPagoEmbedProps
+): React.ReactElement {
+    const {
+        productId,
+        publicKey,
+        successUrl,
+        pendingUrl,
+        failureUrl,
+        hideTitle,
+        buttonColor,
+        circleColor,
+        primaryButtonColor, // Nuevo prop
+        secondaryButtonColor, // Nuevo prop
+        width,
+        height,
+        onRedirect,
+    } = props
+
+    React.useEffect(() => {
+        // Escuchar mensajes del iframe
+        const handleMessage = (event: MessageEvent) => {
+            // Verificar origen para seguridad
+            if (!event.origin.includes("mercadopagoiframe.vercel.app")) {
+                return
+            }
+
+            if (event.data.type === "MP_PAYMENT_SUCCESS") {
+                console.log(
+                    "Pago exitoso, redirigiendo a:",
+                    event.data.redirectUrl
+                )
+                // Llamar al callback de redirección si existe
+                if (onRedirect) {
+                    onRedirect({
+                        status: "success",
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData,
+                    })
+                }
+
+                // Redireccionar la página completa
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl
+                }
+            } else if (event.data.type === "MP_PAYMENT_PENDING") {
+                console.log(
+                    "Pago pendiente, redirigiendo a:",
+                    event.data.redirectUrl
+                )
+                if (onRedirect) {
+                    onRedirect({
+                        status: "pending",
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData,
+                    })
+                }
+
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl
+                }
+            } else if (event.data.type === "MP_PAYMENT_FAILED") {
+                console.log(
+                    "Pago fallido, redirigiendo a:",
+                    event.data.redirectUrl
+                )
+                if (onRedirect) {
+                    onRedirect({
+                        status: "failed",
+                        redirectUrl: event.data.redirectUrl,
+                        data: event.data.paymentData,
+                    })
+                }
+
+                if (event.data.redirectUrl) {
+                    window.top.location.href = event.data.redirectUrl
+                }
+            }
+        }
+
+        window.addEventListener("message", handleMessage)
+
+        return () => {
+            window.removeEventListener("message", handleMessage)
+        }
+    }, [onRedirect, successUrl, pendingUrl, failureUrl])
+
+    const baseUrl = "https://mercadopagoiframe.vercel.app/"
+    const queryParams = new URLSearchParams({
+        initialProductId: productId || "",
+        publicKey: publicKey || "",
+        successUrl: successUrl || "",
+        pendingUrl: pendingUrl || "",
+        failureUrl: failureUrl || "",
+        hideTitle: hideTitle ? "true" : "false",
+        buttonColor: buttonColor || "#F26F32",
+        circleColor: circleColor || "#F26F32", // Cambiado de #009EE3 a #F26F32
+        primaryButtonColor: primaryButtonColor || "#F26F32", // NUEVO
+        secondaryButtonColor: secondaryButtonColor || "#E5E5E5", // NUEVO
+        isInIframe: "true",
+    }).toString()
+
+    const iframeSrc = `${baseUrl}?${queryParams}`
+
+    return (
+        <iframe
+            src={iframeSrc}
+            width={width}
+            height={height}
+            style={{
+                border: "none",
+                borderRadius: "8px",
+                overflow: "hidden",
+            }}
+            allow="payment"
+        />
+    )
+}
+
+// Controles en el panel de Framer
+addPropertyControls(MercadoPagoEmbed, {
+    productId: {
+        title: "Product ID",
+        type: ControlType.String,
+        defaultValue: "2",
+    },
+    publicKey: {
+        title: "MP Public Key",
+        type: ControlType.String,
+        defaultValue: "",
+    },
+    successUrl: {
+        title: "Success URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/confirmacion-de-compra",
+    },
+    pendingUrl: {
+        title: "Pending URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/proceso-de-compra",
+    },
+    failureUrl: {
+        title: "Failure URL",
+        type: ControlType.String,
+        defaultValue: "https://alturadivina.com/error-de-compra",
+    },
+    hideTitle: {
+        title: "Hide Title",
+        type: ControlType.Boolean,
+        defaultValue: false,
+    },
+    buttonColor: {
+        title: "MP Button Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",
+    },
+    circleColor: {
+        title: "MP Circle Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32", // Cambiado de #009EE3 a #F26F32
+    },
+    primaryButtonColor: {
+        title: "Primary Button Color",
+        type: ControlType.Color,
+        defaultValue: "#F26F32",
+    },
+    secondaryButtonColor: {
+        title: "Secondary Button Color",
+        type: ControlType.Color,
+        defaultValue: "#E5E5E5",
+    },
+    width: {
+        title: "Width",
+        type: ControlType.Number,
+        defaultValue: 400,
+        min: 100,
+        max: 2000,
+        step: 10,
+    },
+    height: {
+        title: "Height",
+        type: ControlType.Number,
+        defaultValue: 600,
+        min: 100,
+        max: 3000,
+        step: 10,
+    },
+    onRedirect: {
+        title: "On Redirect",
+        type: ControlType.EventHandler,
+    },
+})
+
+// Props por defecto en canvas
+MercadoPagoEmbed.defaultProps = {
+    productId: "2",
+    publicKey: "",
+    successUrl: "https://alturadivina.com/confirmacion-de-compra",
+    pendingUrl: "https://alturadivina.com/proceso-de-compra",
+    failureUrl: "https://alturadivina.com/error-de-compra",
+    hideTitle: false,
+    buttonColor: "#F26F32",
+    circleColor: "#F26F32", // Cambiado de #009EE3 a #F26F32
+    primaryButtonColor: "#F26F32",
+    secondaryButtonColor: "#E5E5E5",
+    width: 300,
+    height: 500,
+}
